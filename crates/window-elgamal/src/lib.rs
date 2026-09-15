@@ -23,6 +23,8 @@ pub mod decrypt;
 pub mod encrypt;
 #[cfg(feature = "std")]
 pub mod keys;
+#[cfg(feature = "std")]
+pub mod note;
 
 pub use ciphertext::{Accumulator, Ciphertext, GroupedCiphertext2, GroupedCiphertext3};
 pub use point::{CurveError, Point, Scalar32, BASEPOINT};

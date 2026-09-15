@@ -11,7 +11,7 @@ default = ["std"]
 # `std` adds key derivation, encryption, decryption and BSGS (solana-zk-sdk + dalek). The core —
 # point arithmetic, ciphertext layouts, accumulation, residuals, the solvency delta — is std-free
 # and is what the on-chain programs compile.
-std = ["dep:solana-zk-sdk", "dep:curve25519-dalek", "dep:rand", "dep:sha2", "dep:solana-seed-derivable"]
+std = ["dep:solana-zk-sdk", "dep:curve25519-dalek", "dep:rand", "dep:sha2"]
 rayon = ["std", "dep:rayon"]
 
 [dependencies]
@@ -22,7 +22,6 @@ curve25519-dalek = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 rayon = { version = "1.10", optional = true }
-solana-seed-derivable = { version = "3", optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

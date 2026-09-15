@@ -1,8 +1,9 @@
 //! Proof of correct decryption of a per-tick aggregate.
 
+use solana_zk_elgamal_proof_interface::proof_data::ZeroCiphertextProofData;
 use solana_zk_sdk::{
     encryption::elgamal::ElGamalCiphertext,
-    zk_elgamal_proof_program::proof_data::ZeroCiphertextProofData,
+    zk_elgamal_proof_program::build_zero_ciphertext_proof_data,
 };
 use window_elgamal::{keys::Keypair, Ciphertext};
 
@@ -17,5 +18,5 @@ pub fn build(
     let residual = accumulator.residual(claimed_sum)?;
     let sdk = ElGamalCiphertext::from_bytes(&residual.to_bytes())
         .ok_or_else(|| ProofError::Generation("residual bytes".into()))?;
-    Ok(ZeroCiphertextProofData::new(&auditor.0, &sdk)?)
+    Ok(build_zero_ciphertext_proof_data(&auditor.0, &sdk)?)
 }

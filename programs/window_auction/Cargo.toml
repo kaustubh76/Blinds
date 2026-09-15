@@ -29,7 +29,7 @@ window_registry = { path = "../window_registry", features = ["no-entrypoint"] }
 # Curve ops via syscalls on SBF; the same function bodies the host uses.
 window-elgamal.workspace = true
 window-clearing.workspace = true
-solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
 spl-token-confidential-transfer-proof-extraction.workspace = true
 solana-instructions-sysvar.workspace = true
 

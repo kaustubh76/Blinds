@@ -1,14 +1,47 @@
 {
-  "_comment": "Written by scripts/setup_localnet.ts; program ids are fixed at Phase 0 (deployments/program-keypairs).",
   "cluster": "localnet",
+  "profile": "integration",
   "programs": {
-    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
     "window_auction": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
+    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr",
     "window_oracle": "78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV",
-    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3",
-    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr"
+    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
+    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3"
   },
-  "mints": {},
-  "auditor_elgamal_pubkey": null,
-  "pyth_feed_id": null
+  "mock_mint": "h81y8yRbePhGKdCquZZhuhYr8XEVgToRkAjGCm9kztY",
+  "cstock_mint": "3ML7WhvfAotKSfbpHpc1sNmNejZC66iC24hFJdfYYvdH",
+  "decimals": 3,
+  "escrow_account": "4bpnreptF6tG74TY3wGYHqurcdvqNoJrWKkituoGwNd7",
+  "feed_id_hex": "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+  "auditor_elgamal_pubkey_hex": "e43662e0937c9de3ae783b774c7160920ad3b1ab766a61b30df4e4ebe0bea70a",
+  "agents": [
+    {
+      "index": 0,
+      "wallet": "Dt9QKR34p3ruaaG6zNHkTvEDmsMDXs3oxAdbHLoaf5Q",
+      "mock_account": "2zNaY3K2F78ERZXcnyYQohSnnVdowfBWrFKTN4z1NnE3",
+      "cstock_account": "C6tAc9iUKiWmJzM3UJy4aLURyatrzQBsJfffWuTcSDFN",
+      "role": "lender"
+    },
+    {
+      "index": 1,
+      "wallet": "3hBNpbpceSufgwzhmqtGVWyAiQDwVkgT6N6tLwnH6KvQ",
+      "mock_account": "6BhNVFYQELXMbf9NaJW7nts8DBDwwc3gqny7qH12Cvrd",
+      "cstock_account": "J6HjMCaxpQE7Nwsk8fyvvmB3n4d3LEQRSMjiJ1Kjychk",
+      "role": "borrower"
+    },
+    {
+      "index": 2,
+      "wallet": "9EZ3r23CqXboSLDKaVjoqMvCSWQWT8tbzsAi24UrCjLW",
+      "mock_account": "HcK9Dpija5yvfbCynDHRFM2bYJ3Tm8eyPporNAqiBmWQ",
+      "cstock_account": "HaSHEXmw1mjvFFf3Qf17vwwMHEWpgwfBL9vHBAqqoQKi",
+      "role": "lender"
+    },
+    {
+      "index": 3,
+      "wallet": "3YqysNXwf7mBdZpkexTTezdr64WjDu2fJGoTGuog7CcP",
+      "mock_account": "8aMH6rGSyjgiSowtqCroNFxd2tjj12mVsoxABdKeWkQ",
+      "cstock_account": "FCcQiw1D8GvZ3kqBt5FRNfHoVrd3HLxuR7JFvDPCVz6F",
+      "role": "borrower"
+    }
+  ]
 }

@@ -95,7 +95,7 @@ fn borrow_lock_fund_repay_release_unwrap() {
 
     // Cannot seize before maturity.
     let anyone = Keypair::new();
-    h.svm.airdrop(&anyone.pubkey(), 1_000_000_000).unwrap();
+    h.svm.airdrop(&window_testkit::addr(&anyone.pubkey()), 1_000_000_000).unwrap();
     assert!(h.seize(setup, &loan, &anyone).unwrap_err().has_code("NotMatured"));
 
     // Repay; operator returns the collateral (escrow applies its pending balance first).
@@ -150,7 +150,7 @@ fn default_is_seized_permissionlessly_with_a_fresh_price_and_forwarded_to_the_le
     let deadline = h.loan(&loan).deadline_slot;
 
     let anyone = Keypair::new();
-    h.svm.airdrop(&anyone.pubkey(), 1_000_000_000).unwrap();
+    h.svm.airdrop(&window_testkit::addr(&anyone.pubkey()), 1_000_000_000).unwrap();
     // Past the deadline but with a stale price: inaction, never wrong action.
     h.svm.warp_to_slot(deadline + 1 + h.profile.market.max_price_age_slots);
     assert!(h.seize(setup, &loan, &anyone).unwrap_err().has_code("PriceStale"));

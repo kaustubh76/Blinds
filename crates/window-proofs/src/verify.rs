@@ -1,10 +1,11 @@
 //! Re-verification of a print or a loan from raw account data — what the indexer's
 //! `/verify/:epoch`, the SDK badge (via wasm) and the attack tests use.
 
-use solana_zk_sdk::zk_elgamal_proof_program::proof_data::{
+use solana_zk_elgamal_proof_interface::proof_data::{
     BatchedRangeProofU64Data, CiphertextCommitmentEqualityProofData, ZeroCiphertextProofData,
     ZkProofData,
 };
+use solana_zk_sdk::zk_elgamal_proof_program::VerifyZkProof;
 use window_clearing::{clear, DepthCurve, TICKS};
 use window_elgamal::{solvency_delta, Ciphertext, GroupedCiphertext2, Point};
 

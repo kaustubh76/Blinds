@@ -56,9 +56,8 @@ pub(crate) fn handler(ctx: Context<Initialize>) -> Result<()> {
         let ct = state
             .get_extension::<ConfidentialTransferMint>()
             .map_err(|_| error!(WrapError::BadMintConfig))?;
-        let auditor: Option<
-            spl_token_2022_interface::solana_zk_sdk::encryption::pod::elgamal::PodElGamalPubkey,
-        > = ct.auditor_elgamal_pubkey.into();
+        let auditor: Option<solana_zk_sdk_pod::encryption::elgamal::PodElGamalPubkey> =
+            ct.auditor_elgamal_pubkey.into();
         require!(auditor.is_some(), WrapError::BadMintConfig);
     }
     // mock-xStock: must carry the rebasing multiplier extension the credit program reads.

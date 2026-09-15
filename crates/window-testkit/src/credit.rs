@@ -6,7 +6,7 @@ use solana_instruction::Instruction;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use solana_zk_sdk::zk_elgamal_proof_program::proof_data::{
+use solana_zk_elgamal_proof_interface::proof_data::{
     BatchedRangeProofContext, CiphertextCommitmentEqualityProofContext,
     GroupedCiphertext2HandlesValidityProofContext,
 };
@@ -58,7 +58,7 @@ impl Harness {
             let path = crate::deploy_dir().join(format!("{name}.so"));
             let bytes = std::fs::read(&path)
                 .unwrap_or_else(|e| panic!("{}: {e} — run `anchor build`", path.display()));
-            self.svm.add_program(id, &bytes).expect("add_program");
+            self.svm.add_program(crate::addr(&id), &bytes).expect("add_program");
         }
         let decimals = 3u8; // milli-shares
         let mock_mint = self.create_mock_xstock_mint(decimals, 1.0);
@@ -87,7 +87,7 @@ impl Harness {
         self.send(&admin, &[ix_init], &[]).expect("wrap initialize");
 
         let operator = Keypair::new();
-        self.svm.airdrop(&operator.pubkey(), 100_000_000_000).unwrap();
+        self.svm.airdrop(&crate::addr(&operator.pubkey()), 100_000_000_000).unwrap();
         let escrow = self.create_confidential_account(&cstock_mint, &operator);
         let feed_id = [7u8; 32];
         let credit_config = pda::credit_config();
@@ -377,7 +377,7 @@ impl Harness {
         shares_milli: u64,
     ) -> Result<TxStats, TxError> {
         let wallet = self.members[borrower].wallet.insecure_clone();
-        let (transfer, ctxs) = self.build_confidential_transfer(
+        let (transfer, close) = self.build_confidential_transfer(
             &mut tokens.cstock,
             &wallet,
             &setup.cstock_mint,
@@ -397,7 +397,7 @@ impl Harness {
             data: window_credit::instruction::DepositCollateral {}.data(),
         };
         let stats = self.send(&wallet, &[transfer, ix_dep], &[])?;
-        self.close_contexts(&wallet, &ctxs);
+        self.close_contexts(&wallet, &close);
         Ok(stats)
     }
 
@@ -489,7 +489,7 @@ impl Harness {
         shares_milli: u64,
     ) -> Result<TxStats, TxError> {
         let op = setup.operator.insecure_clone();
-        let (transfer, ctxs) = self.build_confidential_transfer(
+        let (transfer, close) = self.build_confidential_transfer(
             &mut setup.escrow,
             &op,
             &setup.cstock_mint,
@@ -509,7 +509,7 @@ impl Harness {
             data: window_credit::instruction::ReleaseCollateral {}.data(),
         };
         let stats = self.send(&op, &[transfer, ix_rel], &[])?;
-        self.close_contexts(&op, &ctxs);
+        self.close_contexts(&op, &close);
         Ok(stats)
     }
 }

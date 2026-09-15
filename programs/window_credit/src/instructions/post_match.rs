@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use bytemuck::bytes_of;
-use solana_zk_sdk::zk_elgamal_proof_program::proof_data::{
+use solana_zk_elgamal_proof_interface::proof_data::{
     GroupedCiphertext2HandlesValidityProofContext, GroupedCiphertext2HandlesValidityProofData,
 };
 use spl_token_confidential_transfer_proof_extraction::instruction::verify_and_extract_context;
@@ -50,7 +50,8 @@ pub struct PostMatch<'info> {
         bump
     )]
     pub loan: Box<Account<'info, Loan>>,
-    /// CHECK: validity context for a `Partial` fill; owner/type checked in the handler.
+    /// CHECK: validity context for a `Partial` fill; owner/type/authority checked in the handler, closed by CPI.
+    #[account(mut)]
     pub partial_validity_ctx: Option<UncheckedAccount<'info>>,
     pub system_program: Program<'info, System>,
 }
@@ -72,9 +73,9 @@ pub(crate) fn handler(ctx: Context<PostMatch>, epoch: u64, k: u8, kind: MatchKin
         CreditError::TickNotFilled
     );
 
-    let size_ct = match kind {
-        MatchKind::Full => b.ciphertext,
-        MatchKind::Partial { size_ct } => {
+    let (size_ct, opening_note) = match kind {
+        MatchKind::Full => (b.ciphertext, [0u8; 32]),
+        MatchKind::Partial { size_ct, opening_note } => {
             let ctx_acc =
                 ctx.accounts.partial_validity_ctx.as_ref().ok_or(CreditError::BadPartialProof)?;
             zk::require_context_authority(&ctx_acc.to_account_info(), &ctx.accounts.admin.key())?;
@@ -96,7 +97,7 @@ pub(crate) fn handler(ctx: Context<PostMatch>, epoch: u64, k: u8, kind: MatchKin
             );
             require!(bytes_of(&v.grouped_ciphertext) == size_ct, CreditError::BadPartialProof);
             zk::close_context(&ctx_acc.to_account_info(), &ctx.accounts.admin.to_account_info())?;
-            size_ct
+            (size_ct, opening_note)
         }
     };
 
@@ -112,6 +113,7 @@ pub(crate) fn handler(ctx: Context<PostMatch>, epoch: u64, k: u8, kind: MatchKin
     // The lender's fill ratio: asks strictly below the marginal tick fill fully.
     (loan.fill_num, loan.fill_den) = if l.tick < marginal_tick { (1, 1) } else { ratio };
     loan.size_ct = size_ct;
+    loan.opening_note = opening_note;
     loan.bump = ctx.bumps.loan;
     emit!(MatchPosted {
         loan: loan.key(),

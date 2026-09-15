@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use solana_zk_sdk::zk_elgamal_proof_program::{
+use solana_zk_elgamal_proof_interface::{
     instruction::{close_context_state, ContextStateInfo},
     state::ProofContextStateMeta,
 };
@@ -7,7 +7,7 @@ use solana_zk_sdk::zk_elgamal_proof_program::{
 use crate::errors::CreditError;
 
 pub fn zk_program_id() -> Pubkey {
-    solana_zk_sdk::zk_elgamal_proof_program::id()
+    solana_zk_elgamal_proof_interface::id()
 }
 
 pub fn require_context_authority(ctx: &AccountInfo, authority: &Pubkey) -> Result<()> {

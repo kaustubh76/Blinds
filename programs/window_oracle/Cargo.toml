@@ -28,7 +28,7 @@ bytemuck.workspace = true
 window_auction = { path = "../window_auction", features = ["cpi"] }
 window-elgamal.workspace = true
 window-clearing.workspace = true
-solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
 spl-token-confidential-transfer-proof-extraction.workspace = true
 solana-instructions-sysvar.workspace = true
 

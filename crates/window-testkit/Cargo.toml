@@ -11,14 +11,18 @@ anchor-lang.workspace = true
 litesvm.workspace = true
 solana-keypair.workspace = true
 solana-signer.workspace = true
-solana-transaction.workspace = true
-solana-message.workspace = true
+# LiteSVM 0.16 speaks the 4.x transaction/message types and `Address` (instructions stay 3.4).
+solana-transaction = { version = "4.1", features = ["serde"] }
+solana-message = "4.2"
+solana-address = "2.6"
 solana-instruction.workspace = true
 solana-pubkey.workspace = true
 solana-system-interface.workspace = true
 solana-clock.workspace = true
 solana-instructions-sysvar.workspace = true
 solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
+window-client.workspace = true
 spl-token-2022-interface.workspace = true
 spl-token-confidential-transfer-proof-extraction.workspace = true
 spl-token-confidential-transfer-proof-generation.workspace = true

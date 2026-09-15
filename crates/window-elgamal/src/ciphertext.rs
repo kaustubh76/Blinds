@@ -126,8 +126,8 @@ impl GroupedCiphertext2 {
     /// From raw 96 bytes; layout only.
     pub fn from_bytes(b: &[u8; 96]) -> Self {
         let mut p = [[0u8; 32]; 3];
-        for (i, chunk) in b.chunks_exact(32).enumerate() {
-            p[i].copy_from_slice(chunk);
+        for (i, chunk) in b.as_chunks::<32>().0.iter().enumerate() {
+            p[i] = *chunk;
         }
         GroupedCiphertext2 { commitment: Point(p[0]), handles: [Point(p[1]), Point(p[2])] }
     }

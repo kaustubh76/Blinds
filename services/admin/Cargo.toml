@@ -1,0 +1,44 @@
+[package]
+name = "window-admin"
+version = "0.1.0"
+description = "THE WINDOW administrator + keeper + operator + price poster (one disclosed key), and the simulated agents"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "window-admin"
+path = "src/main.rs"
+
+[dependencies]
+window-client.workspace = true
+window-config.workspace = true
+window-clearing = { workspace = true, features = ["std"] }
+window-elgamal = { workspace = true, features = ["std"] }
+window-proofs = { workspace = true, features = ["builders", "verify"] }
+anchor-lang.workspace = true
+solana-rpc-client = "3.1"
+solana-rpc-client-api = "3.1"
+solana-account-decoder-client-types = "3.1"
+solana-commitment-config = "3"
+solana-keypair.workspace = true
+solana-signer.workspace = true
+solana-transaction.workspace = true
+solana-message.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-system-interface.workspace = true
+solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
+spl-token-2022-interface.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+rand.workspace = true
+thiserror.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+anyhow = "1"
+ureq = { version = "2", features = ["json"] }
+tiny_http = "0.12"

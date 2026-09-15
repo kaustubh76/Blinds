@@ -107,7 +107,7 @@ fn no_secret_quantity_appears_in_transactions_logs_or_accounts() {
     .collect();
     let mut program_accounts = 0;
     for key in h.touched.iter() {
-        let Some(acc) = h.svm.get_account(key) else { continue };
+        let Some(acc) = h.svm.get_account(&window_testkit::addr(key)) else { continue };
         if !programs.contains(&acc.owner) {
             continue;
         }

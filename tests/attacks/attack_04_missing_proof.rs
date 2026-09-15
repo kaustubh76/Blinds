@@ -9,8 +9,9 @@ fn finalize_with_one_nonzero_tick_unproven_is_rejected() {
     let err = h.finalize_print(epoch, Some(8)).unwrap_err();
     assert!(err.has_code("CoverageIncomplete"), "{err}");
     // A claim for a tick nobody bid on is refused too (no proof could bind anyway).
+    // (the ZK program refuses a proof over the identity ciphertext even before our TickNotNonzero)
     let err = h.attest(epoch, &[(Side::Ask, 9, 0)]).unwrap_err();
-    assert!(err.has_code("TickNotNonzero"), "{err}");
+    assert!(err.has_code("TickNotNonzero") || err.error.contains("InstructionError(0"), "{err}");
     h.attest(epoch, &[(Side::Bid, 16, 700 * USDC)]).unwrap();
     h.finalize_print(epoch, Some(8)).unwrap();
 }

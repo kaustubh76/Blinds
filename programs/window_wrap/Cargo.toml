@@ -25,6 +25,7 @@ custom-panic = []
 anchor-lang.workspace = true
 anchor-spl.workspace = true
 spl-token-2022-interface.workspace = true
+solana-zk-sdk-pod.workspace = true
 window_registry = { path = "../window_registry", features = ["no-entrypoint"] }
 
 [lints.rust]

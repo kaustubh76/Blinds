@@ -1,0 +1,31 @@
+[package]
+name = "window-client"
+version = "0.1.0"
+description = "Rust client for THE WINDOW programs: PDAs, instruction builders, account decoding — shared by the admin service, agents and the test harness"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anchor-lang.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-system-interface.workspace = true
+solana-instructions-sysvar.workspace = true
+bytemuck.workspace = true
+window-clearing = { workspace = true, features = ["std"] }
+window-config.workspace = true
+window-proofs = { workspace = true, features = ["builders"] }
+spl-token-2022-interface.workspace = true
+spl-token-confidential-transfer-proof-extraction.workspace = true
+spl-token-confidential-transfer-proof-generation.workspace = true
+solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
+solana-zk-sdk-pod.workspace = true
+solana-keypair.workspace = true
+solana-signer.workspace = true
+window_registry = { path = "../../programs/window_registry", features = ["no-entrypoint"] }
+window_auction = { path = "../../programs/window_auction", features = ["no-entrypoint"] }
+window_oracle = { path = "../../programs/window_oracle", features = ["no-entrypoint"] }
+window_wrap = { path = "../../programs/window_wrap", features = ["no-entrypoint"] }
+window_credit = { path = "../../programs/window_credit", features = ["no-entrypoint"] }

@@ -34,8 +34,10 @@ pub enum MatchKind {
     /// The borrower's whole bid: `size_ct` is copied from the `Bid` account (program-enforced).
     Full,
     /// A bid split across lenders: a fresh ciphertext, bound to the borrower and auditor keys by
-    /// the validity proof in `partial_validity_ctx`. Correctness of the split is attested.
-    Partial { size_ct: [u8; 96] },
+    /// the validity proof in `partial_validity_ctx`, plus the Pedersen opening sealed to the
+    /// borrower (ECDH one-time pad, see `window_elgamal::note`) so it can prove solvency for it.
+    /// Correctness of the split is attested.
+    Partial { size_ct: [u8; 96], opening_note: [u8; 32] },
 }
 
 #[account]
@@ -95,6 +97,8 @@ pub struct Loan {
     pub collateral_ct: [u8; 96],
     /// Pedersen commitment to Δ recorded at lock.
     pub delta_commitment: [u8; 32],
+    /// For partial fills: the size ciphertext's opening, sealed to the borrower. Zero for full fills.
+    pub opening_note: [u8; 32],
     pub k_c: u64,
     pub k_l: u64,
     pub price_at_lock: u64,

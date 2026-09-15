@@ -1,12 +1,15 @@
 //! Bid proofs: validity under (member, auditor) and range on `(size − s_min)`.
 
+use solana_zk_elgamal_proof_interface::proof_data::{
+    BatchedRangeProofU64Data, GroupedCiphertext2HandlesValidityProofData,
+};
 use solana_zk_sdk::{
     encryption::{
         grouped_elgamal::GroupedElGamalCiphertext,
         pedersen::{Pedersen, PedersenCommitment},
     },
-    zk_elgamal_proof_program::proof_data::{
-        BatchedRangeProofU64Data, GroupedCiphertext2HandlesValidityProofData,
+    zk_elgamal_proof_program::{
+        build_batched_range_proof_u64_data, build_grouped_ciphertext_2_handles_validity_proof_data,
     },
 };
 use window_elgamal::{
@@ -45,7 +48,7 @@ pub fn build(
     let sdk_ct = GroupedElGamalCiphertext::<2>::from_bytes(&ciphertext.to_bytes())
         .ok_or_else(|| ProofError::Generation("grouped ciphertext bytes".into()))?;
     let auditor = pubkey_from_bytes(auditor_pk)?;
-    let validity = GroupedCiphertext2HandlesValidityProofData::new(
+    let validity = build_grouped_ciphertext_2_handles_validity_proof_data(
         member.pubkey(),
         &auditor,
         &sdk_ct,
@@ -55,7 +58,7 @@ pub fn build(
     // C − s_min·G commits to (size − s_min) under the same opening.
     let shifted_commitment: PedersenCommitment = Pedersen::with(shifted, &opening.0);
     let (pad, pad_open) = Pedersen::new(0u64);
-    let range = BatchedRangeProofU64Data::new(
+    let range = build_batched_range_proof_u64_data(
         vec![&shifted_commitment, &pad],
         vec![shifted, 0],
         vec![BID_BITS as usize, 64 - BID_BITS as usize],

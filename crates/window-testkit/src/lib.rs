@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use litesvm::LiteSVM;
+use solana_address::Address;
 use solana_instruction::Instruction;
 use solana_keypair::Keypair;
 use solana_message::Message;
@@ -23,6 +24,11 @@ pub mod print;
 pub mod tokens;
 
 pub use print::PrintOutcome;
+
+/// LiteSVM addresses accounts with `solana_address::Address`; the programs use `solana_pubkey`.
+pub fn addr(p: &Pubkey) -> Address {
+    Address::new_from_array(p.to_bytes())
+}
 
 /// Stats of one confirmed transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,7 +115,7 @@ impl Harness {
             let path = deploy_dir().join(format!("{name}.so"));
             let bytes = std::fs::read(&path)
                 .unwrap_or_else(|e| panic!("{}: {e} — run `anchor build`", path.display()));
-            svm.add_program(id, &bytes).expect("add_program");
+            svm.add_program(addr(&id), &bytes).expect("add_program");
         }
         // The deployed Token-2022 (with zk-ops) replaces LiteSVM's bundled build, which lacks
         // confidential-transfer support. See scripts/fetch_external_programs.sh.
@@ -117,9 +123,9 @@ impl Harness {
         let t22_bytes = std::fs::read(&t22).unwrap_or_else(|e| {
             panic!("{}: {e} — run ./scripts/fetch_external_programs.sh", t22.display())
         });
-        svm.add_program(spl_token_2022_interface::id(), &t22_bytes).expect("token-2022");
+        svm.add_program(addr(&spl_token_2022_interface::id()), &t22_bytes).expect("token-2022");
         let admin = Keypair::new();
-        svm.airdrop(&admin.pubkey(), 1_000_000_000_000).unwrap();
+        svm.airdrop(&addr(&admin.pubkey()), 1_000_000_000_000).unwrap();
         let auditor = keys::Keypair::random();
         let mut h = Harness {
             svm,
@@ -206,7 +212,7 @@ impl Harness {
         // A fresh blockhash per transaction: LiteSVM (like a validator) rejects a byte-identical
         // resend as "AlreadyProcessed", and attack tests legitimately retry identical calls.
         self.svm.expire_blockhash();
-        let msg = Message::new(ixs, Some(&payer.pubkey()));
+        let msg = Message::new(ixs, Some(&addr(&payer.pubkey())));
         let mut signers: Vec<&Keypair> = vec![payer];
         signers.extend_from_slice(extra);
         for ix in ixs {
@@ -243,7 +249,7 @@ impl Harness {
     /// Registers a new funded member with a fresh ElGamal key; returns its index.
     pub fn add_member(&mut self) -> usize {
         let wallet = Keypair::new();
-        self.svm.airdrop(&wallet.pubkey(), 100_000_000_000).unwrap();
+        self.svm.airdrop(&addr(&wallet.pubkey()), 100_000_000_000).unwrap();
         let elgamal = keys::Keypair::random();
         let ix = Instruction {
             program_id: self.registry,
@@ -277,19 +283,19 @@ impl Harness {
 
     /// Borsh-decodes an Anchor account (skipping the discriminator).
     pub fn account<T: anchor_lang::AccountDeserialize>(&self, key: &Pubkey) -> T {
-        let data = self.svm.get_account(key).expect("account exists").data;
+        let data = self.svm.get_account(&addr(key)).expect("account exists").data;
         T::try_deserialize(&mut data.as_slice()).expect("deserialize")
     }
 
     /// Zero-copy read of an `Epoch`.
     pub fn epoch(&self, index: u64) -> window_auction::state::Epoch {
-        let data = self.svm.get_account(&pda::epoch(index)).expect("epoch exists").data;
+        let data = self.svm.get_account(&addr(&pda::epoch(index))).expect("epoch exists").data;
         *bytemuck::from_bytes::<window_auction::state::Epoch>(&data[8..])
     }
 
     /// Zero-copy read of a `Print`.
     pub fn print(&self, index: u64) -> Option<window_oracle::state::Print> {
-        let data = self.svm.get_account(&pda::print(index))?.data;
+        let data = self.svm.get_account(&addr(&pda::print(index)))?.data;
         if data.len() < window_oracle::state::Print::SPACE {
             return None;
         }
@@ -304,7 +310,7 @@ impl Harness {
         tick: u8,
     ) -> Option<window_auction::state::Bid> {
         let key = pda::bid(epoch, member, side as u8, tick);
-        self.svm.get_account(&key).map(|a| {
+        self.svm.get_account(&addr(&key)).map(|a| {
             window_auction::state::Bid::try_deserialize(&mut a.data.as_slice()).expect("bid")
         })
     }
@@ -388,10 +394,10 @@ impl Harness {
         m: usize,
         side: Side,
         tick: u8,
-        validity: &solana_zk_sdk::zk_elgamal_proof_program::proof_data::GroupedCiphertext2HandlesValidityProofData,
-        range: &solana_zk_sdk::zk_elgamal_proof_program::proof_data::BatchedRangeProofU64Data,
+        validity: &solana_zk_elgamal_proof_interface::proof_data::GroupedCiphertext2HandlesValidityProofData,
+        range: &solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofU64Data,
     ) -> Result<[TxStats; 3], TxError> {
-        use solana_zk_sdk::zk_elgamal_proof_program::proof_data::BatchedRangeProofContext;
+        use solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofContext;
         let wallet = self.members[m].wallet.insecure_clone();
         let member = wallet.pubkey();
         let ctx = Keypair::new();

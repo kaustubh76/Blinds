@@ -1,4 +1,5 @@
-use solana_zk_sdk::zk_elgamal_proof_program::proof_data::ZkProofData;
+use solana_zk_elgamal_proof_interface::proof_data::ZkProofData;
+use solana_zk_sdk::zk_elgamal_proof_program::VerifyZkProof;
 use window_clearing::TICKS;
 use window_elgamal::{decrypt, keys::Keypair, shifted_commitment, Ciphertext, Point};
 use window_proofs::{
@@ -57,7 +58,8 @@ fn pocd_binds_to_accumulator_and_sum() {
         bytemuck::bytes_of(&good.context_data().ciphertext),
         acc.residual(5_000_000).unwrap().to_bytes()
     );
-    assert!(pocd::build(&auditor, &acc, 5_000_001).unwrap().verify_proof().is_err());
+    // zk-sdk >= 5 refuses to build a proof for a false statement.
+    assert!(pocd::build(&auditor, &acc, 5_000_001).is_err(), "no PoCD exists for a false sum");
 }
 
 #[test]

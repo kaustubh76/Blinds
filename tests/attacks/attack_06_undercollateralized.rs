@@ -1,5 +1,5 @@
 use solana_zk_sdk::{
-    encryption::pedersen::Pedersen, zk_elgamal_proof_program::proof_data::BatchedRangeProofU64Data,
+    encryption::pedersen::Pedersen, zk_elgamal_proof_program::build_batched_range_proof_u64_data,
 };
 use window_credit::state::LoanStatus;
 use window_elgamal::{encrypt, GroupedCiphertext2};
@@ -77,7 +77,8 @@ fn range_proof_over_another_commitment_is_rejected() {
         .unwrap();
     // Valid equality proof, but the 64-bit range proof covers some other commitment.
     let (other, o) = Pedersen::new(1u64);
-    let range = BatchedRangeProofU64Data::new(vec![&other], vec![1], vec![64], vec![&o]).unwrap();
+    let range =
+        build_batched_range_proof_u64_data(vec![&other], vec![1], vec![64], vec![&o]).unwrap();
     let pair =
         SolvencyProofs { delta_commitment: good.delta_commitment, equality: good.equality, range };
     let err = f.h.lock_collateral(&f.setup, f.borrower, &f.loan, &claim, &pair).unwrap_err();

@@ -7,4 +7,5 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p deployments/external
 solana program dump TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb deployments/external/spl_token_2022.so -u "${1:-devnet}"
+solana program dump ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL deployments/external/spl_associated_token_account.so -u "${1:-devnet}"
 echo "fetched: $(shasum -a 256 deployments/external/spl_token_2022.so | cut -c1-16)…  (verified: $(cut -c1-16 deployments/external/spl_token_2022.sha256))"

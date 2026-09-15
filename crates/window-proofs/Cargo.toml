@@ -9,13 +9,15 @@ license.workspace = true
 [features]
 default = ["builders"]
 # `scalar` alone (default-features = false) is what window_credit compiles: pure integer math.
-builders = ["dep:solana-zk-sdk", "dep:curve25519-dalek", "dep:solana-instruction", "dep:solana-pubkey", "dep:solana-sdk-ids", "dep:solana-system-interface", "dep:bytemuck", "window-elgamal/std"]
+builders = ["dep:solana-zk-sdk", "dep:solana-zk-elgamal-proof-interface", "dep:solana-zk-sdk-pod", "dep:curve25519-dalek", "dep:solana-instruction", "dep:solana-pubkey", "dep:solana-sdk-ids", "dep:solana-system-interface", "dep:bytemuck", "window-elgamal/std"]
 verify = ["builders", "dep:window-clearing"]
 
 [dependencies]
 window-elgamal = { workspace = true }
 window-clearing = { workspace = true, optional = true }
 solana-zk-sdk = { workspace = true, optional = true }
+solana-zk-elgamal-proof-interface = { workspace = true, optional = true }
+solana-zk-sdk-pod = { workspace = true, optional = true }
 # Same version as solana-zk-sdk's so `Scalar`/`PedersenOpening` arithmetic type-checks across crates.
 curve25519-dalek = { workspace = true, optional = true }
 solana-instruction = { workspace = true, optional = true }
@@ -27,3 +29,5 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 proptest.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
+solana-zk-sdk.workspace = true

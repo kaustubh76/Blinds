@@ -1,15 +1,19 @@
 //! The collateral claim and the priced solvency pair.
 
 use curve25519_dalek::scalar::Scalar;
+use solana_zk_elgamal_proof_interface::proof_data::{
+    BatchedRangeProofU64Data, CiphertextCommitmentEqualityProofData,
+    GroupedCiphertext2HandlesValidityProofData,
+};
 use solana_zk_sdk::{
     encryption::{
         elgamal::ElGamalCiphertext,
         grouped_elgamal::GroupedElGamalCiphertext,
         pedersen::{Pedersen, PedersenCommitment, PedersenOpening},
     },
-    zk_elgamal_proof_program::proof_data::{
-        BatchedRangeProofU64Data, CiphertextCommitmentEqualityProofData,
-        GroupedCiphertext2HandlesValidityProofData,
+    zk_elgamal_proof_program::{
+        build_batched_range_proof_u64_data, build_ciphertext_commitment_equality_proof_data,
+        build_grouped_ciphertext_2_handles_validity_proof_data,
     },
 };
 use window_elgamal::{
@@ -50,7 +54,7 @@ pub fn build_collateral(
     let sdk_ct = GroupedElGamalCiphertext::<2>::from_bytes(&ciphertext.to_bytes())
         .ok_or_else(|| ProofError::Generation("grouped ciphertext bytes".into()))?;
     let auditor = pubkey_from_bytes(auditor_pk)?;
-    let validity = GroupedCiphertext2HandlesValidityProofData::new(
+    let validity = build_grouped_ciphertext_2_handles_validity_proof_data(
         borrower.pubkey(),
         &auditor,
         &sdk_ct,
@@ -59,7 +63,7 @@ pub fn build_collateral(
     )?;
     let commitment: PedersenCommitment = Pedersen::with(shares_milli, &opening.0);
     let (pad, pad_open) = Pedersen::new(0u64);
-    let range = BatchedRangeProofU64Data::new(
+    let range = build_batched_range_proof_u64_data(
         vec![&commitment, &pad],
         vec![shares_milli, 0],
         vec![COLLATERAL_BITS as usize, 64 - COLLATERAL_BITS as usize],
@@ -113,8 +117,14 @@ pub fn build(
     let kl_part: PedersenOpening = &inputs.l_opening.0 * Scalar::from(s.k_l);
     let o_delta: PedersenOpening = &kc_part - &kl_part;
     let k: PedersenCommitment = Pedersen::with(delta, &o_delta);
-    let equality =
-        CiphertextCommitmentEqualityProofData::new(&borrower.0, &e_delta_sdk, &k, &o_delta, delta)?;
-    let range = BatchedRangeProofU64Data::new(vec![&k], vec![delta], vec![64], vec![&o_delta])?;
+    let equality = build_ciphertext_commitment_equality_proof_data(
+        &borrower.0,
+        &e_delta_sdk,
+        &k,
+        &o_delta,
+        delta,
+    )?;
+    let range =
+        build_batched_range_proof_u64_data(vec![&k], vec![delta], vec![64], vec![&o_delta])?;
     Ok(SolvencyProofs { delta_commitment: Point(k.to_bytes()), equality, range })
 }

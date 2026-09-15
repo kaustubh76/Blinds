@@ -1,7 +1,7 @@
 use solana_zk_sdk::{
     encryption::{grouped_elgamal::GroupedElGamalCiphertext, pedersen::Pedersen},
-    zk_elgamal_proof_program::proof_data::{
-        BatchedRangeProofU64Data, GroupedCiphertext2HandlesValidityProofData,
+    zk_elgamal_proof_program::{
+        build_batched_range_proof_u64_data, build_grouped_ciphertext_2_handles_validity_proof_data,
     },
 };
 use window_clearing::Side;
@@ -26,7 +26,7 @@ fn range_proof_over_a_different_commitment_is_rejected() {
     // A valid 40-bit range proof, but over some other commitment (a "size" the ciphertext does not carry).
     let (other_c, other_o) = Pedersen::new(5u64);
     let (pad, pad_o) = Pedersen::new(0u64);
-    let range = BatchedRangeProofU64Data::new(
+    let range = build_batched_range_proof_u64_data(
         vec![&other_c, &pad],
         vec![5, 0],
         vec![40, 24],
@@ -48,7 +48,7 @@ fn range_proof_with_the_wrong_bit_length_is_rejected() {
             .unwrap();
     let sdk_ct = GroupedElGamalCiphertext::<2>::from_bytes(&ct.to_bytes()).unwrap();
     let auditor_pk = keys::pubkey_from_bytes(&h.auditor.pubkey_bytes()).unwrap();
-    let validity = GroupedCiphertext2HandlesValidityProofData::new(
+    let validity = build_grouped_ciphertext_2_handles_validity_proof_data(
         member.pubkey(),
         &auditor_pk,
         &sdk_ct,
@@ -59,7 +59,7 @@ fn range_proof_with_the_wrong_bit_length_is_rejected() {
     // Correct commitment, but only 32 bits proven with 32 bits of padding: a 2^32.. size could hide.
     let shifted = Pedersen::with(size - USDC, &opening.0);
     let (pad, pad_o) = Pedersen::new(0u64);
-    let range = BatchedRangeProofU64Data::new(
+    let range = build_batched_range_proof_u64_data(
         vec![&shifted, &pad],
         vec![size - USDC, 0],
         vec![32, 32],

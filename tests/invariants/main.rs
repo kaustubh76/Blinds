@@ -129,7 +129,7 @@ fn deadline_safety_and_terminal_states_are_final() {
     h.confirm_lock(&setup, &loan).unwrap();
     h.confirm_funding(&setup, &loan).unwrap();
     let anyone = Keypair::new();
-    h.svm.airdrop(&anyone.pubkey(), 1_000_000_000).unwrap();
+    h.svm.airdrop(&window_testkit::addr(&anyone.pubkey()), 1_000_000_000).unwrap();
     // Deadline safety: at every slot ≤ deadline, seize fails (sampled).
     let deadline = h.loan(&loan).deadline_slot;
     for slot in [deadline - 10, deadline - 1, deadline] {

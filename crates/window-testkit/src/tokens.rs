@@ -1,59 +1,35 @@
-//! Token-2022 confidential-transfer plumbing for the harness: mints with extensions, account
-//! configuration, apply-pending, and confidential transfers with their three proofs. This is
-//! exactly what the SDK does in TypeScript for a judge's wallet; here it is Rust so tier-1 tests
-//! exercise the real Token-2022 program bundled with LiteSVM.
-
-use std::num::NonZeroI8;
+//! Token-2022 confidential-transfer operations for the harness, executed on LiteSVM through the
+//! same chain-agnostic plans (`window_client::ct`) the services and agents use.
 
 use solana_instruction::Instruction;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use solana_zk_sdk::{
-    encryption::{
-        auth_encryption::{AeCiphertext, AeKey},
-        elgamal::{ElGamalCiphertext, ElGamalKeypair, ElGamalPubkey},
-        pod::{auth_encryption::PodAeCiphertext, elgamal::PodElGamalPubkey},
-    },
-    zk_elgamal_proof_program::proof_data::{
-        BatchedGroupedCiphertext3HandlesValidityProofContext, BatchedRangeProofContext,
-        CiphertextCommitmentEqualityProofContext, PubkeyValidityProofData,
-    },
+use spl_token_2022_interface::extension::{
+    confidential_transfer::ConfidentialTransferAccount, ExtensionType,
 };
-use spl_token_2022_interface::{
-    extension::{
-        confidential_transfer::{instruction as ct, ConfidentialTransferAccount},
-        scaled_ui_amount, BaseStateWithExtensions, ExtensionType, StateWithExtensions,
-    },
-    instruction as token_ix,
-    state::{Account as TokenAccountState, Mint as MintState},
-};
-use spl_token_confidential_transfer_proof_extraction::instruction::ProofLocation;
-use spl_token_confidential_transfer_proof_generation::{
-    transfer::transfer_split_proof_data, withdraw::withdraw_proof_data,
-};
-use window_proofs::ix;
+use window_client::ct::{self, ConfidentialKeys, Tx};
 
 use crate::{Harness, TxError, TxStats};
 
-/// Token-2022 program id.
-pub fn token_2022() -> Pubkey {
-    spl_token_2022_interface::id()
-}
+pub use window_client::ct::token_2022;
 
 /// A confidential token account and the keys that operate it.
 pub struct ConfidentialAccount {
     pub address: Pubkey,
     pub owner: Pubkey,
-    pub elgamal: ElGamalKeypair,
-    pub ae: AeKey,
+    pub keys: ConfidentialKeys,
     /// Plaintext available balance as tracked by the owner (what the AE ciphertext encrypts).
     pub available: u64,
 }
 
 impl Harness {
-    /// Creates a Token-2022 mint with the given extension-initialisation instructions
-    /// (executed between account creation and `initialize_mint2`).
+    fn send_tx(&mut self, payer: &Keypair, tx: &Tx) -> Result<TxStats, TxError> {
+        let extra: Vec<&Keypair> = tx.extra_signers.iter().collect();
+        self.send(payer, &tx.instructions, &extra)
+    }
+
+    /// Creates a Token-2022 mint with the given extension-initialisation instructions.
     pub fn create_mint(
         &mut self,
         extensions: &[ExtensionType],
@@ -62,102 +38,66 @@ impl Harness {
         decimals: u8,
     ) -> Pubkey {
         let mint = Keypair::new();
-        let space = ExtensionType::try_calculate_account_len::<MintState>(extensions).unwrap();
-        let rent = self.svm.minimum_balance_for_rent_exemption(space);
+        let rent = self.svm.minimum_balance_for_rent_exemption(ct::mint_space(extensions));
         let admin = self.admin.insecure_clone();
-        let mut ixs = vec![solana_system_interface::instruction::create_account(
+        let tx = ct::create_mint_plan(
             &admin.pubkey(),
-            &mint.pubkey(),
+            &mint,
+            extensions,
+            ext_ixs(&mint.pubkey()),
+            authority,
+            decimals,
             rent,
-            space as u64,
-            &token_2022(),
-        )];
-        ixs.extend(ext_ixs(&mint.pubkey()));
-        ixs.push(
-            token_ix::initialize_mint2(&token_2022(), &mint.pubkey(), authority, None, decimals)
-                .unwrap(),
         );
-        self.send(&admin, &ixs, &[&mint]).expect("create mint");
+        self.send_tx(&admin, &tx).expect("create mint");
         mint.pubkey()
     }
 
     /// Mock xStock: `ScaledUiAmount` (the rebasing multiplier) + `PermanentDelegate`, like the real asset.
     pub fn create_mock_xstock_mint(&mut self, decimals: u8, multiplier: f64) -> Pubkey {
         let admin = self.admin.pubkey();
-        self.create_mint(
-            &[ExtensionType::ScaledUiAmount, ExtensionType::PermanentDelegate],
-            |mint| {
-                vec![
-                    scaled_ui_amount::instruction::initialize(
-                        &token_2022(),
-                        mint,
-                        Some(admin),
-                        multiplier,
-                    )
-                    .unwrap(),
-                    token_ix::initialize_permanent_delegate(&token_2022(), mint, &admin).unwrap(),
-                ]
-            },
-            &admin,
-            decimals,
-        )
+        let mint = Keypair::new();
+        let (ext, ixs) = ct::mock_xstock_extensions(&mint.pubkey(), &admin, multiplier);
+        let rent = self.svm.minimum_balance_for_rent_exemption(ct::mint_space(&ext));
+        let tx = ct::create_mint_plan(&admin, &mint, &ext, ixs, &admin, decimals, rent);
+        let a = self.admin.insecure_clone();
+        self.send_tx(&a, &tx).expect("mock mint");
+        mint.pubkey()
     }
 
     /// Confidential wrapped mint with the auditor key and the given mint authority.
     pub fn create_confidential_mint(&mut self, mint_authority: &Pubkey, decimals: u8) -> Pubkey {
         let admin = self.admin.pubkey();
-        let auditor = PodElGamalPubkey::from(*self.auditor.pubkey());
-        self.create_mint(
-            &[ExtensionType::ConfidentialTransferMint],
-            |mint| {
-                vec![ct::initialize_mint(&token_2022(), mint, Some(admin), true, Some(auditor))
-                    .unwrap()]
-            },
-            mint_authority,
-            decimals,
-        )
+        let mint = Keypair::new();
+        let (ext, ixs) =
+            ct::confidential_mint_extensions(&mint.pubkey(), &admin, self.auditor.pubkey());
+        let rent = self.svm.minimum_balance_for_rent_exemption(ct::mint_space(&ext));
+        let tx = ct::create_mint_plan(&admin, &mint, &ext, ixs, mint_authority, decimals, rent);
+        let a = self.admin.insecure_clone();
+        self.send_tx(&a, &tx).expect("confidential mint");
+        mint.pubkey()
     }
 
     /// Updates the rebasing multiplier (the corporate-action event).
     pub fn set_multiplier(&mut self, mint: &Pubkey, multiplier: f64) {
         let admin = self.admin.insecure_clone();
-        let ix = scaled_ui_amount::instruction::update_multiplier(
-            &token_2022(),
-            mint,
-            &admin.pubkey(),
-            &[],
-            multiplier,
-            0,
-        )
-        .unwrap();
-        self.send(&admin, &[ix], &[]).expect("update multiplier");
+        self.send(&admin, &[ct::update_multiplier(mint, &admin.pubkey(), multiplier)], &[])
+            .expect("update multiplier");
     }
 
     /// A plain Token-2022 account for `mint` owned by `owner` (mock-xStock side).
     pub fn create_token_account(&mut self, mint: &Pubkey, owner: &Keypair) -> Pubkey {
         let acc = Keypair::new();
-        let space = ExtensionType::try_calculate_account_len::<TokenAccountState>(&[]).unwrap();
-        let rent = self.svm.minimum_balance_for_rent_exemption(space);
-        let ixs = vec![
-            solana_system_interface::instruction::create_account(
-                &owner.pubkey(),
-                &acc.pubkey(),
-                rent,
-                space as u64,
-                &token_2022(),
-            ),
-            token_ix::initialize_account3(&token_2022(), &acc.pubkey(), mint, &owner.pubkey())
-                .unwrap(),
-        ];
-        self.send(owner, &ixs, &[&acc]).expect("create token account");
+        let rent = self.svm.minimum_balance_for_rent_exemption(ct::token_account_space(false));
+        let tx = ct::create_token_account_plan(&owner.pubkey(), &acc, mint, rent);
+        self.send_tx(owner, &tx).expect("create token account");
         acc.pubkey()
     }
 
     /// Mints `amount` of a mint whose authority is the admin.
     pub fn mint_to(&mut self, mint: &Pubkey, to: &Pubkey, amount: u64) {
         let admin = self.admin.insecure_clone();
-        let ix = token_ix::mint_to(&token_2022(), mint, to, &admin.pubkey(), &[], amount).unwrap();
-        self.send(&admin, &[ix], &[]).expect("mint_to");
+        self.send(&admin, &[ct::mint_to(mint, to, &admin.pubkey(), amount)], &[]).expect("mint_to");
     }
 
     /// Creates and configures a confidential token account (pubkey-validity proof inline).
@@ -167,70 +107,30 @@ impl Harness {
         owner: &Keypair,
     ) -> ConfidentialAccount {
         let acc = Keypair::new();
-        let elgamal = ElGamalKeypair::new_rand();
-        let ae = AeKey::new_rand();
-        let space = ExtensionType::try_calculate_account_len::<TokenAccountState>(&[
-            ExtensionType::ConfidentialTransferAccount,
-        ])
-        .unwrap();
-        let rent = self.svm.minimum_balance_for_rent_exemption(space);
-        let proof = PubkeyValidityProofData::new(&elgamal).unwrap();
-        let zero: PodAeCiphertext = ae.encrypt(0).into();
-        let mut ixs = vec![
-            solana_system_interface::instruction::create_account(
-                &owner.pubkey(),
-                &acc.pubkey(),
-                rent,
-                space as u64,
-                &token_2022(),
-            ),
-            token_ix::initialize_account3(&token_2022(), &acc.pubkey(), mint, &owner.pubkey())
-                .unwrap(),
-        ];
-        ixs.extend(
-            ct::configure_account(
-                &token_2022(),
-                &acc.pubkey(),
-                mint,
-                &zero,
-                65_536,
-                &owner.pubkey(),
-                &[],
-                ProofLocation::InstructionOffset(NonZeroI8::new(1).unwrap(), &proof),
-            )
-            .unwrap(),
-        );
-        self.send(owner, &ixs, &[&acc]).expect("configure confidential account");
-        ConfidentialAccount {
-            address: acc.pubkey(),
-            owner: owner.pubkey(),
-            elgamal,
-            ae,
-            available: 0,
-        }
+        let keys = ConfidentialKeys::random();
+        let rent = self.svm.minimum_balance_for_rent_exemption(ct::token_account_space(true));
+        let tx = ct::create_confidential_account_plan(&owner.pubkey(), &acc, mint, &keys, rent);
+        self.send_tx(owner, &tx).expect("configure confidential account");
+        ConfidentialAccount { address: acc.pubkey(), owner: owner.pubkey(), keys, available: 0 }
     }
 
     /// Reads the confidential extension of a token account.
     pub fn confidential_state(&self, account: &Pubkey) -> ConfidentialTransferAccount {
-        let data = self.svm.get_account(account).expect("token account").data;
-        let state = StateWithExtensions::<TokenAccountState>::unpack(&data).unwrap();
-        *state.get_extension::<ConfidentialTransferAccount>().unwrap()
+        ct::confidential_state(&self.svm.get_account(account).expect("token account").data)
+            .expect("confidential extension")
     }
 
     /// Public (non-confidential) balance of a Token-2022 account.
     pub fn token_balance(&self, account: &Pubkey) -> u64 {
-        let data = self.svm.get_account(account).expect("token account").data;
-        StateWithExtensions::<TokenAccountState>::unpack(&data).unwrap().base.amount
+        ct::token_amount(&self.svm.get_account(account).expect("token account").data).unwrap()
     }
 
     /// Mint supply.
     pub fn mint_supply(&self, mint: &Pubkey) -> u64 {
-        let data = self.svm.get_account(mint).expect("mint").data;
-        StateWithExtensions::<MintState>::unpack(&data).unwrap().base.supply
+        ct::mint_supply(&self.svm.get_account(mint).expect("mint").data).unwrap()
     }
 
-    /// Moves the pending confidential balance into the available balance (no ZK proof; the owner
-    /// re-encrypts the new total with its AE key). `credited` is what landed in pending.
+    /// Moves the pending confidential balance into the available balance. `credited` is what landed in pending.
     pub fn apply_pending_balance(
         &mut self,
         acc: &mut ConfidentialAccount,
@@ -238,34 +138,25 @@ impl Harness {
         credited: u64,
     ) -> Result<TxStats, TxError> {
         let state = self.confidential_state(&acc.address);
-        let counter: u64 = state.pending_balance_credit_counter.into();
         acc.available += credited;
-        let new_balance: PodAeCiphertext = acc.ae.encrypt(acc.available).into();
         let ix = ct::apply_pending_balance(
-            &token_2022(),
             &acc.address,
-            counter,
-            &new_balance,
             &owner.pubkey(),
-            &[],
-        )
-        .unwrap();
+            &state,
+            &acc.keys,
+            acc.available,
+        );
         self.send(owner, &[ix], &[])
     }
 
-    /// Whether the account's available balance decrypts to what the owner tracks (owner-side check).
+    /// Whether the account's balances decrypt to what the owner tracks (owner-side check).
     pub fn available_matches(&self, acc: &ConfidentialAccount) -> bool {
         let state = self.confidential_state(&acc.address);
-        let ct: ElGamalCiphertext = state.available_balance.try_into().unwrap();
-        let ae: AeCiphertext = state.decryptable_available_balance.try_into().unwrap();
-        acc.ae.decrypt(&ae) == Some(acc.available)
-            && acc.elgamal.secret().decrypt_u32(&ct) == Some(acc.available)
+        matches!(ct::balances(&state, &acc.keys), Some((a, 0)) if a == acc.available)
     }
 
-    /// Builds the confidential transfer instruction sequence `source → destination` for `amount`:
-    /// returns (setup transactions to send first, the transfer instruction, context accounts to
-    /// close afterwards). The caller appends its own instruction after the transfer (e.g.
-    /// `deposit_collateral`) so a program can introspect it.
+    /// Builds and sends the setup of a confidential transfer; returns the transfer instruction
+    /// (to be sent by the caller, possibly followed by a program instruction) and the contexts to close.
     pub fn build_confidential_transfer(
         &mut self,
         source: &mut ConfidentialAccount,
@@ -273,86 +164,52 @@ impl Harness {
         mint: &Pubkey,
         destination: &Pubkey,
         amount: u64,
-    ) -> Result<(Instruction, Vec<Pubkey>), TxError> {
+    ) -> Result<(Instruction, Vec<Instruction>), TxError> {
         let state = self.confidential_state(&source.address);
-        let available: ElGamalCiphertext = state.available_balance.try_into().unwrap();
-        let decryptable: AeCiphertext = state.decryptable_available_balance.try_into().unwrap();
         let dest_state = self.confidential_state(destination);
-        let dest_pk: ElGamalPubkey = dest_state.elgamal_pubkey.try_into().unwrap();
+        let dest_pk = dest_state
+            .elgamal_pubkey
+            .try_into()
+            .map_err(|_| TxError { error: "dest key".into(), logs: vec![] })?;
         let auditor = *self.auditor.pubkey();
-        let proofs = transfer_split_proof_data(
-            &available,
-            &decryptable,
-            amount,
-            &source.elgamal,
-            &source.ae,
-            &dest_pk,
-            Some(&auditor),
-        )
-        .map_err(|e| TxError { error: format!("transfer proofs: {e}"), logs: vec![] })?;
-        // Context accounts: equality, ciphertext validity (3 handles), range (u128).
-        let eq_ctx = Keypair::new();
-        let val_ctx = Keypair::new();
-        let range_ctx = Keypair::new();
-        let rent_eq = self.svm.minimum_balance_for_rent_exemption(ix::context_size::<
-            CiphertextCommitmentEqualityProofContext,
-        >());
-        let rent_val = self.svm.minimum_balance_for_rent_exemption(ix::context_size::<
-            BatchedGroupedCiphertext3HandlesValidityProofContext,
-        >());
-        let rent_range = self
-            .svm
-            .minimum_balance_for_rent_exemption(ix::context_size::<BatchedRangeProofContext>());
-        let [c_eq, v_eq] = ix::create_and_verify(
+        let rents: Vec<u64> = [
+            window_proofs::ix::context_size::<solana_zk_elgamal_proof_interface::proof_data::CiphertextCommitmentEqualityProofContext>(),
+            window_proofs::ix::context_size::<solana_zk_elgamal_proof_interface::proof_data::BatchedGroupedCiphertext3HandlesValidityProofContext>(),
+            window_proofs::ix::context_size::<solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofContext>(),
+        ]
+        .iter()
+        .map(|s| self.svm.minimum_balance_for_rent_exemption(*s))
+        .collect();
+        let rent_for = |space: usize| -> u64 {
+            // sizes map 1:1 onto the three contexts; LiteSVM rent is linear in space so recompute
+            let lamports_per_byte_year = rents[2] as f64
+                / (window_proofs::ix::context_size::<
+                    solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofContext,
+                >() + 128) as f64;
+            ((space + 128) as f64 * lamports_per_byte_year).ceil() as u64
+        };
+        let plan = ct::transfer_plan(
             &owner.pubkey(),
-            &eq_ctx.pubkey(),
-            &owner.pubkey(),
-            rent_eq,
-            &proofs.equality_proof_data,
-        );
-        let [c_val, v_val] = ix::create_and_verify(
-            &owner.pubkey(),
-            &val_ctx.pubkey(),
-            &owner.pubkey(),
-            rent_val,
-            &proofs.ciphertext_validity_proof_data_with_ciphertext.proof_data,
-        );
-        let [c_range, v_range] = ix::create_and_verify(
-            &owner.pubkey(),
-            &range_ctx.pubkey(),
-            &owner.pubkey(),
-            rent_range,
-            &proofs.range_proof_data,
-        );
-        self.send(owner, &[c_eq, v_eq], &[&eq_ctx])?;
-        self.send(owner, &[c_val, v_val], &[&val_ctx])?;
-        self.send(owner, &[c_range], &[&range_ctx])?;
-        self.send(owner, &[v_range], &[])?;
-        source.available -= amount;
-        let new_balance: PodAeCiphertext = source.ae.encrypt(source.available).into();
-        let ixs = ct::transfer(
-            &token_2022(),
             &source.address,
+            &state,
+            &source.keys,
+            source.available,
             mint,
             destination,
-            &new_balance,
-            &proofs.ciphertext_validity_proof_data_with_ciphertext.ciphertext_lo,
-            &proofs.ciphertext_validity_proof_data_with_ciphertext.ciphertext_hi,
-            &owner.pubkey(),
-            &[],
-            ProofLocation::ContextStateAccount(&eq_ctx.pubkey()),
-            ProofLocation::ContextStateAccount(&val_ctx.pubkey()),
-            ProofLocation::ContextStateAccount(&range_ctx.pubkey()),
+            &dest_pk,
+            Some(&auditor),
+            amount,
+            &rent_for,
         )
-        .unwrap();
-        assert_eq!(ixs.len(), 1, "context-account proofs yield a single transfer instruction");
-        Ok((
-            ixs.into_iter().next().unwrap(),
-            vec![eq_ctx.pubkey(), val_ctx.pubkey(), range_ctx.pubkey()],
-        ))
+        .map_err(|e| TxError { error: e, logs: vec![] })?;
+        for tx in &plan.setup {
+            self.send_tx(owner, tx)?;
+        }
+        source.available -= amount;
+        Ok((plan.transfer, plan.close))
     }
 
-    /// Confidential → public balance for `amount` (equality + 64-bit range proof in context accounts).
+    /// Confidential → public balance for `amount`.
     pub fn confidential_withdraw(
         &mut self,
         acc: &mut ConfidentialAccount,
@@ -362,58 +219,40 @@ impl Harness {
         amount: u64,
     ) -> Result<TxStats, TxError> {
         let state = self.confidential_state(&acc.address);
-        let available: ElGamalCiphertext = state.available_balance.try_into().unwrap();
-        let proofs = withdraw_proof_data(&available, acc.available, amount, &acc.elgamal)
-            .map_err(|e| TxError { error: format!("withdraw proofs: {e}"), logs: vec![] })?;
-        let eq_ctx = Keypair::new();
-        let range_ctx = Keypair::new();
-        let rent_eq = self.svm.minimum_balance_for_rent_exemption(ix::context_size::<
-            CiphertextCommitmentEqualityProofContext,
-        >());
-        let rent_range = self
-            .svm
-            .minimum_balance_for_rent_exemption(ix::context_size::<BatchedRangeProofContext>());
-        let [c_eq, v_eq] = ix::create_and_verify(
+        let rent_range =
+            self.svm.minimum_balance_for_rent_exemption(window_proofs::ix::context_size::<
+                solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofContext,
+            >());
+        let rent_for = |space: usize| -> u64 {
+            let per_byte = rent_range as f64
+                / (window_proofs::ix::context_size::<
+                    solana_zk_elgamal_proof_interface::proof_data::BatchedRangeProofContext,
+                >() + 128) as f64;
+            ((space + 128) as f64 * per_byte).ceil() as u64
+        };
+        let plan = ct::withdraw_plan(
             &owner.pubkey(),
-            &eq_ctx.pubkey(),
-            &owner.pubkey(),
-            rent_eq,
-            &proofs.equality_proof_data,
-        );
-        let [c_range, v_range] = ix::create_and_verify(
-            &owner.pubkey(),
-            &range_ctx.pubkey(),
-            &owner.pubkey(),
-            rent_range,
-            &proofs.range_proof_data,
-        );
-        self.send(owner, &[c_eq, v_eq], &[&eq_ctx])?;
-        self.send(owner, &[c_range], &[&range_ctx])?;
-        self.send(owner, &[v_range], &[])?;
-        acc.available -= amount;
-        let new_balance: PodAeCiphertext = acc.ae.encrypt(acc.available).into();
-        let ixs = ct::withdraw(
-            &token_2022(),
             &acc.address,
+            &state,
+            &acc.keys,
+            acc.available,
             mint,
-            amount,
             decimals,
-            &new_balance,
-            &owner.pubkey(),
-            &[],
-            ProofLocation::ContextStateAccount(&eq_ctx.pubkey()),
-            ProofLocation::ContextStateAccount(&range_ctx.pubkey()),
+            amount,
+            &rent_for,
         )
-        .unwrap();
-        let stats = self.send(owner, &ixs, &[])?;
-        self.close_contexts(owner, &[eq_ctx.pubkey(), range_ctx.pubkey()]);
+        .map_err(|e| TxError { error: e, logs: vec![] })?;
+        for tx in &plan.setup {
+            self.send_tx(owner, tx)?;
+        }
+        acc.available -= amount;
+        let stats = self.send(owner, &[plan.transfer], &[])?;
+        self.send(owner, &plan.close, &[])?;
         Ok(stats)
     }
 
-    /// Closes proof context accounts owned by `owner`.
-    pub fn close_contexts(&mut self, owner: &Keypair, ctxs: &[Pubkey]) {
-        let ixs: Vec<Instruction> =
-            ctxs.iter().map(|c| ix::close(c, &owner.pubkey(), &owner.pubkey())).collect();
-        self.send(owner, &ixs, &[]).expect("close contexts");
+    /// Closes proof context accounts owned by `owner` (instructions from a plan).
+    pub fn close_contexts(&mut self, owner: &Keypair, close: &[Instruction]) {
+        self.send(owner, close, &[]).expect("close contexts");
     }
 }

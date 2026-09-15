@@ -9,7 +9,7 @@
 use bytemuck::Pod;
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
-use solana_zk_sdk::zk_elgamal_proof_program::{
+use solana_zk_elgamal_proof_interface::{
     instruction::{close_context_state, ContextStateInfo, ProofInstruction},
     proof_data::{ProofType, ZkProofData},
     state::ProofContextState,
@@ -17,7 +17,7 @@ use solana_zk_sdk::zk_elgamal_proof_program::{
 
 /// The ZK ElGamal Proof program id.
 pub fn zk_program_id() -> Pubkey {
-    solana_zk_sdk::zk_elgamal_proof_program::id()
+    solana_zk_elgamal_proof_interface::id()
 }
 
 /// Space of a context-state account for context type `U`.

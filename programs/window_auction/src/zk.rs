@@ -1,7 +1,7 @@
 //! Proof-context consumption shared by the instructions.
 
 use anchor_lang::prelude::*;
-use solana_zk_sdk::zk_elgamal_proof_program::{
+use solana_zk_elgamal_proof_interface::{
     instruction::{close_context_state, ContextStateInfo},
     state::ProofContextStateMeta,
 };
@@ -10,7 +10,7 @@ use crate::errors::AuctionError;
 
 /// The ZK ElGamal Proof program id.
 pub fn zk_program_id() -> Pubkey {
-    solana_zk_sdk::zk_elgamal_proof_program::id()
+    solana_zk_elgamal_proof_interface::id()
 }
 
 /// Requires a context-state account to be owned by the ZK program and to have `authority` as

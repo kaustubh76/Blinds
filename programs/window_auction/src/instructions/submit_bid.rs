@@ -5,7 +5,7 @@
 
 use anchor_lang::prelude::*;
 use bytemuck::bytes_of;
-use solana_zk_sdk::zk_elgamal_proof_program::proof_data::{
+use solana_zk_elgamal_proof_interface::proof_data::{
     BatchedRangeProofContext, BatchedRangeProofU64Data,
     GroupedCiphertext2HandlesValidityProofContext, GroupedCiphertext2HandlesValidityProofData,
 };
