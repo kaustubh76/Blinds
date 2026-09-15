@@ -1,10 +1,8 @@
 //! `/healthz` and `/metrics` (Prometheus text). Aggregates only — never a size.
 
-use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
 };
 
 #[derive(Default)]
@@ -68,16 +66,27 @@ pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Op
         };
         for mut req in server.incoming_requests() {
             let cors = tiny_http::Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap();
-            let cors_h = tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "content-type").unwrap();
-            let cors_m = tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
+            let cors_h =
+                tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "content-type")
+                    .unwrap();
+            let cors_m =
+                tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                    .unwrap();
             if req.method() == &tiny_http::Method::Options {
-                let _ = req.respond(tiny_http::Response::empty(204).with_header(cors).with_header(cors_h).with_header(cors_m));
+                let _ = req.respond(
+                    tiny_http::Response::empty(204)
+                        .with_header(cors)
+                        .with_header(cors_h)
+                        .with_header(cors_m),
+                );
                 continue;
             }
             let (status, body, ctype) = match (req.method().clone(), req.url()) {
                 (tiny_http::Method::Get, "/healthz") => (200, "ok\n".to_string(), "text/plain"),
                 (tiny_http::Method::Get, "/metrics") => (200, metrics.render(), "text/plain"),
-                (tiny_http::Method::Get, "/deployment") => (200, deployment_json.clone(), "application/json"),
+                (tiny_http::Method::Get, "/deployment") => {
+                    (200, deployment_json.clone(), "application/json")
+                }
                 (tiny_http::Method::Post, "/join") => {
                     let mut body = String::new();
                     let _ = req.as_reader().read_to_string(&mut body);
@@ -86,15 +95,36 @@ pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Op
                         (Ok(v), Some(h)) => {
                             let r = JoinRequest {
                                 wallet: v["wallet"].as_str().unwrap_or_default().to_string(),
-                                elgamal_pubkey_hex: v["elgamal_pubkey_hex"].as_str().unwrap_or_default().to_string(),
-                                mock_account: v["mock_account"].as_str().unwrap_or_default().to_string(),
+                                elgamal_pubkey_hex: v["elgamal_pubkey_hex"]
+                                    .as_str()
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                mock_account: v["mock_account"]
+                                    .as_str()
+                                    .unwrap_or_default()
+                                    .to_string(),
                             };
                             match h(r) {
-                                Ok(sig) => (200, format!("{{\"ok\":true,\"signature\":\"{sig}\"}}"), "application/json"),
-                                Err(e) => (400, format!("{{\"ok\":false,\"error\":{}}}", serde_json::to_string(&e).unwrap_or_default()), "application/json"),
+                                Ok(sig) => (
+                                    200,
+                                    format!("{{\"ok\":true,\"signature\":\"{sig}\"}}"),
+                                    "application/json",
+                                ),
+                                Err(e) => (
+                                    400,
+                                    format!(
+                                        "{{\"ok\":false,\"error\":{}}}",
+                                        serde_json::to_string(&e).unwrap_or_default()
+                                    ),
+                                    "application/json",
+                                ),
                             }
                         }
-                        _ => (400, "{\"ok\":false,\"error\":\"bad request\"}".to_string(), "application/json"),
+                        _ => (
+                            400,
+                            "{\"ok\":false,\"error\":\"bad request\"}".to_string(),
+                            "application/json",
+                        ),
                     }
                 }
                 _ => (404, "not found\n".to_string(), "text/plain"),

@@ -111,23 +111,50 @@ fn main() -> Result<()> {
             let mock_mint: solana_pubkey::Pubkey = deployment.mock_mint.parse()?;
             let join: metrics::JoinHandler = Arc::new(move |r: metrics::JoinRequest| {
                 use solana_signer::Signer;
-                let wallet: solana_pubkey::Pubkey = r.wallet.parse().map_err(|e| format!("wallet: {e}"))?;
-                let mock_account: solana_pubkey::Pubkey = r.mock_account.parse().map_err(|e| format!("mock account: {e}"))?;
-                let eg: [u8; 32] = hex::decode(&r.elgamal_pubkey_hex).ok().and_then(|v| v.try_into().ok()).ok_or("elgamal key must be 32 bytes hex")?;
+                let wallet: solana_pubkey::Pubkey =
+                    r.wallet.parse().map_err(|e| format!("wallet: {e}"))?;
+                let mock_account: solana_pubkey::Pubkey =
+                    r.mock_account.parse().map_err(|e| format!("mock account: {e}"))?;
+                let eg: [u8; 32] = hex::decode(&r.elgamal_pubkey_hex)
+                    .ok()
+                    .and_then(|v| v.try_into().ok())
+                    .ok_or("elgamal key must be 32 bytes hex")?;
                 let admin = &join_keys.admin;
                 let mut ixs = Vec::new();
-                if join_chain.account_data(&window_client::pda::member(&wallet)).map_err(|e| e.to_string())?.is_none() {
+                if join_chain
+                    .account_data(&window_client::pda::member(&wallet))
+                    .map_err(|e| e.to_string())?
+                    .is_none()
+                {
                     ixs.push(window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0));
                 }
                 // The wallet has no SOL yet: the admin creates its mock ATA (idempotent) before minting.
                 if mock_account == window_client::pda::ata(&wallet, &mock_mint) {
-                    ixs.push(window_client::ct::create_ata_idempotent(&admin.pubkey(), &wallet, &mock_mint));
+                    ixs.push(window_client::ct::create_ata_idempotent(
+                        &admin.pubkey(),
+                        &wallet,
+                        &mock_mint,
+                    ));
                 }
-                ixs.push(window_client::ct::mint_to(&mock_mint, &mock_account, &admin.pubkey(), 10_000_000)); // 10,000.000 shares
-                ixs.push(solana_system_interface::instruction::transfer(&admin.pubkey(), &wallet, 200_000_000)); // 0.2 SOL for fees/rent
+                ixs.push(window_client::ct::mint_to(
+                    &mock_mint,
+                    &mock_account,
+                    &admin.pubkey(),
+                    10_000_000,
+                )); // 10,000.000 shares
+                ixs.push(solana_system_interface::instruction::transfer(
+                    &admin.pubkey(),
+                    &wallet,
+                    200_000_000,
+                )); // 0.2 SOL for fees/rent
                 join_chain.send(admin, &ixs, &[]).map_err(|e| e.to_string())
             });
-            metrics::serve(metrics.clone(), metrics_port, serde_json::to_string(&deployment)?, Some(join));
+            metrics::serve(
+                metrics.clone(),
+                metrics_port,
+                serde_json::to_string(&deployment)?,
+                Some(join),
+            );
             let ctx = Ctx {
                 chain: Box::new(chain),
                 keys,
