@@ -1,0 +1,29 @@
+[package]
+name = "window-proofs"
+version = "0.1.0"
+description = "Proof builders (bid, PoCD, priced solvency), instruction helpers and re-verification for THE WINDOW"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = ["builders"]
+# `scalar` alone (default-features = false) is what window_credit compiles: pure integer math.
+builders = ["dep:solana-zk-sdk", "dep:curve25519-dalek", "dep:solana-instruction", "dep:solana-pubkey", "dep:solana-sdk-ids", "dep:solana-system-interface", "dep:bytemuck", "window-elgamal/std"]
+verify = ["builders", "dep:window-clearing"]
+
+[dependencies]
+window-elgamal = { workspace = true }
+window-clearing = { workspace = true, optional = true }
+solana-zk-sdk = { workspace = true, optional = true }
+# Same version as solana-zk-sdk's so `Scalar`/`PedersenOpening` arithmetic type-checks across crates.
+curve25519-dalek = { workspace = true, optional = true }
+solana-instruction = { workspace = true, optional = true }
+solana-pubkey = { workspace = true, optional = true }
+solana-sdk-ids = { workspace = true, optional = true }
+solana-system-interface = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest.workspace = true

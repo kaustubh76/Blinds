@@ -50,9 +50,16 @@ impl Ciphertext {
 
     /// Homomorphic addition of a bid into this accumulator, taking the bid's commitment and the
     /// handle at `handle_index` (the auditor's for the auction).
-    pub fn accumulate(&self, bid: &GroupedCiphertext2, handle_index: usize) -> Result<Ciphertext, CurveError> {
+    pub fn accumulate(
+        &self,
+        bid: &GroupedCiphertext2,
+        handle_index: usize,
+    ) -> Result<Ciphertext, CurveError> {
         let handle = bid.handles.get(handle_index).ok_or(CurveError::InvalidPoint)?;
-        Ok(Ciphertext { commitment: self.commitment.add(&bid.commitment)?, handle: self.handle.add(handle)? })
+        Ok(Ciphertext {
+            commitment: self.commitment.add(&bid.commitment)?,
+            handle: self.handle.add(handle)?,
+        })
     }
 
     /// The residual `(C − v·G, D)`: encrypts zero iff `v` is the true decryption. This is the
@@ -70,12 +77,18 @@ impl Ciphertext {
 
     /// Component-wise subtraction.
     pub fn sub(&self, other: &Ciphertext) -> Result<Ciphertext, CurveError> {
-        Ok(Ciphertext { commitment: self.commitment.sub(&other.commitment)?, handle: self.handle.sub(&other.handle)? })
+        Ok(Ciphertext {
+            commitment: self.commitment.sub(&other.commitment)?,
+            handle: self.handle.sub(&other.handle)?,
+        })
     }
 
     /// Component-wise addition.
     pub fn add(&self, other: &Ciphertext) -> Result<Ciphertext, CurveError> {
-        Ok(Ciphertext { commitment: self.commitment.add(&other.commitment)?, handle: self.handle.add(&other.handle)? })
+        Ok(Ciphertext {
+            commitment: self.commitment.add(&other.commitment)?,
+            handle: self.handle.add(&other.handle)?,
+        })
     }
 
     /// Raw 64 bytes (`commitment ‖ handle`).
@@ -98,7 +111,9 @@ impl Ciphertext {
 impl GroupedCiphertext2 {
     /// The ordinary ciphertext seen by the holder of key `handle_index`.
     pub fn to_ciphertext(&self, handle_index: usize) -> Option<Ciphertext> {
-        self.handles.get(handle_index).map(|h| Ciphertext { commitment: self.commitment, handle: *h })
+        self.handles
+            .get(handle_index)
+            .map(|h| Ciphertext { commitment: self.commitment, handle: *h })
     }
     /// Raw 96 bytes (`commitment ‖ handle₀ ‖ handle₁`).
     pub fn to_bytes(&self) -> [u8; 96] {

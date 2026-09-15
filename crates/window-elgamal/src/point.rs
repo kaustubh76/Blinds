@@ -3,7 +3,8 @@
 use bytemuck::{Pod, Zeroable};
 use solana_curve25519::{
     ristretto::{
-        add_ristretto, multiply_ristretto, subtract_ristretto, validate_ristretto, PodRistrettoPoint,
+        add_ristretto, multiply_ristretto, subtract_ristretto, validate_ristretto,
+        PodRistrettoPoint,
     },
     scalar::PodScalar,
 };

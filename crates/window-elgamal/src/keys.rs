@@ -2,11 +2,11 @@
 //! message, exactly the way Token-2022 tooling does (`b"ElGamalSecretKey" ‖ public_seed`), so a
 //! browser wallet, the agents and the spl-token CLI all agree on the key for a given seed.
 
+use solana_seed_derivable::SeedDerivable;
 use solana_zk_sdk::encryption::{
     auth_encryption::AeKey,
     elgamal::{ElGamalKeypair, ElGamalPubkey, ElGamalSecretKey},
 };
-use solana_seed_derivable::SeedDerivable;
 
 use crate::point::Point;
 
@@ -49,7 +49,8 @@ impl Keypair {
     }
     /// From any ≥ 32-byte seed (the auditor's operational key is derived from a stored seed).
     pub fn from_seed(seed: &[u8]) -> Result<Self, KeyError> {
-        let secret = ElGamalSecretKey::from_seed(seed).map_err(|e| KeyError::Seed(e.to_string()))?;
+        let secret =
+            ElGamalSecretKey::from_seed(seed).map_err(|e| KeyError::Seed(e.to_string()))?;
         Ok(Self(ElGamalKeypair::new(secret)))
     }
     /// Public key as a compressed point (what the registry stores).

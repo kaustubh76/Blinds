@@ -7,7 +7,10 @@
 
 use std::collections::HashMap;
 
-use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, ristretto::RistrettoPoint, scalar::Scalar, traits::Identity};
+use curve25519_dalek::{
+    constants::RISTRETTO_BASEPOINT_POINT, ristretto::RistrettoPoint, scalar::Scalar,
+    traits::Identity,
+};
 
 use crate::{ciphertext::Ciphertext, decrypt, keys::Keypair, point::Point};
 

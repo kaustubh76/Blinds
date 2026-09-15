@@ -6,7 +6,9 @@ use solana_zk_sdk::encryption::{
     pedersen::{Pedersen, PedersenOpening},
 };
 
-use crate::{ciphertext::GroupedCiphertext2, keys::KeyError, keys::pubkey_from_bytes, point::Point};
+use crate::{
+    ciphertext::GroupedCiphertext2, keys::pubkey_from_bytes, keys::KeyError, point::Point,
+};
 
 /// The Pedersen opening (`r`) of a ciphertext; kept by the prover, never sent anywhere.
 pub struct Opening(pub PedersenOpening);
@@ -20,14 +22,23 @@ impl Opening {
 
 /// Encrypts `amount` under `(member, auditor)` with a fresh opening. Returns the grouped
 /// ciphertext (handles in that order) and the opening the proofs need.
-pub fn grouped2(member_pk: &[u8; 32], auditor_pk: &[u8; 32], amount: u64) -> Result<(GroupedCiphertext2, Opening), KeyError> {
+pub fn grouped2(
+    member_pk: &[u8; 32],
+    auditor_pk: &[u8; 32],
+    amount: u64,
+) -> Result<(GroupedCiphertext2, Opening), KeyError> {
     let opening = Opening::random();
     let ct = grouped2_with(member_pk, auditor_pk, amount, &opening)?;
     Ok((ct, opening))
 }
 
 /// Deterministic variant with a caller-supplied opening.
-pub fn grouped2_with(member_pk: &[u8; 32], auditor_pk: &[u8; 32], amount: u64, opening: &Opening) -> Result<GroupedCiphertext2, KeyError> {
+pub fn grouped2_with(
+    member_pk: &[u8; 32],
+    auditor_pk: &[u8; 32],
+    amount: u64,
+    opening: &Opening,
+) -> Result<GroupedCiphertext2, KeyError> {
     let member: ElGamalPubkey = pubkey_from_bytes(member_pk)?;
     let auditor: ElGamalPubkey = pubkey_from_bytes(auditor_pk)?;
     let ct = GroupedElGamal::<2>::encrypt_with([&member, &auditor], amount, &opening.0);

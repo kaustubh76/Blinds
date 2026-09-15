@@ -4,6 +4,7 @@ members = [
     "crates/window-config",
     "crates/window-clearing",
     "crates/window-elgamal",
+    "crates/window-proofs",
 ]
 resolver = "2"
 

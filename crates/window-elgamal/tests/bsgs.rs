@@ -25,7 +25,8 @@ fn decrypts_an_aggregate_under_the_auditor_key() {
     let sizes = [1_000_000u64, 250_000, 4_000_000];
     let mut acc = Ciphertext::ZERO;
     for size in sizes {
-        let (ct, _) = encrypt::grouped2(&member.pubkey_bytes(), &auditor.pubkey_bytes(), size).unwrap();
+        let (ct, _) =
+            encrypt::grouped2(&member.pubkey_bytes(), &auditor.pubkey_bytes(), size).unwrap();
         acc = acc.accumulate(&ct, 1).unwrap();
     }
     assert_eq!(s.decrypt(&auditor, &acc, 3 << 40), Some(sizes.iter().sum()));
@@ -51,7 +52,7 @@ proptest! {
     }
 }
 
-/// Worst case near the spec bound with a production-size table; ~seconds, so opt-in.
+/// Worst case near the spec bound with a production-size table; seconds, so opt-in.
 #[test]
 #[ignore]
 fn worst_case_near_2_44_with_22_bit_table() {

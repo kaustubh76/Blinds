@@ -18,6 +18,11 @@ pub fn shifted_commitment(commitment: &Point, s_min: u64) -> Result<Point, Curve
 /// `Δ = c·p′·a − 150·ℓ`, which is non-negative iff collateral value covers 150 % of the loan.
 /// This is the only place the formula exists: the program computes it with syscalls, the
 /// prover with dalek, both through this function.
-pub fn solvency_delta(collateral: &Ciphertext, k_c: u64, loan: &Ciphertext, k_l: u64) -> Result<Ciphertext, CurveError> {
+pub fn solvency_delta(
+    collateral: &Ciphertext,
+    k_c: u64,
+    loan: &Ciphertext,
+    k_l: u64,
+) -> Result<Ciphertext, CurveError> {
     collateral.scale(k_c)?.sub(&loan.scale(k_l)?)
 }
