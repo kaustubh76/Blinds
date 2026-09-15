@@ -1,0 +1,1191 @@
+{
+  "address": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
+  "metadata": {
+    "name": "window_auction",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Epoch clock and encrypted-bid accumulation for THE WINDOW"
+  },
+  "instructions": [
+    {
+      "name": "close_bid",
+      "docs": [
+        "Reclaims a bid's rent after the epoch settled and the matching window passed."
+      ],
+      "discriminator": [
+        169,
+        171,
+        66,
+        115,
+        220,
+        168,
+        231,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "anyone",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid.epoch",
+                "account": "Bid"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "relations": [
+            "bid"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_epoch",
+      "docs": [
+        "Slot-gated close; keeper before grace, anyone after. Idempotent."
+      ],
+      "discriminator": [
+        13,
+        87,
+        7,
+        133,
+        109,
+        14,
+        83,
+        25
+      ],
+      "accounts": [
+        {
+          "name": "closer",
+          "docs": [
+            "Keeper before grace; anyone after."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "index"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "mark_printed",
+      "docs": [
+        "Called by `window_oracle` (PDA-signed CPI) once the print is final."
+      ],
+      "discriminator": [
+        88,
+        6,
+        147,
+        83,
+        206,
+        162,
+        73,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "oracle_authority",
+          "docs": [
+            "The oracle program's signer PDA. A CPI caller cannot be identified through the",
+            "Instructions sysvar, so the oracle proves itself by signing with this PDA."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "index"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u64"
+        },
+        {
+          "name": "outcome",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "open_epoch",
+      "docs": [
+        "Keeper opens the next epoch; stamps the auditor key in force."
+      ],
+      "discriminator": [
+        75,
+        57,
+        218,
+        33,
+        173,
+        254,
+        207,
+        136
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.epochs_opened",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_auditor",
+      "docs": [
+        "Admin rotates the auditor key between epochs."
+      ],
+      "discriminator": [
+        82,
+        153,
+        203,
+        218,
+        123,
+        145,
+        232,
+        93
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "submit_bid",
+      "docs": [
+        "Submit an encrypted bid. The validity proof must be the previous instruction of the",
+        "transaction; the range proof must already be verified into `range_ctx`."
+      ],
+      "discriminator": [
+        19,
+        164,
+        237,
+        254,
+        64,
+        139,
+        237,
+        93
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_record",
+          "docs": [
+            "The member's registry record (owned by `window_registry`; Anchor checks the owner)."
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.current_epoch",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true
+        },
+        {
+          "name": "range_ctx",
+          "writable": true
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "zk_program",
+          "address": "ZkE1Gama1Proof11111111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "side",
+          "type": "u8"
+        },
+        {
+          "name": "tick",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Bid",
+      "discriminator": [
+        143,
+        246,
+        48,
+        245,
+        42,
+        145,
+        180,
+        88
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Epoch",
+      "discriminator": [
+        93,
+        83,
+        120,
+        89,
+        151,
+        138,
+        152,
+        108
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AuditorRotated",
+      "discriminator": [
+        225,
+        157,
+        172,
+        119,
+        250,
+        100,
+        54,
+        140
+      ]
+    },
+    {
+      "name": "BidSubmitted",
+      "discriminator": [
+        116,
+        72,
+        108,
+        240,
+        175,
+        70,
+        56,
+        22
+      ]
+    },
+    {
+      "name": "EpochClosed",
+      "discriminator": [
+        21,
+        4,
+        48,
+        56,
+        29,
+        169,
+        77,
+        42
+      ]
+    },
+    {
+      "name": "EpochOpened",
+      "discriminator": [
+        136,
+        166,
+        130,
+        170,
+        78,
+        145,
+        67,
+        78
+      ]
+    },
+    {
+      "name": "EpochPrinted",
+      "discriminator": [
+        127,
+        1,
+        111,
+        26,
+        49,
+        126,
+        244,
+        24
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "signer is not authorized for this instruction"
+    },
+    {
+      "code": 6001,
+      "name": "BadParams",
+      "msg": "invalid parameters"
+    },
+    {
+      "code": 6002,
+      "name": "PrevEpochStillOpen",
+      "msg": "the previous epoch is still open"
+    },
+    {
+      "code": 6003,
+      "name": "NotOpen",
+      "msg": "epoch is not open"
+    },
+    {
+      "code": 6004,
+      "name": "NotClosed",
+      "msg": "epoch is not closed"
+    },
+    {
+      "code": 6005,
+      "name": "WindowNotElapsed",
+      "msg": "epoch window has not elapsed"
+    },
+    {
+      "code": 6006,
+      "name": "NotKeeperBeforeGrace",
+      "msg": "only the keeper may close before the grace period"
+    },
+    {
+      "code": 6007,
+      "name": "BadTick",
+      "msg": "tick out of range"
+    },
+    {
+      "code": 6008,
+      "name": "BadSide",
+      "msg": "side must be 0 (ask) or 1 (bid)"
+    },
+    {
+      "code": 6009,
+      "name": "MemberInactive",
+      "msg": "member is not active"
+    },
+    {
+      "code": 6010,
+      "name": "MemberKeyMismatch",
+      "msg": "validity proof is not under the member's registered ElGamal key"
+    },
+    {
+      "code": 6011,
+      "name": "AuditorKeyMismatch",
+      "msg": "validity proof is not under the epoch's auditor key"
+    },
+    {
+      "code": 6012,
+      "name": "RangeCommitmentMismatch",
+      "msg": "range proof commitment is not C - s_min*G"
+    },
+    {
+      "code": 6013,
+      "name": "RangeBitLength",
+      "msg": "range proof bit length is not 40"
+    },
+    {
+      "code": 6014,
+      "name": "ContextAuthorityMismatch",
+      "msg": "proof context authority is not the member"
+    },
+    {
+      "code": 6015,
+      "name": "BadContextOwner",
+      "msg": "proof context account is not owned by the ZK ElGamal proof program"
+    },
+    {
+      "code": 6016,
+      "name": "WrongProofType",
+      "msg": "wrong proof type or malformed proof instruction"
+    },
+    {
+      "code": 6017,
+      "name": "TooManyBids",
+      "msg": "too many bids in this epoch"
+    },
+    {
+      "code": 6018,
+      "name": "CurveError",
+      "msg": "curve operation failed"
+    },
+    {
+      "code": 6019,
+      "name": "EpochNotSettled",
+      "msg": "epoch is not settled"
+    },
+    {
+      "code": 6020,
+      "name": "MatchingWindowOpen",
+      "msg": "matching window has not passed"
+    },
+    {
+      "code": 6021,
+      "name": "EpochOpen",
+      "msg": "cannot rotate the auditor while an epoch is open"
+    },
+    {
+      "code": 6022,
+      "name": "BadOutcome",
+      "msg": "invalid print outcome"
+    },
+    {
+      "code": 6023,
+      "name": "EpochIndexMismatch",
+      "msg": "epoch index mismatch"
+    }
+  ],
+  "types": [
+    {
+      "name": "AuditorRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epochs_opened",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Bid",
+      "docs": [
+        "One encrypted bid. Its `init` is the one-bid-per-(epoch, member, side, tick) guard."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "tick",
+            "type": "u8"
+          },
+          {
+            "name": "ciphertext",
+            "docs": [
+              "Grouped ciphertext `(C, D_member, D_auditor)` — never plaintext."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                96
+              ]
+            }
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidSubmitted",
+      "docs": [
+        "No size. Ever."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "tick",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auditor_elgamal_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "cusdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_slots",
+            "type": "u64"
+          },
+          {
+            "name": "keeper_grace_slots",
+            "type": "u64"
+          },
+          {
+            "name": "stale_after_slots",
+            "type": "u64"
+          },
+          {
+            "name": "s_min",
+            "docs": [
+              "Minimum bid size in micro-USDC; range proofs are on `(size − s_min)`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_bids_per_epoch",
+            "type": "u32"
+          },
+          {
+            "name": "epochs_opened",
+            "docs": [
+              "Number of epochs ever opened; the next epoch's index."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "current_epoch",
+            "docs": [
+              "Index of the most recently opened epoch."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "has_open_epoch",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Epoch",
+      "docs": [
+        "Per-epoch accumulators. Zero-copy: 5,096 bytes of fixed layout, no borsh round-trip per bid.",
+        "Field order avoids implicit padding (bytemuck `Pod` refuses padding)."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "start_slot",
+            "type": "u64"
+          },
+          {
+            "name": "close_slot",
+            "docs": [
+              "0 until closed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "auditor_pubkey",
+            "docs": [
+              "Auditor ElGamal key in force for this epoch's bids."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "acc_commitment",
+            "docs": [
+              "Σ commitments, `[side][tick]`; identity when never accumulated."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    {
+                      "array": [
+                        "u8",
+                        32
+                      ]
+                    },
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "acc_handle",
+            "docs": [
+              "Σ auditor decrypt handles, `[side][tick]`."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    {
+                      "array": [
+                        "u8",
+                        32
+                      ]
+                    },
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "bid_count",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u32",
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "total_bids",
+            "type": "u32"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`EpochStatus` discriminant."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_pad",
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "close_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "start_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochPrinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeParams",
+      "docs": [
+        "Parameters of `initialize`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auditor_elgamal_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "cusdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_slots",
+            "type": "u64"
+          },
+          {
+            "name": "keeper_grace_slots",
+            "type": "u64"
+          },
+          {
+            "name": "stale_after_slots",
+            "type": "u64"
+          },
+          {
+            "name": "s_min",
+            "type": "u64"
+          },
+          {
+            "name": "max_bids_per_epoch",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "docs": [
+        "One registered member."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "elgamal_pubkey",
+            "docs": [
+              "Compressed Ristretto ElGamal public key; bids must carry a handle under it."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

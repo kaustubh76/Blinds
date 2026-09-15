@@ -1,0 +1,545 @@
+{
+  "address": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3",
+  "metadata": {
+    "name": "window_wrap",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "1:1 confidential wrapper: mock-xStock (Token-2022) in program custody ↔ cSTOCK-W confidential balance"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "registry_program"
+        },
+        {
+          "name": "mock_mint"
+        },
+        {
+          "name": "cstock_mint"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mock_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "custody",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "token_program"
+              },
+              {
+                "kind": "account",
+                "path": "mock_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unwrap",
+      "docs": [
+        "Burns cSTOCK-W from the member's public balance (after a confidential `Withdraw`) and",
+        "releases mock-xStock from custody."
+      ],
+      "discriminator": [
+        126,
+        175,
+        198,
+        14,
+        212,
+        69,
+        50,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.mock_mint",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mock_mint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "cstock_mint",
+          "writable": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "member_mock",
+          "writable": true
+        },
+        {
+          "name": "custody",
+          "writable": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "member_cstock",
+          "writable": true
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "wrap",
+      "docs": [
+        "Public leg: mock-xStock → custody; cSTOCK-W minted and deposited into the member's",
+        "pending confidential balance. The member applies it client-side."
+      ],
+      "discriminator": [
+        178,
+        40,
+        10,
+        189,
+        228,
+        129,
+        186,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "member",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "member_record"
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.mock_mint",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mock_mint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "cstock_mint",
+          "writable": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "member_mock",
+          "writable": true
+        },
+        {
+          "name": "custody",
+          "writable": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "member_cstock",
+          "docs": [
+            "The member's cSTOCK-W account with the confidential-transfer extension configured."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Vault",
+      "discriminator": [
+        211,
+        8,
+        232,
+        43,
+        2,
+        152,
+        117,
+        119
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "Unwrapped",
+      "discriminator": [
+        25,
+        86,
+        93,
+        80,
+        145,
+        113,
+        86,
+        93
+      ]
+    },
+    {
+      "name": "Wrapped",
+      "discriminator": [
+        11,
+        127,
+        145,
+        31,
+        206,
+        134,
+        73,
+        130
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "signer is not authorized"
+    },
+    {
+      "code": 6001,
+      "name": "BadMintConfig",
+      "msg": "mint configuration does not match the wrapper's requirements"
+    },
+    {
+      "code": 6002,
+      "name": "MemberInactive",
+      "msg": "member is not active"
+    },
+    {
+      "code": 6003,
+      "name": "AmountZero",
+      "msg": "amount must be > 0"
+    },
+    {
+      "code": 6004,
+      "name": "InsufficientPublicBalance",
+      "msg": "insufficient public cSTOCK-W balance"
+    }
+  ],
+  "types": [
+    {
+      "name": "Member",
+      "docs": [
+        "One registered member."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "elgamal_pubkey",
+            "docs": [
+              "Compressed Ristretto ElGamal public key; bids must carry a handle under it."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Unwrapped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "member",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "mock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "custody",
+            "docs": [
+              "Token-2022 account of `mock_mint` owned by this PDA."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "wrapped",
+            "docs": [
+              "Total mock-xStock in custody == cSTOCK-W supply."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mint_authority_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Wrapped",
+      "docs": [
+        "No amount: the token leg is public by nature; the event does not repeat it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "member",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}

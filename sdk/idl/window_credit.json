@@ -1,0 +1,1696 @@
+{
+  "address": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr",
+  "metadata": {
+    "name": "window_credit",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Loans against encrypted stock collateral: priced solvency proof, two-step lock, attested funding, price-fresh seize"
+  },
+  "instructions": [
+    {
+      "name": "confirm_funding",
+      "discriminator": [
+        30,
+        31,
+        203,
+        65,
+        164,
+        189,
+        67,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirm_lock",
+      "discriminator": [
+        3,
+        194,
+        178,
+        182,
+        176,
+        225,
+        165,
+        1
+      ],
+      "accounts": [
+        {
+          "name": "operator",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit_collateral",
+      "docs": [
+        "Borrower's confidential transfer into escrow must precede this instruction."
+      ],
+      "discriminator": [
+        156,
+        131,
+        142,
+        116,
+        146,
+        247,
+        162,
+        120
+      ],
+      "accounts": [
+        {
+          "name": "borrower",
+          "signer": true,
+          "relations": [
+            "loan"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "borrower_cstock"
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "lock_collateral",
+      "docs": [
+        "Borrower proves collateral value ≥ 150 % of the loan against the fresh public price."
+      ],
+      "discriminator": [
+        161,
+        216,
+        135,
+        122,
+        12,
+        104,
+        211,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "borrower",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "loan"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction_config"
+        },
+        {
+          "name": "borrower_record"
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "price_cache",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.feed_id",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mock_mint"
+        },
+        {
+          "name": "validity_ctx",
+          "writable": true
+        },
+        {
+          "name": "range32_ctx",
+          "writable": true
+        },
+        {
+          "name": "equality_ctx",
+          "writable": true
+        },
+        {
+          "name": "range64_ctx",
+          "writable": true
+        },
+        {
+          "name": "zk_program",
+          "address": "ZkE1Gama1Proof11111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "post_match",
+      "docs": [
+        "Administrator posts one match of a printed epoch; a full fill copies the bid ciphertext."
+      ],
+      "discriminator": [
+        27,
+        166,
+        94,
+        251,
+        189,
+        252,
+        55,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "print"
+        },
+        {
+          "name": "auction_config"
+        },
+        {
+          "name": "borrower_bid"
+        },
+        {
+          "name": "lender_bid"
+        },
+        {
+          "name": "borrower_record"
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "partial_validity_ctx",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch",
+          "type": "u64"
+        },
+        {
+          "name": "k",
+          "type": "u8"
+        },
+        {
+          "name": "kind",
+          "type": {
+            "defined": {
+              "name": "MatchKind"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "post_price",
+      "docs": [
+        "Keeper posts the named Pyth feed's price."
+      ],
+      "discriminator": [
+        130,
+        245,
+        138,
+        141,
+        114,
+        50,
+        13,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_cache",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.feed_id",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "expo",
+          "type": "i32"
+        },
+        {
+          "name": "publish_time",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "release_collateral",
+      "docs": [
+        "Operator returns (Repaid) or forwards (Defaulted) the collateral; the confidential",
+        "transfer out of escrow must precede this instruction."
+      ],
+      "discriminator": [
+        40,
+        255,
+        12,
+        218,
+        249,
+        197,
+        179,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "operator",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "destination"
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "repay",
+      "discriminator": [
+        234,
+        103,
+        67,
+        82,
+        208,
+        234,
+        219,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "seize",
+      "docs": [
+        "Anyone, once the deadline passed and the price is fresh."
+      ],
+      "discriminator": [
+        129,
+        159,
+        143,
+        31,
+        161,
+        224,
+        241,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "anyone",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "price_cache",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.feed_id",
+                "account": "Config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Loan",
+      "discriminator": [
+        20,
+        195,
+        70,
+        117,
+        165,
+        227,
+        182,
+        1
+      ]
+    },
+    {
+      "name": "PriceCache",
+      "discriminator": [
+        198,
+        211,
+        186,
+        101,
+        228,
+        22,
+        101,
+        190
+      ]
+    },
+    {
+      "name": "window_credit::state::Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CollateralReleased",
+      "discriminator": [
+        126,
+        144,
+        66,
+        166,
+        31,
+        103,
+        26,
+        113
+      ]
+    },
+    {
+      "name": "LoanStatusChanged",
+      "discriminator": [
+        13,
+        92,
+        117,
+        131,
+        204,
+        91,
+        229,
+        234
+      ]
+    },
+    {
+      "name": "LockRequested",
+      "discriminator": [
+        87,
+        121,
+        227,
+        177,
+        107,
+        236,
+        246,
+        245
+      ]
+    },
+    {
+      "name": "MatchPosted",
+      "discriminator": [
+        210,
+        29,
+        203,
+        170,
+        195,
+        77,
+        179,
+        81
+      ]
+    },
+    {
+      "name": "PricePosted",
+      "discriminator": [
+        166,
+        13,
+        249,
+        195,
+        250,
+        145,
+        213,
+        229
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "signer is not authorized"
+    },
+    {
+      "code": 6001,
+      "name": "BadParams",
+      "msg": "invalid parameters"
+    },
+    {
+      "code": 6002,
+      "name": "BadPrice",
+      "msg": "price must be > 0"
+    },
+    {
+      "code": 6003,
+      "name": "PriceRegressed",
+      "msg": "publish_time went backwards"
+    },
+    {
+      "code": 6004,
+      "name": "NotPrinted",
+      "msg": "epoch is not printed"
+    },
+    {
+      "code": 6005,
+      "name": "WrongSide",
+      "msg": "bid side does not match its role in the loan"
+    },
+    {
+      "code": 6006,
+      "name": "TickNotFilled",
+      "msg": "bid tick is not filled at the clearing rate"
+    },
+    {
+      "code": 6007,
+      "name": "BadPartialProof",
+      "msg": "partial fill requires a validity proof context"
+    },
+    {
+      "code": 6008,
+      "name": "NotPending",
+      "msg": "loan is not pending"
+    },
+    {
+      "code": 6009,
+      "name": "NotRequested",
+      "msg": "loan is not requested"
+    },
+    {
+      "code": 6010,
+      "name": "NotDeposited",
+      "msg": "loan is not deposited"
+    },
+    {
+      "code": 6011,
+      "name": "NotLocked",
+      "msg": "loan is not locked"
+    },
+    {
+      "code": 6012,
+      "name": "NotActive",
+      "msg": "loan is not active"
+    },
+    {
+      "code": 6013,
+      "name": "NotMatured",
+      "msg": "loan has not matured"
+    },
+    {
+      "code": 6014,
+      "name": "NotTerminal",
+      "msg": "loan is not in a terminal state"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyReleased",
+      "msg": "collateral already released"
+    },
+    {
+      "code": 6016,
+      "name": "PriceStale",
+      "msg": "price is stale"
+    },
+    {
+      "code": 6017,
+      "name": "ScalarBound",
+      "msg": "solvency scalars violate the soundness bound"
+    },
+    {
+      "code": 6018,
+      "name": "MultiplierInvalid",
+      "msg": "multiplier is invalid"
+    },
+    {
+      "code": 6019,
+      "name": "MemberKeyMismatch",
+      "msg": "proof is not under the borrower's registered ElGamal key"
+    },
+    {
+      "code": 6020,
+      "name": "AuditorKeyMismatch",
+      "msg": "proof is not under the auditor key"
+    },
+    {
+      "code": 6021,
+      "name": "CollateralRangeMismatch",
+      "msg": "collateral range proof does not cover the collateral commitment with 32 bits"
+    },
+    {
+      "code": 6022,
+      "name": "DeltaMismatch",
+      "msg": "equality proof is not over E_delta"
+    },
+    {
+      "code": 6023,
+      "name": "DeltaRangeMismatch",
+      "msg": "delta range proof does not cover the delta commitment with 64 bits"
+    },
+    {
+      "code": 6024,
+      "name": "ContextAuthorityMismatch",
+      "msg": "proof context authority is not the borrower"
+    },
+    {
+      "code": 6025,
+      "name": "BadContextOwner",
+      "msg": "proof context account is not owned by the ZK ElGamal proof program"
+    },
+    {
+      "code": 6026,
+      "name": "WrongProofType",
+      "msg": "wrong proof type"
+    },
+    {
+      "code": 6027,
+      "name": "NoEscrowTransfer",
+      "msg": "the previous instruction is not a confidential transfer into escrow"
+    },
+    {
+      "code": 6028,
+      "name": "NoReleaseTransfer",
+      "msg": "the previous instruction is not a confidential transfer out of escrow to the right account"
+    },
+    {
+      "code": 6029,
+      "name": "CurveError",
+      "msg": "curve operation failed"
+    },
+    {
+      "code": 6030,
+      "name": "WrongDestination",
+      "msg": "wrong destination for the collateral release"
+    }
+  ],
+  "types": [
+    {
+      "name": "Bid",
+      "docs": [
+        "One encrypted bid. Its `init` is the one-bid-per-(epoch, member, side, tick) guard."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "member",
+            "type": "pubkey"
+          },
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "tick",
+            "type": "u8"
+          },
+          {
+            "name": "ciphertext",
+            "docs": [
+              "Grouped ciphertext `(C, D_member, D_auditor)` — never plaintext."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                96
+              ]
+            }
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollateralReleased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "loan",
+            "type": "pubkey"
+          },
+          {
+            "name": "to",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "operator",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auction_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "mock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "haircut_bps",
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age",
+            "type": "u64"
+          },
+          {
+            "name": "tenor_slots",
+            "type": "u64"
+          },
+          {
+            "name": "multiplier_override",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Loan",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lender",
+            "type": "pubkey"
+          },
+          {
+            "name": "borrower",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "tick",
+            "docs": [
+              "The clearing rate tick."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bid_tick",
+            "docs": [
+              "The borrower's bid tick (≥ `tick`)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "k",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`LoanStatus` discriminant."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "collateral_released",
+            "type": "bool"
+          },
+          {
+            "name": "fill_num",
+            "docs": [
+              "Disclosed marginal ratio for this lender's fill (1/1 for a full fill)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fill_den",
+            "type": "u64"
+          },
+          {
+            "name": "size_ct",
+            "docs": [
+              "Grouped (borrower, auditor) ciphertext of the loan size — never plaintext."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                96
+              ]
+            }
+          },
+          {
+            "name": "collateral_ct",
+            "docs": [
+              "Grouped (borrower, auditor) ciphertext of the collateral shares — never plaintext."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                96
+              ]
+            }
+          },
+          {
+            "name": "delta_commitment",
+            "docs": [
+              "Pedersen commitment to Δ recorded at lock."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "opening_note",
+            "docs": [
+              "For partial fills: the size ciphertext's opening, sealed to the borrower. Zero for full fills."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "k_c",
+            "type": "u64"
+          },
+          {
+            "name": "k_l",
+            "type": "u64"
+          },
+          {
+            "name": "price_at_lock",
+            "type": "u64"
+          },
+          {
+            "name": "mult_at_lock",
+            "type": "u64"
+          },
+          {
+            "name": "lock_slot",
+            "type": "u64"
+          },
+          {
+            "name": "funded_slot",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LoanStatusChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "loan",
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LockRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "loan",
+            "type": "pubkey"
+          },
+          {
+            "name": "price_at_lock",
+            "type": "u64"
+          },
+          {
+            "name": "mult_at_lock",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MatchKind",
+      "docs": [
+        "How a loan's size ciphertext is established."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Full"
+          },
+          {
+            "name": "Partial",
+            "fields": [
+              {
+                "name": "size_ct",
+                "type": {
+                  "array": [
+                    "u8",
+                    96
+                  ]
+                }
+              },
+              {
+                "name": "opening_note",
+                "type": {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "MatchPosted",
+      "docs": [
+        "No sizes."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "loan",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "tick",
+            "type": "u8"
+          },
+          {
+            "name": "borrower",
+            "type": "pubkey"
+          },
+          {
+            "name": "lender",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "docs": [
+        "One registered member."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "elgamal_pubkey",
+            "docs": [
+              "Compressed Ristretto ElGamal public key; bids must carry a handle under it."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceCache",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "type": "i64"
+          },
+          {
+            "name": "posted_slot",
+            "type": "u64"
+          },
+          {
+            "name": "posts",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PricePosted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Print",
+      "docs": [
+        "One print per epoch. Zero-copy, padding-free layout (672 bytes)."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "claimed_sum",
+            "docs": [
+              "Attested per-tick sums in micro-USDC, `[side][tick]`."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u64",
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "matched_volume",
+            "type": "u64"
+          },
+          {
+            "name": "marginal_ratio_num",
+            "type": "u64"
+          },
+          {
+            "name": "marginal_ratio_den",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_slot",
+            "type": "u64"
+          },
+          {
+            "name": "matches_posted",
+            "type": "u32"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          },
+          {
+            "name": "attested",
+            "docs": [
+              "Number of ticks attested so far."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`PrintStatus` discriminant."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "missed",
+            "type": "u8"
+          },
+          {
+            "name": "r_star_tick",
+            "type": "u8"
+          },
+          {
+            "name": "marginal_tick",
+            "type": "u8"
+          },
+          {
+            "name": "stale",
+            "type": "u8"
+          },
+          {
+            "name": "regime_flags",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "nonzero_bitmap",
+            "docs": [
+              "Ticks with `bid_count > 0` at `begin_print` (bit `side*37 + tick`)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                10
+              ]
+            }
+          },
+          {
+            "name": "proven_bitmap",
+            "docs": [
+              "Ticks whose sum has been proven."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                10
+              ]
+            }
+          },
+          {
+            "name": "_pad",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "window_auction::state::Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auditor_elgamal_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "cusdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_slots",
+            "type": "u64"
+          },
+          {
+            "name": "keeper_grace_slots",
+            "type": "u64"
+          },
+          {
+            "name": "stale_after_slots",
+            "type": "u64"
+          },
+          {
+            "name": "s_min",
+            "docs": [
+              "Minimum bid size in micro-USDC; range proofs are on `(size − s_min)`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_bids_per_epoch",
+            "type": "u32"
+          },
+          {
+            "name": "epochs_opened",
+            "docs": [
+              "Number of epochs ever opened; the next epoch's index."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "current_epoch",
+            "docs": [
+              "Index of the most recently opened epoch."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "has_open_epoch",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "window_credit::state::Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "operator",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auction_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "mock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_account",
+            "docs": [
+              "The operator's cSTOCK-W confidential account holding escrowed collateral."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "haircut_bps",
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age",
+            "type": "u64"
+          },
+          {
+            "name": "tenor_slots",
+            "type": "u64"
+          },
+          {
+            "name": "multiplier_override",
+            "docs": [
+              "0 = read the multiplier from the mint's `ScaledUiAmount` extension."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

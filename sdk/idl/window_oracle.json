@@ -1,0 +1,1167 @@
+{
+  "address": "78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV",
+  "metadata": {
+    "name": "window_oracle",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "xONIA print: proof-of-correct-decryption attestation, on-chain clearing recompute, regime state"
+  },
+  "instructions": [
+    {
+      "name": "attest_ticks",
+      "docs": [
+        "Attests up to `claims.len()` ticks; claim *i* is bound to the `VerifyZeroCiphertext`",
+        "instruction at relative offset `−(len − i)` in this transaction."
+      ],
+      "discriminator": [
+        210,
+        89,
+        184,
+        115,
+        140,
+        222,
+        145,
+        51
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "oracle_state"
+          ]
+        },
+        {
+          "name": "oracle_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch"
+        },
+        {
+          "name": "print",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_index",
+          "type": "u64"
+        },
+        {
+          "name": "claims",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "TickClaim"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "begin_print",
+      "docs": [
+        "Opens the print for a closed epoch and snapshots its nonzero ticks."
+      ],
+      "discriminator": [
+        246,
+        75,
+        123,
+        155,
+        47,
+        246,
+        217,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "oracle_state"
+          ]
+        },
+        {
+          "name": "oracle_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "docs": [
+            "The closed epoch (owned by `window_auction`; Anchor checks the owner)."
+          ]
+        },
+        {
+          "name": "print",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "finalize_print",
+      "docs": [
+        "Recomputes r* from the attested sums; prints only if it equals the claim."
+      ],
+      "discriminator": [
+        53,
+        176,
+        173,
+        19,
+        37,
+        140,
+        101,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "oracle_state"
+          ]
+        },
+        {
+          "name": "oracle_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch",
+          "writable": true
+        },
+        {
+          "name": "print",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "oracle_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "auction_config"
+        },
+        {
+          "name": "auction_program",
+          "address": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_index",
+          "type": "u64"
+        },
+        {
+          "name": "claimed_r_star",
+          "type": {
+            "option": "u8"
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "auction_program",
+          "type": "pubkey"
+        },
+        {
+          "name": "band_edge_epochs",
+          "type": "u8"
+        },
+        {
+          "name": "stale_after_slots",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "mark_stale",
+      "docs": [
+        "Anyone, after `stale_after_slots` past close without a finalized print."
+      ],
+      "discriminator": [
+        173,
+        114,
+        248,
+        127,
+        229,
+        16,
+        189,
+        64
+      ],
+      "accounts": [
+        {
+          "name": "anyone",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "epoch"
+        },
+        {
+          "name": "print",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "epoch_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "epoch_index",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "OracleState",
+      "discriminator": [
+        97,
+        156,
+        157,
+        189,
+        194,
+        73,
+        8,
+        15
+      ]
+    },
+    {
+      "name": "Print",
+      "discriminator": [
+        112,
+        154,
+        148,
+        62,
+        26,
+        67,
+        88,
+        141
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "NoTrade",
+      "discriminator": [
+        12,
+        196,
+        135,
+        213,
+        184,
+        183,
+        61,
+        199
+      ]
+    },
+    {
+      "name": "PrintBegun",
+      "discriminator": [
+        176,
+        252,
+        124,
+        235,
+        92,
+        80,
+        231,
+        67
+      ]
+    },
+    {
+      "name": "PrintMissed",
+      "discriminator": [
+        201,
+        54,
+        98,
+        49,
+        0,
+        94,
+        114,
+        72
+      ]
+    },
+    {
+      "name": "Printed",
+      "discriminator": [
+        181,
+        234,
+        243,
+        60,
+        83,
+        203,
+        158,
+        47
+      ]
+    },
+    {
+      "name": "TicksAttested",
+      "discriminator": [
+        1,
+        17,
+        27,
+        18,
+        249,
+        37,
+        189,
+        84
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "signer is not authorized"
+    },
+    {
+      "code": 6001,
+      "name": "NotClosed",
+      "msg": "epoch is not closed"
+    },
+    {
+      "code": 6002,
+      "name": "ZeroTickNotIdentity",
+      "msg": "a zero-count tick has a non-identity accumulator"
+    },
+    {
+      "code": 6003,
+      "name": "PrintExists",
+      "msg": "print already exists"
+    },
+    {
+      "code": 6004,
+      "name": "PrintNotAttesting",
+      "msg": "print is not attesting"
+    },
+    {
+      "code": 6005,
+      "name": "WrongProofType",
+      "msg": "wrong proof type or malformed proof instruction"
+    },
+    {
+      "code": 6006,
+      "name": "ProofKeyMismatch",
+      "msg": "proof is not under the epoch's auditor key"
+    },
+    {
+      "code": 6007,
+      "name": "ResidualMismatch",
+      "msg": "proof ciphertext is not the residual of the accumulator and the claimed sum"
+    },
+    {
+      "code": 6008,
+      "name": "SumExceedsBound",
+      "msg": "claimed sum exceeds bid_count * 2^40"
+    },
+    {
+      "code": 6009,
+      "name": "TickNotNonzero",
+      "msg": "tick has no bids; nothing to attest"
+    },
+    {
+      "code": 6010,
+      "name": "TickAlreadyAttested",
+      "msg": "tick already attested"
+    },
+    {
+      "code": 6011,
+      "name": "CoverageIncomplete",
+      "msg": "not every nonzero tick is proven"
+    },
+    {
+      "code": 6012,
+      "name": "RateMismatch",
+      "msg": "recomputed clearing rate differs from the claim"
+    },
+    {
+      "code": 6013,
+      "name": "AlreadyFinalized",
+      "msg": "print already finalized"
+    },
+    {
+      "code": 6014,
+      "name": "NotYetStale",
+      "msg": "print deadline has not passed"
+    },
+    {
+      "code": 6015,
+      "name": "BadTick",
+      "msg": "bad side or tick"
+    },
+    {
+      "code": 6016,
+      "name": "TooManyClaims",
+      "msg": "too many claims in one instruction"
+    },
+    {
+      "code": 6017,
+      "name": "EpochIndexMismatch",
+      "msg": "epoch index mismatch"
+    },
+    {
+      "code": 6018,
+      "name": "Overflow",
+      "msg": "clearing arithmetic overflow"
+    },
+    {
+      "code": 6019,
+      "name": "CurveError",
+      "msg": "curve operation failed"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "keeper",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "registry_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "auditor_elgamal_pubkey",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "cusdc_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch_slots",
+            "type": "u64"
+          },
+          {
+            "name": "keeper_grace_slots",
+            "type": "u64"
+          },
+          {
+            "name": "stale_after_slots",
+            "type": "u64"
+          },
+          {
+            "name": "s_min",
+            "docs": [
+              "Minimum bid size in micro-USDC; range proofs are on `(size − s_min)`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_bids_per_epoch",
+            "type": "u32"
+          },
+          {
+            "name": "epochs_opened",
+            "docs": [
+              "Number of epochs ever opened; the next epoch's index."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "current_epoch",
+            "docs": [
+              "Index of the most recently opened epoch."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "has_open_epoch",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Epoch",
+      "docs": [
+        "Per-epoch accumulators. Zero-copy: 5,096 bytes of fixed layout, no borsh round-trip per bid.",
+        "Field order avoids implicit padding (bytemuck `Pod` refuses padding)."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "start_slot",
+            "type": "u64"
+          },
+          {
+            "name": "close_slot",
+            "docs": [
+              "0 until closed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "auditor_pubkey",
+            "docs": [
+              "Auditor ElGamal key in force for this epoch's bids."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "acc_commitment",
+            "docs": [
+              "Σ commitments, `[side][tick]`; identity when never accumulated."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    {
+                      "array": [
+                        "u8",
+                        32
+                      ]
+                    },
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "acc_handle",
+            "docs": [
+              "Σ auditor decrypt handles, `[side][tick]`."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    {
+                      "array": [
+                        "u8",
+                        32
+                      ]
+                    },
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "bid_count",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u32",
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "total_bids",
+            "type": "u32"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`EpochStatus` discriminant."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_pad",
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "NoTrade",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleState",
+      "docs": [
+        "The benchmark's rolling state and latest-rate view."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "auction_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "band_edge_epochs",
+            "type": "u8"
+          },
+          {
+            "name": "stale_after_slots",
+            "type": "u64"
+          },
+          {
+            "name": "has_printed",
+            "type": "bool"
+          },
+          {
+            "name": "last_print_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "last_r_star_tick",
+            "type": "u8"
+          },
+          {
+            "name": "last_matched",
+            "type": "u64"
+          },
+          {
+            "name": "stale",
+            "docs": [
+              "`window_clearing::regime::State`, field by field."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "consecutive_trades",
+            "type": "u8"
+          },
+          {
+            "name": "edge_streak",
+            "type": "u8"
+          },
+          {
+            "name": "interior_streak",
+            "type": "u8"
+          },
+          {
+            "name": "band_edge",
+            "type": "u8"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          },
+          {
+            "name": "prints",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Print",
+      "docs": [
+        "One print per epoch. Zero-copy, padding-free layout (672 bytes)."
+      ],
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "claimed_sum",
+            "docs": [
+              "Attested per-tick sums in micro-USDC, `[side][tick]`."
+            ],
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u64",
+                    37
+                  ]
+                },
+                2
+              ]
+            }
+          },
+          {
+            "name": "matched_volume",
+            "type": "u64"
+          },
+          {
+            "name": "marginal_ratio_num",
+            "type": "u64"
+          },
+          {
+            "name": "marginal_ratio_den",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_slot",
+            "type": "u64"
+          },
+          {
+            "name": "matches_posted",
+            "type": "u32"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          },
+          {
+            "name": "attested",
+            "docs": [
+              "Number of ticks attested so far."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`PrintStatus` discriminant."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "missed",
+            "type": "u8"
+          },
+          {
+            "name": "r_star_tick",
+            "type": "u8"
+          },
+          {
+            "name": "marginal_tick",
+            "type": "u8"
+          },
+          {
+            "name": "stale",
+            "type": "u8"
+          },
+          {
+            "name": "regime_flags",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "nonzero_bitmap",
+            "docs": [
+              "Ticks with `bid_count > 0` at `begin_print` (bit `side*37 + tick`)."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                10
+              ]
+            }
+          },
+          {
+            "name": "proven_bitmap",
+            "docs": [
+              "Ticks whose sum has been proven."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                10
+              ]
+            }
+          },
+          {
+            "name": "_pad",
+            "type": {
+              "array": [
+                "u8",
+                6
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrintBegun",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "nonzero_ticks",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrintMissed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Printed",
+      "docs": [
+        "Aggregates only."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "r_star_tick",
+            "type": "u8"
+          },
+          {
+            "name": "r_star_bps",
+            "type": "u32"
+          },
+          {
+            "name": "matched_volume",
+            "type": "u64"
+          },
+          {
+            "name": "stale",
+            "type": "bool"
+          },
+          {
+            "name": "tau",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TickClaim",
+      "docs": [
+        "One attested tick."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "side",
+            "type": "u8"
+          },
+          {
+            "name": "tick",
+            "type": "u8"
+          },
+          {
+            "name": "sum",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicksAttested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "u64"
+          },
+          {
+            "name": "attested",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

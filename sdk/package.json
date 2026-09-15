@@ -1,0 +1,42 @@
+{
+  "name": "@thewindow/solana-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for THE WINDOW for Stocks: generated program clients, transaction builders, rates math, browser proofs and print re-verification",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./wasm": "./wasm/window_proofs.js"
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "idl"
+  ],
+  "scripts": {
+    "codegen": "tsx scripts/codegen.ts",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@solana-program/compute-budget": "^0.18.1",
+    "@solana-program/system": "^0.14.1",
+    "@solana-program/token-2022": "^0.17.0",
+    "@solana/kit": "^8.3.0",
+    "@solana/program-client-core": "^8.3.0"
+  },
+  "devDependencies": {
+    "@codama/nodes-from-anchor": "^1.5.6",
+    "@codama/renderers-js": "^2.5.0",
+    "codama": "^1.11.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0"
+  }
+}

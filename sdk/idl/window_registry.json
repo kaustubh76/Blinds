@@ -1,0 +1,467 @@
+{
+  "address": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
+  "metadata": {
+    "name": "window_registry",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Member registry for THE WINDOW: admin-gated admission, one ElGamal public key per member"
+  },
+  "instructions": [
+    {
+      "name": "add_member",
+      "docs": [
+        "Admits `owner` with its ElGamal public key."
+      ],
+      "discriminator": [
+        13,
+        116,
+        123,
+        130,
+        126,
+        198,
+        57,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "owner",
+          "type": "pubkey"
+        },
+        {
+          "name": "elgamal_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "joined_epoch",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Creates the registry config; the payer becomes admin."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "remove_member",
+      "docs": [
+        "Deactivates a member (its PDA stays so history remains attributable)."
+      ],
+      "discriminator": [
+        171,
+        57,
+        231,
+        150,
+        167,
+        128,
+        18,
+        55
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "member.owner",
+                "account": "Member"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_elgamal_pubkey",
+      "docs": [
+        "A member rotates its own ElGamal key. Bids already accumulated are unaffected (they carry",
+        "the key in force when made)."
+      ],
+      "discriminator": [
+        225,
+        48,
+        209,
+        132,
+        9,
+        118,
+        207,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "member"
+          ]
+        },
+        {
+          "name": "member",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_pubkey",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Member",
+      "discriminator": [
+        54,
+        19,
+        162,
+        21,
+        29,
+        166,
+        17,
+        198
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "MemberAdded",
+      "discriminator": [
+        198,
+        220,
+        228,
+        196,
+        92,
+        235,
+        240,
+        79
+      ]
+    },
+    {
+      "name": "MemberKeyUpdated",
+      "discriminator": [
+        211,
+        207,
+        78,
+        183,
+        71,
+        151,
+        95,
+        164
+      ]
+    },
+    {
+      "name": "MemberRemoved",
+      "discriminator": [
+        250,
+        66,
+        3,
+        113,
+        161,
+        10,
+        59,
+        39
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Unauthorized",
+      "msg": "signer is not the registry admin"
+    },
+    {
+      "code": 6001,
+      "name": "ZeroKey",
+      "msg": "ElGamal public key must not be all zeroes"
+    },
+    {
+      "code": 6002,
+      "name": "NotActive",
+      "msg": "member is not active"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "docs": [
+        "Registry configuration."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "member_count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Member",
+      "docs": [
+        "One registered member."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "elgamal_pubkey",
+            "docs": [
+              "Compressed Ristretto ElGamal public key; bids must carry a handle under it."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_epoch",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberAdded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "joined_epoch",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberKeyUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MemberRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}

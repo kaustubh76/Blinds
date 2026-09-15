@@ -11,6 +11,7 @@ members = [
     "crates/window-elgamal",
     "crates/window-proofs",
     "crates/window-client",
+    "crates/window-proofs-wasm",
     "crates/window-testkit",
     "tests",
     "services/admin",

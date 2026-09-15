@@ -1,0 +1,31 @@
+[package]
+name = "window-proofs-wasm"
+version = "0.1.0"
+description = "wasm-bindgen façade of THE WINDOW proof builders and verifier for the dashboard"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+window-elgamal = { workspace = true, features = ["std"] }
+window-proofs = { workspace = true, features = ["builders", "verify"] }
+window-clearing = { workspace = true, features = ["std"] }
+solana-zk-sdk.workspace = true
+solana-zk-elgamal-proof-interface.workspace = true
+solana-zk-sdk-pod.workspace = true
+spl-token-confidential-transfer-proof-generation.workspace = true
+bytemuck.workspace = true
+wasm-bindgen = "0.2"
+serde.workspace = true
+serde_json.workspace = true
+serde-wasm-bindgen = "0.6"
+getrandom = { version = "0.2", features = ["js"] }
+getrandom3 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+hex.workspace = true
+console_error_panic_hook = "0.1"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os", "--enable-bulk-memory"]

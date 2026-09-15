@@ -1,28 +1,68 @@
 {
   "_comment": "Hand-computed from spec §7.3. Sizes in micro-USDC. Shared by crates/window-clearing and sdk tests.",
   "cases": [
-    { "name": "single_cross", "asks": { "8": 500000000 }, "bids": { "16": 400000000 },
-      "expect": { "r_star": 8, "matched": 400000000, "marginal_tick": 8, "marginal_ratio": [400000000, 500000000] } },
-    { "name": "no_overlap_lender_above_borrower", "asks": { "20": 500000000 }, "bids": { "8": 400000000 },
-      "expect": null },
-    { "name": "multi_ask_marginal_pro_rata", "asks": { "2": 100000000, "4": 250000000 }, "bids": { "10": 300000000 },
-      "expect": { "r_star": 4, "matched": 300000000, "marginal_tick": 4, "marginal_ratio": [200000000, 250000000] } },
-    { "name": "exact_fill", "asks": { "4": 300000000 }, "bids": { "10": 300000000 },
-      "expect": { "r_star": 4, "matched": 300000000, "marginal_tick": 4, "marginal_ratio": [1, 1] } },
-    { "name": "band_edge_low", "asks": { "0": 1000000000 }, "bids": { "36": 500000000 },
-      "expect": { "r_star": 0, "matched": 500000000, "marginal_tick": 0, "marginal_ratio": [500000000, 1000000000] } },
-    { "name": "band_edge_high", "asks": { "36": 100000000 }, "bids": { "36": 100000000 },
-      "expect": { "r_star": 36, "matched": 100000000, "marginal_tick": 36, "marginal_ratio": [1, 1] } },
+    {
+      "name": "single_cross",
+      "asks": { "8": 500000000 },
+      "bids": { "16": 400000000 },
+      "expect": { "r_star": 8, "matched": 400000000, "marginal_tick": 8, "marginal_ratio": [400000000, 500000000] }
+    },
+    {
+      "name": "no_overlap_lender_above_borrower",
+      "asks": { "20": 500000000 },
+      "bids": { "8": 400000000 },
+      "expect": null
+    },
+    {
+      "name": "multi_ask_marginal_pro_rata",
+      "asks": { "2": 100000000, "4": 250000000 },
+      "bids": { "10": 300000000 },
+      "expect": { "r_star": 4, "matched": 300000000, "marginal_tick": 4, "marginal_ratio": [200000000, 250000000] }
+    },
+    {
+      "name": "exact_fill",
+      "asks": { "4": 300000000 },
+      "bids": { "10": 300000000 },
+      "expect": { "r_star": 4, "matched": 300000000, "marginal_tick": 4, "marginal_ratio": [1, 1] }
+    },
+    {
+      "name": "band_edge_low",
+      "asks": { "0": 1000000000 },
+      "bids": { "36": 500000000 },
+      "expect": { "r_star": 0, "matched": 500000000, "marginal_tick": 0, "marginal_ratio": [500000000, 1000000000] }
+    },
+    {
+      "name": "band_edge_high",
+      "asks": { "36": 100000000 },
+      "bids": { "36": 100000000 },
+      "expect": { "r_star": 36, "matched": 100000000, "marginal_tick": 36, "marginal_ratio": [1, 1] }
+    },
     { "name": "all_zero", "asks": {}, "bids": {}, "expect": null },
     { "name": "one_sided_bids", "asks": {}, "bids": { "5": 100000000, "9": 100000000 }, "expect": null },
     { "name": "one_sided_asks", "asks": { "5": 100000000 }, "bids": {}, "expect": null },
-    { "name": "demand_exceeds_supply_everywhere", "asks": { "5": 100000000 }, "bids": { "10": 200000000 },
-      "expect": null },
-    { "name": "crossing_after_low_bid_drops_out", "asks": { "5": 100000000 }, "bids": { "3": 200000000, "10": 50000000 },
-      "expect": { "r_star": 5, "matched": 50000000, "marginal_tick": 5, "marginal_ratio": [50000000, 100000000] } },
-    { "name": "marginal_tick_below_r_star", "asks": { "2": 400000000 }, "bids": { "2": 500000000, "6": 300000000 },
-      "expect": { "r_star": 3, "matched": 300000000, "marginal_tick": 2, "marginal_ratio": [300000000, 400000000] } },
-    { "name": "ladder_both_sides", "asks": { "4": 100000000, "6": 100000000, "8": 100000000 }, "bids": { "5": 50000000, "7": 120000000, "12": 80000000 },
-      "expect": { "r_star": 6, "matched": 200000000, "marginal_tick": 6, "marginal_ratio": [1, 1] } }
+    {
+      "name": "demand_exceeds_supply_everywhere",
+      "asks": { "5": 100000000 },
+      "bids": { "10": 200000000 },
+      "expect": null
+    },
+    {
+      "name": "crossing_after_low_bid_drops_out",
+      "asks": { "5": 100000000 },
+      "bids": { "3": 200000000, "10": 50000000 },
+      "expect": { "r_star": 5, "matched": 50000000, "marginal_tick": 5, "marginal_ratio": [50000000, 100000000] }
+    },
+    {
+      "name": "marginal_tick_below_r_star",
+      "asks": { "2": 400000000 },
+      "bids": { "2": 500000000, "6": 300000000 },
+      "expect": { "r_star": 3, "matched": 300000000, "marginal_tick": 2, "marginal_ratio": [300000000, 400000000] }
+    },
+    {
+      "name": "ladder_both_sides",
+      "asks": { "4": 100000000, "6": 100000000, "8": 100000000 },
+      "bids": { "5": 50000000, "7": 120000000, "12": 80000000 },
+      "expect": { "r_star": 6, "matched": 200000000, "marginal_tick": 6, "marginal_ratio": [1, 1] }
+    }
   ]
 }

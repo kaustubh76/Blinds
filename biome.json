@@ -1,12 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/generated/**", "!**/wasm/**", "!**/dist/**", "!**/target/**"] },
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "files": {
+    "includes": ["**", "!**/generated", "!**/wasm", "!**/dist", "!**/target", "!**/node_modules", "!**/idl"]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "linter": {
     "enabled": true,
+    "preset": "recommended",
     "rules": {
-      "recommended": true,
       "suspicious": { "noExplicitAny": "error" },
       "style": { "noNonNullAssertion": "error" },
       "correctness": { "noUnusedVariables": "error", "noUnusedImports": "error" }
