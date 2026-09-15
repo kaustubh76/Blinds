@@ -37,7 +37,11 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
 6. **Transaction size decides proof delivery.** `ZeroCiphertextProofData` is 192 B (inline, several per tx);
    `BatchedRangeProofU64Data` is 936 B (its own tx, into a context-state account). Measured, not estimated.
 7. **`anchor build 2>&1 | tail` reports `tail`'s exit code.** Use `set -o pipefail` (the Makefile does).
-8. **Program keypairs** live in `deployments/program-keypairs/` (git-ignored) and are copied into
+8. **`solana-curve25519` is "Agave unstable API".** Its functions are `#[deprecated]` unless the
+   `agave-unstable-api` feature is on. The *syscalls* (`sol_curve_group_op`, `sol_curve_multiscalar_mul`)
+   are activated protocol features and stable; only the Rust wrapper's shape may change. All curve calls
+   go through `window_elgamal::point`, so a wrapper change is a one-file fix.
+9. **Program keypairs** live in `deployments/program-keypairs/` (git-ignored) and are copied into
    `target/deploy/` before `anchor build` so `declare_id!` and `Anchor.toml` agree across machines.
 
 ## Feature gates (checked live)

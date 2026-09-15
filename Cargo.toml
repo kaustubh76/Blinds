@@ -3,6 +3,7 @@
 members = [
     "crates/window-config",
     "crates/window-clearing",
+    "crates/window-elgamal",
 ]
 resolver = "2"
 
@@ -22,8 +23,10 @@ anchor-spl = { version = "=1.1.2" }
 # (spl-token-2022-interface ^2 -> proof-extraction 0.5 -> solana-zk-sdk 4.0.0), so it is coherent
 # by construction. solana-zk-sdk 7/8 and proof-extraction 0.6 moved to solana-instruction 4 and
 # cannot be combined with Anchor 1.x — do not "upgrade" them independently.
-solana-zk-sdk = { version = "=4.0.0", default-features = false }
-solana-curve25519 = "=3.1.14"
+solana-zk-sdk = { version = "=4.0.0" }
+# `agave-unstable-api`: the curve25519 *crate* API is declared unstable by Agave (the syscalls
+# underneath are activated protocol features and stable). Acknowledged explicitly; re-check on bump.
+solana-curve25519 = { version = "=3.1.14", features = ["agave-unstable-api"] }
 spl-token-2022-interface = { version = "=2.1.0", default-features = false }
 spl-token-confidential-transfer-proof-extraction = "=0.5.1"
 spl-token-confidential-transfer-proof-generation = "=0.5.1"
