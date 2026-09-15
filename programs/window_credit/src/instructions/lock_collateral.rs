@@ -31,19 +31,19 @@ pub struct LockCollateral<'info> {
     #[account(mut)]
     pub borrower: Signer<'info>,
     #[account(seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(seeds = [window_auction::seeds::CONFIG], bump = auction_config.bump, seeds::program = config.auction_program)]
-    pub auction_config: Account<'info, AuctionConfig>,
+    pub auction_config: Box<Account<'info, AuctionConfig>>,
     #[account(
         seeds = [window_registry::seeds::MEMBER, borrower.key().as_ref()],
         bump = borrower_record.bump,
         seeds::program = config.registry_program,
     )]
-    pub borrower_record: Account<'info, Member>,
+    pub borrower_record: Box<Account<'info, Member>>,
     #[account(mut, has_one = borrower @ CreditError::Unauthorized)]
-    pub loan: Account<'info, Loan>,
+    pub loan: Box<Account<'info, Loan>>,
     #[account(seeds = [seeds::PRICE, config.feed_id.as_ref()], bump = price_cache.bump)]
-    pub price_cache: Account<'info, PriceCache>,
+    pub price_cache: Box<Account<'info, PriceCache>>,
     /// CHECK: the mock-xStock mint; must equal `config.mock_mint`; its `ScaledUiAmount` extension is read.
     #[account(address = config.mock_mint)]
     pub mock_mint: UncheckedAccount<'info>,

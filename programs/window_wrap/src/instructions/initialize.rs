@@ -17,11 +17,11 @@ pub struct Initialize<'info> {
     /// CHECK: the registry program id, recorded for member checks.
     pub registry_program: UncheckedAccount<'info>,
     #[account(mint::token_program = token_program)]
-    pub mock_mint: InterfaceAccount<'info, Mint>,
+    pub mock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mint::token_program = token_program)]
-    pub cstock_mint: InterfaceAccount<'info, Mint>,
+    pub cstock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(init, payer = admin, space = 8 + Vault::INIT_SPACE, seeds = [seeds::VAULT, mock_mint.key().as_ref()], bump)]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
     /// CHECK: PDA that is the mint authority of cSTOCK-W.
     #[account(seeds = [seeds::MINT_AUTHORITY], bump)]
     pub mint_authority: UncheckedAccount<'info>,
@@ -32,7 +32,7 @@ pub struct Initialize<'info> {
         associated_token::authority = vault,
         associated_token::token_program = token_program,
     )]
-    pub custody: InterfaceAccount<'info, TokenAccount>,
+    pub custody: Box<InterfaceAccount<'info, TokenAccount>>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,

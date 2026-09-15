@@ -10,17 +10,17 @@ pub struct Unwrap<'info> {
     #[account(mut)]
     pub member: Signer<'info>,
     #[account(mut, seeds = [seeds::VAULT, vault.mock_mint.as_ref()], bump = vault.bump, has_one = mock_mint, has_one = cstock_mint, has_one = custody)]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
     #[account(mint::token_program = token_program)]
-    pub mock_mint: InterfaceAccount<'info, Mint>,
+    pub mock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut, mint::token_program = token_program)]
-    pub cstock_mint: InterfaceAccount<'info, Mint>,
+    pub cstock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut, token::mint = mock_mint, token::authority = member, token::token_program = token_program)]
-    pub member_mock: InterfaceAccount<'info, TokenAccount>,
+    pub member_mock: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(mut, token::mint = mock_mint, token::token_program = token_program)]
-    pub custody: InterfaceAccount<'info, TokenAccount>,
+    pub custody: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(mut, token::mint = cstock_mint, token::authority = member, token::token_program = token_program)]
-    pub member_cstock: InterfaceAccount<'info, TokenAccount>,
+    pub member_cstock: Box<InterfaceAccount<'info, TokenAccount>>,
     pub token_program: Interface<'info, TokenInterface>,
 }
 

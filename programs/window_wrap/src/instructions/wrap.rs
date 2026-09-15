@@ -18,20 +18,20 @@ pub struct Wrap<'info> {
         constraint = member_record.owner == member.key() @ WrapError::Unauthorized,
         constraint = member_record.active @ WrapError::MemberInactive,
     )]
-    pub member_record: Account<'info, Member>,
+    pub member_record: Box<Account<'info, Member>>,
     #[account(mut, seeds = [seeds::VAULT, vault.mock_mint.as_ref()], bump = vault.bump, has_one = mock_mint, has_one = cstock_mint, has_one = custody)]
-    pub vault: Account<'info, Vault>,
+    pub vault: Box<Account<'info, Vault>>,
     #[account(mint::token_program = token_program)]
-    pub mock_mint: InterfaceAccount<'info, Mint>,
+    pub mock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut, mint::token_program = token_program)]
-    pub cstock_mint: InterfaceAccount<'info, Mint>,
+    pub cstock_mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut, token::mint = mock_mint, token::authority = member, token::token_program = token_program)]
-    pub member_mock: InterfaceAccount<'info, TokenAccount>,
+    pub member_mock: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(mut, token::mint = mock_mint, token::token_program = token_program)]
-    pub custody: InterfaceAccount<'info, TokenAccount>,
+    pub custody: Box<InterfaceAccount<'info, TokenAccount>>,
     /// The member's cSTOCK-W account with the confidential-transfer extension configured.
     #[account(mut, token::mint = cstock_mint, token::authority = member, token::token_program = token_program)]
-    pub member_cstock: InterfaceAccount<'info, TokenAccount>,
+    pub member_cstock: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: PDA mint authority.
     #[account(seeds = [seeds::MINT_AUTHORITY], bump = vault.mint_authority_bump)]
     pub mint_authority: UncheckedAccount<'info>,

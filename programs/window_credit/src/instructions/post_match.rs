@@ -23,7 +23,7 @@ pub struct PostMatch<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     #[account(seeds = [seeds::CONFIG], bump = config.bump, has_one = admin @ CreditError::Unauthorized)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(
         seeds = [window_oracle::seeds::PRINT, &epoch.to_le_bytes()],
         bump = print.load()?.bump,
@@ -31,17 +31,17 @@ pub struct PostMatch<'info> {
     )]
     pub print: AccountLoader<'info, Print>,
     #[account(seeds = [window_auction::seeds::CONFIG], bump = auction_config.bump, seeds::program = config.auction_program)]
-    pub auction_config: Account<'info, AuctionConfig>,
+    pub auction_config: Box<Account<'info, AuctionConfig>>,
     #[account(constraint = borrower_bid.epoch == epoch @ CreditError::NotPrinted)]
-    pub borrower_bid: Account<'info, Bid>,
+    pub borrower_bid: Box<Account<'info, Bid>>,
     #[account(constraint = lender_bid.epoch == epoch @ CreditError::NotPrinted)]
-    pub lender_bid: Account<'info, Bid>,
+    pub lender_bid: Box<Account<'info, Bid>>,
     #[account(
         seeds = [window_registry::seeds::MEMBER, borrower_bid.member.as_ref()],
         bump = borrower_record.bump,
         seeds::program = config.registry_program,
     )]
-    pub borrower_record: Account<'info, Member>,
+    pub borrower_record: Box<Account<'info, Member>>,
     #[account(
         init,
         payer = admin,
@@ -49,7 +49,7 @@ pub struct PostMatch<'info> {
         seeds = [seeds::LOAN, &epoch.to_le_bytes(), borrower_bid.member.as_ref(), &[borrower_bid.tick], &[k]],
         bump
     )]
-    pub loan: Account<'info, Loan>,
+    pub loan: Box<Account<'info, Loan>>,
     /// CHECK: validity context for a `Partial` fill; owner/type checked in the handler.
     pub partial_validity_ctx: Option<UncheckedAccount<'info>>,
     pub system_program: Program<'info, System>,

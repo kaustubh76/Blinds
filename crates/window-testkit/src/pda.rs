@@ -42,3 +42,35 @@ pub fn print(index: u64) -> Pubkey {
 pub fn oracle_authority() -> Pubkey {
     Pubkey::find_program_address(&[window_oracle::seeds::AUTHORITY], &window_oracle::ID).0
 }
+
+/// `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`
+pub const ASSOCIATED_TOKEN_PROGRAM: Pubkey =
+    Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
+pub fn ata(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[owner.as_ref(), spl_token_2022_interface::id().as_ref(), mint.as_ref()],
+        &ASSOCIATED_TOKEN_PROGRAM,
+    )
+    .0
+}
+pub fn wrap_vault(mock_mint: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(&[window_wrap::seeds::VAULT, mock_mint.as_ref()], &window_wrap::ID)
+        .0
+}
+pub fn wrap_mint_authority() -> Pubkey {
+    Pubkey::find_program_address(&[window_wrap::seeds::MINT_AUTHORITY], &window_wrap::ID).0
+}
+pub fn credit_config() -> Pubkey {
+    Pubkey::find_program_address(&[window_credit::seeds::CONFIG], &window_credit::ID).0
+}
+pub fn price_cache(feed_id: &[u8; 32]) -> Pubkey {
+    Pubkey::find_program_address(&[window_credit::seeds::PRICE, feed_id], &window_credit::ID).0
+}
+pub fn loan(epoch: u64, borrower: &Pubkey, bid_tick: u8, k: u8) -> Pubkey {
+    Pubkey::find_program_address(
+        &[window_credit::seeds::LOAN, &epoch.to_le_bytes(), borrower.as_ref(), &[bid_tick], &[k]],
+        &window_credit::ID,
+    )
+    .0
+}

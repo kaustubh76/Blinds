@@ -24,3 +24,4 @@ sdk/wasm/
 test-ledger/
 *.log
 services/indexer/data/
+deployments/external/*.so

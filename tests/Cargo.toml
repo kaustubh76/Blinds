@@ -29,6 +29,9 @@ window-elgamal = { workspace = true, features = ["std"] }
 window-proofs = { workspace = true, features = ["builders", "verify"] }
 window_auction = { path = "../programs/window_auction", features = ["no-entrypoint"] }
 window_oracle = { path = "../programs/window_oracle", features = ["no-entrypoint"] }
+window_credit = { path = "../programs/window_credit", features = ["no-entrypoint"] }
+window_wrap = { path = "../programs/window_wrap", features = ["no-entrypoint"] }
+solana-pubkey.workspace = true
 solana-keypair.workspace = true
 solana-signer.workspace = true
 solana-zk-sdk.workspace = true

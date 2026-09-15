@@ -4698,13 +4698,18 @@ dependencies = [
  "solana-system-interface 2.0.0",
  "solana-transaction",
  "solana-zk-sdk",
+ "spl-token-2022-interface",
+ "spl-token-confidential-transfer-proof-extraction",
+ "spl-token-confidential-transfer-proof-generation",
  "window-clearing",
  "window-config",
  "window-elgamal",
  "window-proofs",
  "window_auction",
+ "window_credit",
  "window_oracle",
  "window_registry",
+ "window_wrap",
 ]
 
 [[package]]
@@ -4714,6 +4719,7 @@ dependencies = [
  "bytemuck",
  "serde_json",
  "solana-keypair",
+ "solana-pubkey 3.0.0",
  "solana-signer",
  "solana-zk-sdk",
  "window-clearing",
@@ -4721,7 +4727,9 @@ dependencies = [
  "window-proofs",
  "window-testkit",
  "window_auction",
+ "window_credit",
  "window_oracle",
+ "window_wrap",
 ]
 
 [[package]]

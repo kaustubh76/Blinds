@@ -15,11 +15,11 @@ use crate::{
 pub struct ReleaseCollateral<'info> {
     pub operator: Signer<'info>,
     #[account(seeds = [seeds::CONFIG], bump = config.bump, has_one = operator @ CreditError::Unauthorized)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(mut)]
-    pub loan: Account<'info, Loan>,
+    pub loan: Box<Account<'info, Loan>>,
     #[account(token::mint = config.cstock_mint)]
-    pub destination: InterfaceAccount<'info, TokenAccount>,
+    pub destination: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: Instructions sysvar, address-checked.
     #[account(address = solana_instructions_sysvar::ID)]
     pub instructions: UncheckedAccount<'info>,

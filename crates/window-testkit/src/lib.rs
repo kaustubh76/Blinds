@@ -17,8 +17,10 @@ use window_config::Profile;
 use window_elgamal::{bsgs::Solver, keys, Ciphertext, Point};
 use window_proofs::{bid as bid_proofs, ix, pocd};
 
+pub mod credit;
 pub mod pda;
 pub mod print;
+pub mod tokens;
 
 pub use print::PrintOutcome;
 
@@ -61,9 +63,21 @@ impl Member {
     }
 }
 
+/// One sent transaction, kept for the leak audit: raw bytes and program logs.
+#[derive(Debug, Clone)]
+pub struct TapeEntry {
+    pub bytes: Vec<u8>,
+    pub logs: Vec<String>,
+    pub ok: bool,
+}
+
 /// The market under test.
 pub struct Harness {
     pub svm: LiteSVM,
+    /// Every transaction ever sent (success or failure).
+    pub tape: Vec<TapeEntry>,
+    /// Every account address referenced by any sent instruction.
+    pub touched: std::collections::BTreeSet<Pubkey>,
     pub profile: Profile,
     pub admin: Keypair,
     pub auditor: keys::Keypair,
@@ -74,7 +88,7 @@ pub struct Harness {
     pub oracle: Pubkey,
 }
 
-fn deploy_dir() -> PathBuf {
+pub(crate) fn deploy_dir() -> PathBuf {
     std::env::var("WINDOW_ROOT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."))
@@ -97,11 +111,20 @@ impl Harness {
                 .unwrap_or_else(|e| panic!("{}: {e} — run `anchor build`", path.display()));
             svm.add_program(id, &bytes).expect("add_program");
         }
+        // The deployed Token-2022 (with zk-ops) replaces LiteSVM's bundled build, which lacks
+        // confidential-transfer support. See scripts/fetch_external_programs.sh.
+        let t22 = deploy_dir().join("../../deployments/external/spl_token_2022.so");
+        let t22_bytes = std::fs::read(&t22).unwrap_or_else(|e| {
+            panic!("{}: {e} — run ./scripts/fetch_external_programs.sh", t22.display())
+        });
+        svm.add_program(spl_token_2022_interface::id(), &t22_bytes).expect("token-2022");
         let admin = Keypair::new();
         svm.airdrop(&admin.pubkey(), 1_000_000_000_000).unwrap();
         let auditor = keys::Keypair::random();
         let mut h = Harness {
             svm,
+            tape: Vec::new(),
+            touched: std::collections::BTreeSet::new(),
             profile,
             admin,
             auditor,
@@ -186,11 +209,24 @@ impl Harness {
         let msg = Message::new(ixs, Some(&payer.pubkey()));
         let mut signers: Vec<&Keypair> = vec![payer];
         signers.extend_from_slice(extra);
+        for ix in ixs {
+            self.touched.insert(ix.program_id);
+            for a in &ix.accounts {
+                self.touched.insert(a.pubkey);
+            }
+        }
         let tx = Transaction::new(&signers, msg, self.svm.latest_blockhash());
-        let bytes = bincode::serialize(&tx).map(|b| b.len()).unwrap_or(0);
+        let raw = bincode::serialize(&tx).unwrap_or_default();
+        let bytes = raw.len();
         match self.svm.send_transaction(tx) {
-            Ok(meta) => Ok(TxStats { compute_units: meta.compute_units_consumed, bytes }),
-            Err(e) => Err(TxError { error: format!("{:?}", e.err), logs: e.meta.logs }),
+            Ok(meta) => {
+                self.tape.push(TapeEntry { bytes: raw, logs: meta.logs, ok: true });
+                Ok(TxStats { compute_units: meta.compute_units_consumed, bytes })
+            }
+            Err(e) => {
+                self.tape.push(TapeEntry { bytes: raw, logs: e.meta.logs.clone(), ok: false });
+                Err(TxError { error: format!("{:?}", e.err), logs: e.meta.logs })
+            }
         }
     }
 
@@ -326,11 +362,24 @@ impl Harness {
         tick: u8,
         size: u64,
     ) -> Result<[TxStats; 3], TxError> {
+        self.submit_bid_keep(m, side, tick, size).map(|(s, _)| s)
+    }
+
+    /// Like [`submit_bid`](Self::submit_bid) but also returns the proofs (with the opening the
+    /// member keeps — a borrower needs it later for its solvency proof).
+    pub fn submit_bid_keep(
+        &mut self,
+        m: usize,
+        side: Side,
+        tick: u8,
+        size: u64,
+    ) -> Result<([TxStats; 3], bid_proofs::BidProofs), TxError> {
         let s_min = self.profile.market.bid_min_micro_usdc;
         let proofs =
             bid_proofs::build(&self.members[m].elgamal, &self.auditor.pubkey_bytes(), size, s_min)
                 .map_err(|e| TxError { error: e.to_string(), logs: vec![] })?;
-        self.submit_bid_with(m, side, tick, &proofs.validity, &proofs.range)
+        let stats = self.submit_bid_with(m, side, tick, &proofs.validity, &proofs.range)?;
+        Ok((stats, proofs))
     }
 
     /// Bid flow with caller-supplied proofs (attack tests use this to submit malformed ones).

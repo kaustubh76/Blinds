@@ -19,6 +19,9 @@ solana-system-interface.workspace = true
 solana-clock.workspace = true
 solana-instructions-sysvar.workspace = true
 solana-zk-sdk.workspace = true
+spl-token-2022-interface.workspace = true
+spl-token-confidential-transfer-proof-extraction.workspace = true
+spl-token-confidential-transfer-proof-generation.workspace = true
 bincode.workspace = true
 bytemuck.workspace = true
 window-config.workspace = true
@@ -28,3 +31,5 @@ window-proofs = { workspace = true, features = ["builders", "verify"] }
 window_registry = { path = "../../programs/window_registry", features = ["no-entrypoint"] }
 window_auction = { path = "../../programs/window_auction", features = ["no-entrypoint"] }
 window_oracle = { path = "../../programs/window_oracle", features = ["no-entrypoint"] }
+window_wrap = { path = "../../programs/window_wrap", features = ["no-entrypoint"] }
+window_credit = { path = "../../programs/window_credit", features = ["no-entrypoint"] }

@@ -14,11 +14,11 @@ use crate::{
 pub struct DepositCollateral<'info> {
     pub borrower: Signer<'info>,
     #[account(seeds = [seeds::CONFIG], bump = config.bump)]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
     #[account(mut, has_one = borrower @ CreditError::Unauthorized)]
-    pub loan: Account<'info, Loan>,
+    pub loan: Box<Account<'info, Loan>>,
     #[account(token::mint = config.cstock_mint, token::authority = borrower)]
-    pub borrower_cstock: InterfaceAccount<'info, TokenAccount>,
+    pub borrower_cstock: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: Instructions sysvar, address-checked.
     #[account(address = solana_instructions_sysvar::ID)]
     pub instructions: UncheckedAccount<'info>,
