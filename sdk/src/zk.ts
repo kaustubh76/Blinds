@@ -1,5 +1,5 @@
 /** ZK ElGamal Proof program: instruction encoding and context-state account sizing. */
-import { AccountRole, type Address, type Instruction } from "@solana/kit";
+import { AccountRole, type Address, type Instruction, type TransactionSigner } from "@solana/kit";
 import { getCreateAccountInstruction } from "@solana-program/system";
 import { ZK_ELGAMAL_PROOF_PROGRAM } from "./programs.js";
 
@@ -27,7 +27,7 @@ export const CONTEXT_SIZE = {
   pubkeyValidity: 33 + 32,
   batchedRange: 33 + 264,
   groupedCiphertext2Validity: 33 + 160,
-  batchedGroupedCiphertext3Validity: 33 + 320,
+  batchedGroupedCiphertext3Validity: 33 + 352, // 3 pubkeys + grouped lo + grouped hi (4 points each)
 } as const;
 
 /** Inline verification: place immediately before the consuming instruction. */
@@ -58,10 +58,15 @@ export function verifyIntoContext(
   };
 }
 
-export function createContextAccount(payer: Address, ctx: Address, space: number, lamports: bigint): Instruction {
+export function createContextAccount(
+  payer: TransactionSigner,
+  ctx: TransactionSigner,
+  space: number,
+  lamports: bigint,
+): Instruction {
   return getCreateAccountInstruction({
-    payer: { address: payer } as never,
-    newAccount: { address: ctx } as never,
+    payer,
+    newAccount: ctx,
     lamports,
     space: BigInt(space),
     programAddress: ZK_ELGAMAL_PROOF_PROGRAM,

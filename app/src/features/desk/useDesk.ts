@@ -105,7 +105,7 @@ export function useDesk(account: UiWalletAccount) {
       if (!dep.data || !accounts.data || !session.tokenSignature) throw new Error("derive keys first");
       steps.reset();
       const plan = await buildOnboardPlan({
-        member: wallet,
+        member: txSigner,
         mockMint: dep.data.mockMint,
         cstockMint: dep.data.cstockMint,
         tokenSignature: session.tokenSignature,
@@ -127,7 +127,7 @@ export function useDesk(account: UiWalletAccount) {
       const w = await proofs();
       const newBalance = balances.data.available + balances.data.pending + amountMilli;
       const plan = await buildWrapPlan({
-        member: wallet,
+        member: txSigner,
         mockMint: dep.data.mockMint,
         cstockMint: dep.data.cstockMint,
         memberMock: accounts.data.mockAta,
@@ -169,7 +169,7 @@ export function useDesk(account: UiWalletAccount) {
       const epoch = await fetchEpoch(rpc, epochIndex);
       if (!epoch) throw new Error("epoch account missing");
       const plan = await buildBidPlan({
-        member: wallet,
+        member: txSigner,
         signature: session.memberSignature,
         auditorPubkey: new Uint8Array(epoch.auditorPubkey),
         epoch: epochIndex,

@@ -5,11 +5,15 @@ import type { credit as creditNs } from "@thewindow/solana-sdk";
 import {
   buildDepositPlan,
   buildLockPlan,
+  collateralPledge,
   fetchConfidentialAccount,
   fetchEpoch,
   fetchMultiplier,
   fetchPrice,
+  multiplierScaled,
+  priceCents,
   proofs,
+  solvencyScalars,
 } from "@thewindow/solana-sdk";
 
 type Loan = creditNs.Loan;
@@ -17,18 +21,12 @@ type Loan = creditNs.Loan;
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { findBid } from "../../lib/bidBook";
 import { hexToBytes, rentFor, rpc } from "../../lib/chain";
-import { multiplierScaled, priceCents } from "../../lib/format";
 import { useCreditConfig, useDeployment, useLoans, useTokenAccounts } from "../../lib/queries";
 import { sendPlan } from "../../lib/send";
 import { useAccountSigners, useSession } from "../../lib/wallet";
 import { useSteps } from "../desk/useDesk";
 
 const isZero = (b: ArrayLike<number>) => Array.from(b).every((x) => x === 0);
-
-/** Pledge 160% of the requirement (same policy as the simulated agents) so a small move does not strand the loan. */
-export function collateralNeeded(loanSize: bigint, kC: bigint, kL: bigint): bigint {
-  return (loanSize * kL * 16n) / 10n / kC + 1n;
-}
 
 export function usePositions(account: UiWalletAccount) {
   const session = useSession();
@@ -79,24 +77,11 @@ export function usePositions(account: UiWalletAccount) {
         fetchMultiplier(rpc, dep.data.mockMint),
       ]);
       if (!epoch || !price) throw new Error("epoch or price missing");
-      const w = await proofs();
-      // k_c, k_l as the program will derive them at lock; the pledge is 160% of the requirement.
       const pc = priceCents(price.price, price.expo);
       const ms = multiplierScaled(mult.multiplier);
-      const probe = w.lock_proofs(
-        session.memberSignature,
-        new Uint8Array(epoch.auditorPubkey),
-        "1",
-        new Uint8Array(loan.sizeCt),
-        size.toString(),
-        opening,
-        pc.toString(),
-        ms.toString(),
-        credit.data.haircutBps.toString(),
-      ) as { k_c: string; k_l: string };
-      const need = collateralNeeded(size, BigInt(probe.k_c), BigInt(probe.k_l));
+      const need = collateralPledge(size, solvencyScalars(pc, ms, credit.data.haircutBps));
       const plan = await buildLockPlan({
-        borrower: wallet,
+        borrower: txSigner,
         signature: session.memberSignature,
         auditorPubkey: new Uint8Array(epoch.auditorPubkey),
         loan: address,
@@ -122,11 +107,11 @@ export function usePositions(account: UiWalletAccount) {
       if (!session.tokenSignature || !dep.data || !credit.data || !accounts.data || !v) throw new Error("not ready");
       steps.reset();
       const { size } = await loanSecret(address, loan);
-      const need = collateralNeeded(size, loan.kC, loan.kL);
+      const need = collateralPledge(size, { kC: loan.kC, kL: loan.kL });
       const escrow = await fetchConfidentialAccount(rpc, credit.data.escrowAccount);
       if (!escrow.view) throw new Error("escrow account not configured");
       const plan = await buildDepositPlan({
-        borrower: wallet,
+        borrower: txSigner,
         tokenSignature: session.tokenSignature,
         borrowerCstock: accounts.data.cstockAta,
         cstockMint: dep.data.cstockMint,

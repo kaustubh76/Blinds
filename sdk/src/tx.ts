@@ -5,7 +5,14 @@
  * signing message is the only secret material, and it never leaves the page.
  */
 
-import { AccountRole, type Address, generateKeyPairSigner, type Instruction, type KeyPairSigner } from "@solana/kit";
+import {
+  AccountRole,
+  type Address,
+  generateKeyPairSigner,
+  type Instruction,
+  type KeyPairSigner,
+  type TransactionSigner,
+} from "@solana/kit";
 import {
   ExtensionType,
   getConfigureConfidentialTransferAccountInstruction,
@@ -45,7 +52,8 @@ export type Rent = (space: number) => Promise<bigint>;
 
 /** Bid: create range ctx → verify range → [verify validity, submit_bid]. */
 export async function buildBidPlan(args: {
-  member: Address;
+  /** The member's wallet: signs every transaction of the plan (also the fee payer). */
+  member: TransactionSigner;
   signature: Uint8Array;
   auditorPubkey: Uint8Array;
   epoch: bigint;
@@ -64,12 +72,13 @@ export async function buildBidPlan(args: {
   };
   const ctx = await generateKeyPairSigner();
   const lamports = await args.rent(CONTEXT_SIZE.batchedRange);
+  const member = args.member.address;
   const submit = getSubmitBidInstruction({
-    member: { address: args.member } as never,
-    memberRecord: await pda.member(args.member),
+    member: args.member,
+    memberRecord: await pda.member(member),
     config: await pda.auctionConfig(),
     epoch: await pda.epoch(args.epoch),
-    bid: await pda.bid(args.epoch, args.member, args.side, args.tick),
+    bid: await pda.bid(args.epoch, member, args.side, args.tick),
     rangeCtx: ctx.address,
     instructions: INSTRUCTIONS_SYSVAR,
     zkProgram: ZK_ELGAMAL_PROOF_PROGRAM,
@@ -83,14 +92,12 @@ export async function buildBidPlan(args: {
     txs: [
       {
         label: "create range-proof context",
-        instructions: [createContextAccount(args.member, ctx.address, CONTEXT_SIZE.batchedRange, lamports)],
+        instructions: [createContextAccount(args.member, ctx, CONTEXT_SIZE.batchedRange, lamports)],
         extraSigners: [ctx],
       },
       {
         label: "verify range proof",
-        instructions: [
-          verifyIntoContext(ProofInstruction.VerifyBatchedRangeProofU64, p.range, ctx.address, args.member),
-        ],
+        instructions: [verifyIntoContext(ProofInstruction.VerifyBatchedRangeProofU64, p.range, ctx.address, member)],
         extraSigners: [],
       },
       {
@@ -104,7 +111,7 @@ export async function buildBidPlan(args: {
 
 /** Lock: four contexts (validity+equality in one tx, each range proof in its own) → lock_collateral. */
 export async function buildLockPlan(args: {
-  borrower: Address;
+  borrower: TransactionSigner;
   signature: Uint8Array;
   auditorPubkey: Uint8Array;
   loan: Address;
@@ -150,9 +157,9 @@ export async function buildLockPlan(args: {
     args.rent(CONTEXT_SIZE.batchedRange),
     args.rent(CONTEXT_SIZE.ciphertextCommitmentEquality),
   ]);
-  const b = args.borrower;
+  const b = args.borrower.address;
   const lock = getLockCollateralInstruction({
-    borrower: { address: b } as never,
+    borrower: args.borrower,
     config: await pda.creditConfig(),
     auctionConfig: await pda.auctionConfig(),
     borrowerRecord: await pda.member(b),
@@ -173,16 +180,16 @@ export async function buildLockPlan(args: {
       {
         label: "verify collateral validity + delta equality",
         instructions: [
-          createContextAccount(b, cV.address, CONTEXT_SIZE.groupedCiphertext2Validity, rV),
+          createContextAccount(args.borrower, cV, CONTEXT_SIZE.groupedCiphertext2Validity, rV),
           verifyIntoContext(ProofInstruction.VerifyGroupedCiphertext2HandlesValidity, p.validity, cV.address, b),
-          createContextAccount(b, cE.address, CONTEXT_SIZE.ciphertextCommitmentEquality, rE),
+          createContextAccount(args.borrower, cE, CONTEXT_SIZE.ciphertextCommitmentEquality, rE),
           verifyIntoContext(ProofInstruction.VerifyCiphertextCommitmentEquality, p.equality, cE.address, b),
         ],
         extraSigners: [cV, cE],
       },
       {
         label: "create collateral range context",
-        instructions: [createContextAccount(b, cR32.address, CONTEXT_SIZE.batchedRange, rR)],
+        instructions: [createContextAccount(args.borrower, cR32, CONTEXT_SIZE.batchedRange, rR)],
         extraSigners: [cR32],
       },
       {
@@ -192,7 +199,7 @@ export async function buildLockPlan(args: {
       },
       {
         label: "create delta range context",
-        instructions: [createContextAccount(b, cR64.address, CONTEXT_SIZE.batchedRange, rR)],
+        instructions: [createContextAccount(args.borrower, cR64, CONTEXT_SIZE.batchedRange, rR)],
         extraSigners: [cR64],
       },
       {
@@ -207,7 +214,7 @@ export async function buildLockPlan(args: {
 
 /** Wrap: the public token leg, then `ApplyPendingBalance` (owner-signed, no proof). */
 export async function buildWrapPlan(args: {
-  member: Address;
+  member: TransactionSigner;
   mockMint: Address;
   cstockMint: Address;
   memberMock: Address;
@@ -219,8 +226,8 @@ export async function buildWrapPlan(args: {
 }): Promise<Plan> {
   const vault = await pda.wrapVault(args.mockMint);
   const wrap = getWrapInstruction({
-    member: { address: args.member } as never,
-    memberRecord: await pda.member(args.member),
+    member: args.member,
+    memberRecord: await pda.member(args.member.address),
     vault,
     mockMint: args.mockMint,
     cstockMint: args.cstockMint,
@@ -233,7 +240,7 @@ export async function buildWrapPlan(args: {
   }) as unknown as Instruction;
   const apply = applyPendingBalanceInstruction(
     args.memberCstock,
-    args.member,
+    args.member.address,
     args.pendingCreditCounter + 1n,
     args.newDecryptableBalance,
   );
@@ -304,7 +311,7 @@ export function confidentialTransferInstruction(args: {
 
 /** Deposit: proof contexts → [confidential transfer to escrow, deposit_collateral] → close contexts. */
 export async function buildDepositPlan(args: {
-  borrower: Address;
+  borrower: TransactionSigner;
   tokenSignature: Uint8Array;
   borrowerCstock: Address;
   cstockMint: Address;
@@ -339,7 +346,7 @@ export async function buildDepositPlan(args: {
     args.rent(CONTEXT_SIZE.batchedGroupedCiphertext3Validity),
     args.rent(CONTEXT_SIZE.batchedRange),
   ]);
-  const b = args.borrower;
+  const b = args.borrower.address;
   const transfer = confidentialTransferInstruction({
     source: args.borrowerCstock,
     mint: args.cstockMint,
@@ -353,7 +360,7 @@ export async function buildDepositPlan(args: {
     rangeCtx: cR.address,
   });
   const deposit = getDepositCollateralInstruction({
-    borrower: { address: b } as never,
+    borrower: args.borrower,
     config: await pda.creditConfig(),
     loan: args.loan,
     borrowerCstock: args.borrowerCstock,
@@ -364,7 +371,7 @@ export async function buildDepositPlan(args: {
       {
         label: "verify transfer equality proof",
         instructions: [
-          createContextAccount(b, cE.address, CONTEXT_SIZE.ciphertextCommitmentEquality, rE),
+          createContextAccount(args.borrower, cE, CONTEXT_SIZE.ciphertextCommitmentEquality, rE),
           verifyIntoContext(ProofInstruction.VerifyCiphertextCommitmentEquality, p.equality, cE.address, b),
         ],
         extraSigners: [cE],
@@ -372,14 +379,14 @@ export async function buildDepositPlan(args: {
       {
         label: "verify transfer validity proof",
         instructions: [
-          createContextAccount(b, cV.address, CONTEXT_SIZE.batchedGroupedCiphertext3Validity, rV),
+          createContextAccount(args.borrower, cV, CONTEXT_SIZE.batchedGroupedCiphertext3Validity, rV),
           verifyIntoContext(ProofInstruction.VerifyBatchedGroupedCiphertext3HandlesValidity, p.validity, cV.address, b),
         ],
         extraSigners: [cV],
       },
       {
         label: "create transfer range context",
-        instructions: [createContextAccount(b, cR.address, CONTEXT_SIZE.batchedRange, rR)],
+        instructions: [createContextAccount(args.borrower, cR, CONTEXT_SIZE.batchedRange, rR)],
         extraSigners: [cR],
       },
       {
@@ -410,7 +417,7 @@ export const programs = PROGRAMS;
  * keys can be re-derived from the wallet alone.
  */
 export async function buildOnboardPlan(args: {
-  member: Address;
+  member: TransactionSigner;
   mockMint: Address;
   cstockMint: Address;
   tokenSignature: Uint8Array;
@@ -424,18 +431,16 @@ export async function buildOnboardPlan(args: {
     pubkey_validity_proof: Uint8Array;
     decryptable_zero_balance: Uint8Array;
   };
-  const [mockAta, cstockAta] = await Promise.all([
-    pda.ata(args.member, args.mockMint),
-    pda.ata(args.member, args.cstockMint),
-  ]);
-  const payer = { address: args.member } as never;
+  const member = args.member.address;
+  const [mockAta, cstockAta] = await Promise.all([pda.ata(member, args.mockMint), pda.ata(member, args.cstockMint)]);
+  const payer = args.member;
   const txs: PlannedTx[] = [];
   const create: Instruction[] = [];
   if (!args.mockAtaExists)
     create.push(
       getCreateAssociatedTokenIdempotentInstruction({
         payer,
-        owner: args.member,
+        owner: member,
         mint: args.mockMint,
         ata: mockAta,
         tokenProgram: TOKEN_2022_PROGRAM,
@@ -445,7 +450,7 @@ export async function buildOnboardPlan(args: {
     create.push(
       getCreateAssociatedTokenIdempotentInstruction({
         payer,
-        owner: args.member,
+        owner: member,
         mint: args.cstockMint,
         ata: cstockAta,
         tokenProgram: TOKEN_2022_PROGRAM,

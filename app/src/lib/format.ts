@@ -42,17 +42,6 @@ export function formatCountdown(seconds: number): string {
   return m > 0 ? `${m}m ${s.toString().padStart(2, "0")}s` : `${s}s`;
 }
 
-/** `price × 10^(expo+2)` as an integer number of cents (spec A3 `p′`). */
-export function priceCents(price: bigint, expo: number): bigint {
-  const e = expo + 2;
-  return e >= 0 ? price * 10n ** BigInt(e) : price / 10n ** BigInt(-e);
-}
-
-/** `round(multiplier × 10^3)` (spec A3 `a`). */
-export function multiplierScaled(multiplier: number): bigint {
-  return BigInt(Math.round(multiplier * 1_000));
-}
-
 /** Parse a decimal string into base units with `decimals` fractional digits. */
 export function parseUnits(input: string, decimals: number): bigint | null {
   const m = /^\s*(\d+)(?:\.(\d*))?\s*$/.exec(input);

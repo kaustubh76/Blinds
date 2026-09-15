@@ -1,0 +1,20 @@
+{
+  "name": "@thewindow/integration",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tier-2 tests: the TS SDK (the dashboard's code path) against a real solana-test-validator and the real admin service",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@solana/kit": "^8.3.0",
+    "@thewindow/solana-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0"
+  }
+}
