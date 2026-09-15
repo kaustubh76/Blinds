@@ -4716,11 +4716,14 @@ dependencies = [
 name = "window-tests"
 version = "0.1.0"
 dependencies = [
+ "anchor-lang",
  "bytemuck",
  "serde_json",
+ "solana-instruction 3.5.1",
  "solana-keypair",
  "solana-pubkey 3.0.0",
  "solana-signer",
+ "solana-system-interface 2.0.0",
  "solana-zk-sdk",
  "window-clearing",
  "window-elgamal",
@@ -4729,6 +4732,7 @@ dependencies = [
  "window_auction",
  "window_credit",
  "window_oracle",
+ "window_registry",
  "window_wrap",
 ]
 

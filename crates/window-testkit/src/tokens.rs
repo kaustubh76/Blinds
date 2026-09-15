@@ -279,7 +279,7 @@ impl Harness {
         let decryptable: AeCiphertext = state.decryptable_available_balance.try_into().unwrap();
         let dest_state = self.confidential_state(destination);
         let dest_pk: ElGamalPubkey = dest_state.elgamal_pubkey.try_into().unwrap();
-        let auditor = self.auditor.pubkey().clone();
+        let auditor = *self.auditor.pubkey();
         let proofs = transfer_split_proof_data(
             &available,
             &decryptable,

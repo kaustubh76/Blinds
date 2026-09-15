@@ -4,6 +4,10 @@ mod attack_02_wrong_rate;
 mod attack_03_replay;
 mod attack_04_missing_proof;
 mod attack_05_malformed_bid;
+mod attack_06_undercollateralized;
+mod attack_07_stale_price;
+mod attack_08_rebase_replay;
+mod credit_fixture;
 
 use window_clearing::Side;
 use window_testkit::Harness;
