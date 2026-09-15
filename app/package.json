@@ -1,0 +1,36 @@
+{
+  "name": "@thewindow/app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@solana-program/system": "^0.14.1",
+    "@solana-program/token-2022": "^0.17.0",
+    "@solana/kit": "^8.3.0",
+    "@solana/react": "^8.3.0",
+    "@tanstack/react-query": "^5.102.8",
+    "@thewindow/solana-sdk": "workspace:*",
+    "@wallet-standard/app": "^1.1.1",
+    "@wallet-standard/react": "^1.0.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  }
+}

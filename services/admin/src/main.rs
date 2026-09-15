@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use tracing::{error, info};
 use window_admin::{
     administrator::Administrator, agents::Agents, keeper, keys::Keys, metrics, operator,
-    price::PriceSource, setup, Ctx, Deployment, RpcChain,
+    price::PriceSource, setup, Chain, Ctx, Deployment, RpcChain,
 };
 use window_config::Profile;
 
@@ -105,7 +105,25 @@ fn main() -> Result<()> {
         }
         Cmd::Run { tick_ms, metrics_port, max_prints, default_every } => {
             let deployment = Deployment::load(&root, &cli.cluster)?;
-            metrics::serve(metrics.clone(), metrics_port);
+            // The dashboard's demo faucet: register a wallet as a member and mint it mock stock.
+            let join_chain = RpcChain::new(&rpc);
+            let join_keys = Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?;
+            let mock_mint: solana_pubkey::Pubkey = deployment.mock_mint.parse()?;
+            let join: metrics::JoinHandler = Arc::new(move |r: metrics::JoinRequest| {
+                use solana_signer::Signer;
+                let wallet: solana_pubkey::Pubkey = r.wallet.parse().map_err(|e| format!("wallet: {e}"))?;
+                let mock_account: solana_pubkey::Pubkey = r.mock_account.parse().map_err(|e| format!("mock account: {e}"))?;
+                let eg: [u8; 32] = hex::decode(&r.elgamal_pubkey_hex).ok().and_then(|v| v.try_into().ok()).ok_or("elgamal key must be 32 bytes hex")?;
+                let admin = &join_keys.admin;
+                let mut ixs = Vec::new();
+                if join_chain.account_data(&window_client::pda::member(&wallet)).map_err(|e| e.to_string())?.is_none() {
+                    ixs.push(window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0));
+                }
+                ixs.push(window_client::ct::mint_to(&mock_mint, &mock_account, &admin.pubkey(), 10_000_000)); // 10,000.000 shares
+                ixs.push(solana_system_interface::instruction::transfer(&admin.pubkey(), &wallet, 200_000_000)); // 0.2 SOL for fees/rent
+                join_chain.send(admin, &ixs, &[]).map_err(|e| e.to_string())
+            });
+            metrics::serve(metrics.clone(), metrics_port, serde_json::to_string(&deployment)?, Some(join));
             let ctx = Ctx {
                 chain: Box::new(chain),
                 keys,

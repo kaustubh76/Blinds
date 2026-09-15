@@ -1,8 +1,10 @@
 //! `/healthz` and `/metrics` (Prometheus text). Aggregates only — never a size.
 
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 #[derive(Default)]
@@ -44,8 +46,18 @@ impl Metrics {
     }
 }
 
-/// Serves `/healthz` and `/metrics` on `port` from a background thread.
-pub fn serve(metrics: Arc<Metrics>, port: u16) {
+/// A request the dashboard makes on behalf of a judge's wallet: register it as a member and give
+/// it mock stock (the demo faucet). Admission is admin-gated on-chain; this is the admin.
+pub struct JoinRequest {
+    pub wallet: String,
+    pub elgamal_pubkey_hex: String,
+    pub mock_account: String,
+}
+
+pub type JoinHandler = Arc<dyn Fn(JoinRequest) -> Result<String, String> + Send + Sync>;
+
+/// Serves `/healthz`, `/metrics`, `/deployment` (JSON) and `POST /join` on `port`.
+pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Option<JoinHandler>) {
     std::thread::spawn(move || {
         let server = match tiny_http::Server::http(("0.0.0.0", port)) {
             Ok(s) => s,
@@ -54,13 +66,44 @@ pub fn serve(metrics: Arc<Metrics>, port: u16) {
                 return;
             }
         };
-        for req in server.incoming_requests() {
-            let body = match req.url() {
-                "/healthz" => "ok\n".to_string(),
-                "/metrics" => metrics.render(),
-                _ => "not found\n".to_string(),
+        for mut req in server.incoming_requests() {
+            let cors = tiny_http::Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap();
+            let cors_h = tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "content-type").unwrap();
+            let cors_m = tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
+            if req.method() == &tiny_http::Method::Options {
+                let _ = req.respond(tiny_http::Response::empty(204).with_header(cors).with_header(cors_h).with_header(cors_m));
+                continue;
+            }
+            let (status, body, ctype) = match (req.method().clone(), req.url()) {
+                (tiny_http::Method::Get, "/healthz") => (200, "ok\n".to_string(), "text/plain"),
+                (tiny_http::Method::Get, "/metrics") => (200, metrics.render(), "text/plain"),
+                (tiny_http::Method::Get, "/deployment") => (200, deployment_json.clone(), "application/json"),
+                (tiny_http::Method::Post, "/join") => {
+                    let mut body = String::new();
+                    let _ = req.as_reader().read_to_string(&mut body);
+                    let parsed: Result<serde_json::Value, _> = serde_json::from_str(&body);
+                    match (parsed, &join) {
+                        (Ok(v), Some(h)) => {
+                            let r = JoinRequest {
+                                wallet: v["wallet"].as_str().unwrap_or_default().to_string(),
+                                elgamal_pubkey_hex: v["elgamal_pubkey_hex"].as_str().unwrap_or_default().to_string(),
+                                mock_account: v["mock_account"].as_str().unwrap_or_default().to_string(),
+                            };
+                            match h(r) {
+                                Ok(sig) => (200, format!("{{\"ok\":true,\"signature\":\"{sig}\"}}"), "application/json"),
+                                Err(e) => (400, format!("{{\"ok\":false,\"error\":{}}}", serde_json::to_string(&e).unwrap_or_default()), "application/json"),
+                            }
+                        }
+                        _ => (400, "{\"ok\":false,\"error\":\"bad request\"}".to_string(), "application/json"),
+                    }
+                }
+                _ => (404, "not found\n".to_string(), "text/plain"),
             };
-            let _ = req.respond(tiny_http::Response::from_string(body));
+            let resp = tiny_http::Response::from_string(body)
+                .with_status_code(status)
+                .with_header(tiny_http::Header::from_bytes("Content-Type", ctype).unwrap())
+                .with_header(cors);
+            let _ = req.respond(resp);
         }
     });
 }
