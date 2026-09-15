@@ -1,6 +1,9 @@
 [workspace]
 # Members are listed explicitly (not globbed) so a half-created crate can never break the build.
 members = [
+    "programs/window_registry",
+    "programs/window_auction",
+    "programs/window_oracle",
     "crates/window-config",
     "crates/window-clearing",
     "crates/window-elgamal",

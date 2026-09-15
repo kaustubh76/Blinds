@@ -1,0 +1,37 @@
+[package]
+name = "window_auction"
+version = "0.1.0"
+description = "Epoch clock and encrypted-bid accumulation for THE WINDOW"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "window_auction"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "window_registry/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang.workspace = true
+bytemuck.workspace = true
+# State type only (Member); no entrypoint is linked in.
+window_registry = { path = "../window_registry", features = ["no-entrypoint"] }
+# Curve ops via syscalls on SBF; the same function bodies the host uses.
+window-elgamal.workspace = true
+window-clearing.workspace = true
+solana-zk-sdk.workspace = true
+spl-token-confidential-transfer-proof-extraction.workspace = true
+solana-instructions-sysvar.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

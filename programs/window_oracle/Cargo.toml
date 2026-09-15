@@ -1,0 +1,36 @@
+[package]
+name = "window_oracle"
+version = "0.1.0"
+description = "xONIA print: proof-of-correct-decryption attestation, on-chain clearing recompute, regime state"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "window_oracle"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "window_auction/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang.workspace = true
+bytemuck.workspace = true
+# `cpi` implies `no-entrypoint`: we call `mark_printed` and read `Epoch` without linking a second entrypoint.
+window_auction = { path = "../window_auction", features = ["cpi"] }
+window-elgamal.workspace = true
+window-clearing.workspace = true
+solana-zk-sdk.workspace = true
+spl-token-confidential-transfer-proof-extraction.workspace = true
+solana-instructions-sysvar.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
