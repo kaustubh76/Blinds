@@ -10,7 +10,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./wasm": "./wasm/window_proofs.js"
+    "./wasm": {
+      "types": "./wasm/window_proofs.d.ts",
+      "import": "./wasm/window_proofs.js"
+    }
   },
   "files": [
     "dist",
@@ -19,7 +22,7 @@
   ],
   "scripts": {
     "codegen": "tsx scripts/codegen.ts",
-    "build": "tsup src/index.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts --format esm --dts --clean --external @thewindow/solana-sdk/wasm",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },

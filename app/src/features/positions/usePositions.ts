@@ -1,0 +1,156 @@
+/** Borrower flows after a match: lock (priced solvency proof) and deposit (confidential transfer to escrow). */
+import { type Address, getAddressEncoder } from "@solana/kit";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { credit as creditNs } from "@thewindow/solana-sdk";
+import {
+  buildDepositPlan,
+  buildLockPlan,
+  fetchConfidentialAccount,
+  fetchEpoch,
+  fetchMultiplier,
+  fetchPrice,
+  proofs,
+} from "@thewindow/solana-sdk";
+
+type Loan = creditNs.Loan;
+
+import type { UiWalletAccount } from "@wallet-standard/react";
+import { findBid } from "../../lib/bidBook";
+import { hexToBytes, rentFor, rpc } from "../../lib/chain";
+import { multiplierScaled, priceCents } from "../../lib/format";
+import { useCreditConfig, useDeployment, useLoans, useTokenAccounts } from "../../lib/queries";
+import { sendPlan } from "../../lib/send";
+import { useAccountSigners, useSession } from "../../lib/wallet";
+import { useSteps } from "../desk/useDesk";
+
+const isZero = (b: ArrayLike<number>) => Array.from(b).every((x) => x === 0);
+
+/** Pledge 160% of the requirement (same policy as the simulated agents) so a small move does not strand the loan. */
+export function collateralNeeded(loanSize: bigint, kC: bigint, kL: bigint): bigint {
+  return (loanSize * kL * 16n) / 10n / kC + 1n;
+}
+
+export function usePositions(account: UiWalletAccount) {
+  const session = useSession();
+  const wallet = session.address as Address;
+  const { txSigner } = useAccountSigners(account);
+  const qc = useQueryClient();
+  const dep = useDeployment();
+  const credit = useCreditConfig();
+  const loans = useLoans(wallet);
+  const accounts = useTokenAccounts(wallet, dep.data?.mockMint, dep.data?.cstockMint);
+  const steps = useSteps();
+  const invalidate = () => qc.invalidateQueries();
+
+  /** Recovers (size, opening) of a loan from the bid book (full fill) or the sealed note (partial fill). */
+  async function loanSecret(loanAddr: Address, loan: Loan): Promise<{ size: bigint; opening: Uint8Array }> {
+    if (!session.memberSignature || !dep.data) throw new Error("derive keys on the desk first");
+    const rec = findBid(wallet, loan.epoch, 1, loan.bidTick);
+    if (!rec) throw new Error("this browser has no record of the bid (size + opening); the lock proof needs it");
+    const w = await proofs();
+    if (isZero(loan.openingNote)) return { size: BigInt(rec.sizeMicroUsdc), opening: hexToBytes(rec.opening) };
+    const epoch = await fetchEpoch(rpc, loan.epoch);
+    if (!epoch) throw new Error("epoch missing");
+    const opening = new Uint8Array(
+      w.open_note(
+        session.memberSignature,
+        new Uint8Array(epoch.auditorPubkey),
+        new Uint8Array(loan.openingNote),
+        new Uint8Array(getAddressEncoder().encode(loanAddr)),
+      ),
+    );
+    const part = w.decrypt_small(
+      session.memberSignature,
+      new Uint8Array(loan.sizeCt.slice(0, 64)),
+      rec.sizeMicroUsdc,
+    ) as string | null | undefined;
+    if (part == null) throw new Error("could not recover the partial-fill size");
+    return { size: BigInt(part), opening };
+  }
+
+  const lock = useMutation({
+    mutationFn: async ({ address, loan }: { address: Address; loan: Loan }) => {
+      if (!session.memberSignature || !dep.data || !credit.data) throw new Error("not ready");
+      steps.reset();
+      const { size, opening } = await loanSecret(address, loan);
+      const [epoch, price, mult] = await Promise.all([
+        fetchEpoch(rpc, loan.epoch),
+        fetchPrice(rpc, dep.data.feedId),
+        fetchMultiplier(rpc, dep.data.mockMint),
+      ]);
+      if (!epoch || !price) throw new Error("epoch or price missing");
+      const w = await proofs();
+      // k_c, k_l as the program will derive them at lock; the pledge is 160% of the requirement.
+      const pc = priceCents(price.price, price.expo);
+      const ms = multiplierScaled(mult.multiplier);
+      const probe = w.lock_proofs(
+        session.memberSignature,
+        new Uint8Array(epoch.auditorPubkey),
+        "1",
+        new Uint8Array(loan.sizeCt),
+        size.toString(),
+        opening,
+        pc.toString(),
+        ms.toString(),
+        credit.data.haircutBps.toString(),
+      ) as { k_c: string; k_l: string };
+      const need = collateralNeeded(size, BigInt(probe.k_c), BigInt(probe.k_l));
+      const plan = await buildLockPlan({
+        borrower: wallet,
+        signature: session.memberSignature,
+        auditorPubkey: new Uint8Array(epoch.auditorPubkey),
+        loan: address,
+        loanCiphertext: new Uint8Array(loan.sizeCt),
+        loanSizeMicroUsdc: size,
+        loanOpening: opening,
+        sharesMilli: need,
+        priceCents: pc,
+        multScaled: ms,
+        haircutBps: credit.data.haircutBps,
+        feedId: dep.data.feedId,
+        mockMint: dep.data.mockMint,
+        rent: rentFor,
+      });
+      return sendPlan(plan, txSigner, steps.onStep);
+    },
+    onSuccess: invalidate,
+  });
+
+  const deposit = useMutation({
+    mutationFn: async ({ address, loan }: { address: Address; loan: Loan }) => {
+      const v = accounts.data?.cstock.view;
+      if (!session.tokenSignature || !dep.data || !credit.data || !accounts.data || !v) throw new Error("not ready");
+      steps.reset();
+      const { size } = await loanSecret(address, loan);
+      const need = collateralNeeded(size, loan.kC, loan.kL);
+      const escrow = await fetchConfidentialAccount(rpc, credit.data.escrowAccount);
+      if (!escrow.view) throw new Error("escrow account not configured");
+      const plan = await buildDepositPlan({
+        borrower: wallet,
+        tokenSignature: session.tokenSignature,
+        borrowerCstock: accounts.data.cstockAta,
+        cstockMint: dep.data.cstockMint,
+        escrow: credit.data.escrowAccount,
+        loan: address,
+        availableCt: v.availableBalance,
+        decryptable: v.decryptableAvailableBalance,
+        amountMilli: need,
+        escrowElgamalPubkey: new Uint8Array(getAddressEncoder().encode(escrow.view.elgamalPubkey)),
+        auditorPubkey: dep.data.auditorPubkey,
+        rent: rentFor,
+      });
+      return sendPlan(plan, txSigner, steps.onStep);
+    },
+    onSuccess: invalidate,
+  });
+
+  return {
+    wallet,
+    loans,
+    credit,
+    steps,
+    lock,
+    deposit,
+    keysReady: !!session.memberSignature && !!session.tokenSignature,
+  };
+}

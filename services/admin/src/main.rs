@@ -119,6 +119,10 @@ fn main() -> Result<()> {
                 if join_chain.account_data(&window_client::pda::member(&wallet)).map_err(|e| e.to_string())?.is_none() {
                     ixs.push(window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0));
                 }
+                // The wallet has no SOL yet: the admin creates its mock ATA (idempotent) before minting.
+                if mock_account == window_client::pda::ata(&wallet, &mock_mint) {
+                    ixs.push(window_client::ct::create_ata_idempotent(&admin.pubkey(), &wallet, &mock_mint));
+                }
                 ixs.push(window_client::ct::mint_to(&mock_mint, &mock_account, &admin.pubkey(), 10_000_000)); // 10,000.000 shares
                 ixs.push(solana_system_interface::instruction::transfer(&admin.pubkey(), &wallet, 200_000_000)); // 0.2 SOL for fees/rent
                 join_chain.send(admin, &ixs, &[]).map_err(|e| e.to_string())

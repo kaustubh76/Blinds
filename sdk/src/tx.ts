@@ -4,7 +4,14 @@
  * Proofs come from the wasm (`proofs()`); the wallet's 64-byte signature over the member
  * signing message is the only secret material, and it never leaves the page.
  */
+
 import { AccountRole, type Address, generateKeyPairSigner, type Instruction, type KeyPairSigner } from "@solana/kit";
+import {
+  ExtensionType,
+  getConfigureConfidentialTransferAccountInstruction,
+  getCreateAssociatedTokenIdempotentInstruction,
+  getReallocateInstruction,
+} from "@solana-program/token-2022";
 import { getSubmitBidInstruction } from "./generated/window_auction/index.js";
 import { getDepositCollateralInstruction, getLockCollateralInstruction } from "./generated/window_credit/index.js";
 import { getWrapInstruction } from "./generated/window_wrap/index.js";
@@ -395,3 +402,81 @@ export async function buildDepositPlan(args: {
 }
 
 export const programs = PROGRAMS;
+
+/**
+ * Onboarding: the member's mock-xStock ATA, the cSTOCK-W ATA reallocated for the confidential
+ * extension, and `ConfigureAccount` with an inline `VerifyPubkeyValidity` proof. `tokenSignature`
+ * is the wallet's signature over `signingMessage(cstockAta)` (the CLI's derivation), so the same
+ * keys can be re-derived from the wallet alone.
+ */
+export async function buildOnboardPlan(args: {
+  member: Address;
+  mockMint: Address;
+  cstockMint: Address;
+  tokenSignature: Uint8Array;
+  mockAtaExists: boolean;
+  cstockAtaExists: boolean;
+  cstockConfigured: boolean;
+}): Promise<Plan & { mockAta: Address; cstockAta: Address; elgamalPubkey: Uint8Array }> {
+  const w = await proofs();
+  const keys = w.token_account_keys(args.tokenSignature) as {
+    elgamal_pubkey: Uint8Array;
+    pubkey_validity_proof: Uint8Array;
+    decryptable_zero_balance: Uint8Array;
+  };
+  const [mockAta, cstockAta] = await Promise.all([
+    pda.ata(args.member, args.mockMint),
+    pda.ata(args.member, args.cstockMint),
+  ]);
+  const payer = { address: args.member } as never;
+  const txs: PlannedTx[] = [];
+  const create: Instruction[] = [];
+  if (!args.mockAtaExists)
+    create.push(
+      getCreateAssociatedTokenIdempotentInstruction({
+        payer,
+        owner: args.member,
+        mint: args.mockMint,
+        ata: mockAta,
+        tokenProgram: TOKEN_2022_PROGRAM,
+      }) as unknown as Instruction,
+    );
+  if (!args.cstockAtaExists)
+    create.push(
+      getCreateAssociatedTokenIdempotentInstruction({
+        payer,
+        owner: args.member,
+        mint: args.cstockMint,
+        ata: cstockAta,
+        tokenProgram: TOKEN_2022_PROGRAM,
+      }) as unknown as Instruction,
+    );
+  if (!args.cstockConfigured)
+    create.push(
+      getReallocateInstruction({
+        token: cstockAta,
+        payer,
+        owner: args.member,
+        newExtensionTypes: [ExtensionType.ConfidentialTransferAccount],
+      }) as unknown as Instruction,
+    );
+  if (create.length) txs.push({ label: "create token accounts", instructions: create, extraSigners: [] });
+  if (!args.cstockConfigured)
+    txs.push({
+      label: "configure confidential account (pubkey validity proof)",
+      instructions: [
+        verifyInline(ProofInstruction.VerifyPubkeyValidity, keys.pubkey_validity_proof),
+        getConfigureConfidentialTransferAccountInstruction({
+          token: cstockAta,
+          mint: args.cstockMint,
+          instructionsSysvarOrContextState: INSTRUCTIONS_SYSVAR,
+          authority: args.member,
+          decryptableZeroBalance: keys.decryptable_zero_balance,
+          maximumPendingBalanceCreditCounter: 65_536,
+          proofInstructionOffset: -1,
+        }) as unknown as Instruction,
+      ],
+      extraSigners: [],
+    });
+  return { txs, mockAta, cstockAta, elgamalPubkey: keys.elgamal_pubkey };
+}

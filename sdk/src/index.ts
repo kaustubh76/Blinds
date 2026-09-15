@@ -8,6 +8,7 @@ export * from "./keys.js";
 export * as pda from "./pda.js";
 export * from "./programs.js";
 export * from "./rates.js";
+export * from "./token.js";
 export * from "./tx.js";
 export * from "./verify.js";
 export { proofs } from "./wasm.js";

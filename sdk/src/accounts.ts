@@ -1,16 +1,27 @@
 /** Read-only lens over the programs (spec v2 §9.7). */
-import type { Address, Rpc, SolanaRpcApi } from "@solana/kit";
 import {
+  type Address,
+  getAddressEncoder,
+  getBase58Decoder,
+  getBase64Encoder,
+  type Rpc,
+  type SolanaRpcApi,
+} from "@solana/kit";
+import {
+  BID_DISCRIMINATOR,
   type Bid,
   type Epoch,
   fetchMaybeConfig as fetchMaybeAuctionConfig,
   fetchMaybeBid,
   fetchMaybeEpoch,
+  getBidDecoder,
 } from "./generated/window_auction/index.js";
 import {
   fetchMaybeWindowCreditStateConfig as fetchMaybeCreditConfig,
   fetchMaybeLoan,
   fetchMaybePriceCache,
+  getLoanDecoder,
+  LOAN_DISCRIMINATOR,
   type Loan,
 } from "./generated/window_credit/index.js";
 import {
@@ -21,6 +32,7 @@ import {
 } from "./generated/window_oracle/index.js";
 import { fetchMaybeMember } from "./generated/window_registry/index.js";
 import * as pda from "./pda.js";
+import { PROGRAMS } from "./programs.js";
 import { type Clearing, clear, type DepthCurve, emptyCurve } from "./rates.js";
 
 export type RpcClient = Rpc<SolanaRpcApi>;
@@ -88,6 +100,47 @@ export async function fetchMember(rpc: RpcClient, owner: Address) {
 export async function fetchPrice(rpc: RpcClient, feedId: Uint8Array) {
   const a = await fetchMaybePriceCache(rpc, await pda.priceCache(feedId));
   return a.exists ? a.data : null;
+}
+
+const b58 = getBase58Decoder();
+const b64 = getBase64Encoder();
+
+async function programAccounts<T>(
+  rpc: RpcClient,
+  program: Address,
+  discriminator: Uint8Array | ArrayLike<number>,
+  decode: (bytes: Uint8Array) => T,
+  filters: Array<{ offset: number; bytes: Uint8Array }>,
+): Promise<Array<{ address: Address; data: T }>> {
+  const memcmp = [{ offset: 0, bytes: new Uint8Array(discriminator) }, ...filters].map((f) => ({
+    memcmp: { offset: BigInt(f.offset), bytes: b58.decode(f.bytes) as never, encoding: "base58" as const },
+  }));
+  const res = await rpc.getProgramAccounts(program, { encoding: "base64", filters: memcmp }).send();
+  return res.map((a) => ({ address: a.pubkey, data: decode(new Uint8Array(b64.encode(a.account.data[0]))) }));
+}
+
+const addrBytes = (a: Address) => new Uint8Array(getAddressEncoder().encode(a));
+
+/** Loans where `wallet` is the borrower (offset 8+32) or the lender (offset 8). */
+export async function fetchLoansFor(
+  rpc: RpcClient,
+  wallet: Address,
+): Promise<{ borrowed: Array<{ address: Address; data: Loan }>; lent: Array<{ address: Address; data: Loan }> }> {
+  const decoder = getLoanDecoder();
+  const decode = (b: Uint8Array) => decoder.decode(b);
+  const [borrowed, lent] = await Promise.all([
+    programAccounts(rpc, PROGRAMS.credit, LOAN_DISCRIMINATOR, decode, [{ offset: 8 + 32, bytes: addrBytes(wallet) }]),
+    programAccounts(rpc, PROGRAMS.credit, LOAN_DISCRIMINATOR, decode, [{ offset: 8, bytes: addrBytes(wallet) }]),
+  ]);
+  return { borrowed, lent };
+}
+
+/** Every bid PDA of `wallet` (member at offset 8+8). */
+export async function fetchBidsFor(rpc: RpcClient, wallet: Address): Promise<Array<{ address: Address; data: Bid }>> {
+  const decoder = getBidDecoder();
+  return programAccounts(rpc, PROGRAMS.auction, BID_DISCRIMINATOR, (b) => decoder.decode(b), [
+    { offset: 8 + 8, bytes: addrBytes(wallet) },
+  ]);
 }
 
 /** The proven depth curve of a print and its recomputed clearing. */

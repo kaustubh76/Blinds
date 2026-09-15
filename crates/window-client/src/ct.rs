@@ -161,6 +161,24 @@ pub fn mint_to(mint: &Pubkey, to: &Pubkey, authority: &Pubkey, amount: u64) -> I
     token_ix::mint_to(&token_2022(), mint, to, authority, &[], amount).unwrap()
 }
 
+/// Associated-token-program `CreateIdempotent` (discriminant 1) for a Token-2022 mint; `payer`
+/// funds the rent so a wallet without SOL can be given a token account.
+pub fn create_ata_idempotent(payer: &Pubkey, owner: &Pubkey, mint: &Pubkey) -> Instruction {
+    use solana_instruction::AccountMeta;
+    Instruction {
+        program_id: crate::pda::ASSOCIATED_TOKEN_PROGRAM,
+        accounts: vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(crate::pda::ata(owner, mint), false),
+            AccountMeta::new_readonly(*owner, false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new_readonly(solana_system_interface::program::ID, false),
+            AccountMeta::new_readonly(token_2022(), false),
+        ],
+        data: vec![1],
+    }
+}
+
 /// The keys of a confidential token account.
 pub struct ConfidentialKeys {
     pub elgamal: ElGamalKeypair,
