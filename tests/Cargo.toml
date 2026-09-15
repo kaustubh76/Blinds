@@ -1,0 +1,36 @@
+[package]
+name = "window-tests"
+version = "0.1.0"
+description = "Tier-1 suites on LiteSVM: e2e, attacks, invariants, privacy, measurements"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[[test]]
+name = "measurements"
+path = "measurements/main.rs"
+
+[[test]]
+name = "e2e"
+path = "e2e/main.rs"
+
+[[test]]
+name = "attacks"
+path = "attacks/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+window-testkit.workspace = true
+window-clearing = { workspace = true, features = ["std"] }
+window-elgamal = { workspace = true, features = ["std"] }
+window-proofs = { workspace = true, features = ["builders", "verify"] }
+window_auction = { path = "../programs/window_auction", features = ["no-entrypoint"] }
+window_oracle = { path = "../programs/window_oracle", features = ["no-entrypoint"] }
+solana-keypair.workspace = true
+solana-signer.workspace = true
+solana-zk-sdk.workspace = true
+serde_json.workspace = true
+bytemuck.workspace = true

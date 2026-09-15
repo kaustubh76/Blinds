@@ -8,6 +8,8 @@ members = [
     "crates/window-clearing",
     "crates/window-elgamal",
     "crates/window-proofs",
+    "crates/window-testkit",
+    "tests",
 ]
 resolver = "2"
 
@@ -62,6 +64,7 @@ solana-signer = "3"
 solana-transaction = "3"
 solana-message = "3"
 solana-system-interface = { version = "2", features = ["bincode"] }
+solana-clock = "3"
 bincode = "1"
 proptest = "1"
 

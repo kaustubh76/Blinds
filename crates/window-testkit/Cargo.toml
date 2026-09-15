@@ -1,0 +1,30 @@
+[package]
+name = "window-testkit"
+version = "0.1.0"
+description = "LiteSVM harness for THE WINDOW: loads the built programs, bootstraps a market from a config profile, drives bids and prints with real proofs"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+anchor-lang.workspace = true
+litesvm.workspace = true
+solana-keypair.workspace = true
+solana-signer.workspace = true
+solana-transaction.workspace = true
+solana-message.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-system-interface.workspace = true
+solana-clock.workspace = true
+solana-instructions-sysvar.workspace = true
+solana-zk-sdk.workspace = true
+bincode.workspace = true
+bytemuck.workspace = true
+window-config.workspace = true
+window-clearing = { workspace = true, features = ["std"] }
+window-elgamal = { workspace = true, features = ["std"] }
+window-proofs = { workspace = true, features = ["builders", "verify"] }
+window_registry = { path = "../../programs/window_registry", features = ["no-entrypoint"] }
+window_auction = { path = "../../programs/window_auction", features = ["no-entrypoint"] }
+window_oracle = { path = "../../programs/window_oracle", features = ["no-entrypoint"] }

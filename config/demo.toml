@@ -18,7 +18,7 @@ price_exp = 2                # p' = price in 10^-2 USDC (cents) per share
 mult_exp = 3                 # a = corporate-action multiplier * 10^3
 
 [print]
-attest_batch = 3             # PoCD proofs per attest_ticks tx (measured: 4 fits only without ALT)
+attest_batch = 4             # PoCD proofs per attest_ticks tx; measured 1,170 B of 1,232 (3 → 975 B)
 bsgs_baby_bits = 20          # 1M-entry baby table; giant steps from 0 so realistic sums decode instantly
 bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in practice
 

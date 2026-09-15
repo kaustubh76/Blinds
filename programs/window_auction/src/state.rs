@@ -122,6 +122,6 @@ mod tests {
             core::mem::size_of::<Epoch>(),
             8 + 8 + 8 + 32 + 2368 + 2368 + 296 + 4 + 1 + 1 + 2
         );
-        assert!(Epoch::SPACE <= 10_240);
+        const _: () = assert!(Epoch::SPACE <= 10_240, "Epoch must fit a single-instruction init");
     }
 }
