@@ -1,0 +1,29 @@
+# THE WINDOW for Stocks — DEMO profile (spec §7.5, units per docs/SPEC_AMENDMENTS.md §7).
+# Single source of truth: read by crates/window-config (services, scripts, tests) and used to
+# build the on-chain Config initialisation. Slots are ~400 ms.
+[market]
+epoch_slots = 300            # ~2 min
+tenor_slots = 150            # overnight-style loan life
+keeper_grace_slots = 150     # anyone may close after start + epoch_slots + grace
+stale_after_slots = 450      # print deadline after close
+max_price_age_slots = 75     # ~30 s
+band_edge_epochs = 5         # consecutive edge prints that raise the BandEdge flag
+max_bids_per_epoch = 4096
+bid_min_micro_usdc = 1_000_000   # s_min = 1 USDC; range proof is on (size - s_min) in [0, 2^40)
+
+[credit]
+haircut_bps = 15000          # collateral value must cover 150% of the loan
+collateral_bits = 32         # c in milli-shares < 2^32 (4.29M shares)
+price_exp = 2                # p' = price in 10^-2 USDC (cents) per share
+mult_exp = 3                 # a = corporate-action multiplier * 10^3
+
+[print]
+attest_batch = 3             # PoCD proofs per attest_ticks tx (measured: 4 fits only without ALT)
+bsgs_baby_bits = 20          # 1M-entry baby table; giant steps from 0 so realistic sums decode instantly
+bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in practice
+
+[assets.mock_tsla]
+symbol = "TSLAx-mock"
+decimals = 3                 # milli-shares
+pyth_feed_id = "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1"
+initial_multiplier = 1.0

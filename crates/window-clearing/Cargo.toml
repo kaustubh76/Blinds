@@ -1,0 +1,20 @@
+[package]
+name = "window-clearing"
+version = "0.1.0"
+description = "Uniform-price clearing for THE WINDOW (spec §7.3) — no_std, shared by the oracle program, services and tests"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+std = ["serde", "serde/std"]
+
+[dependencies]
+bytemuck.workspace = true
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["std"] }

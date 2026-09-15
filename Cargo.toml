@@ -1,0 +1,78 @@
+[workspace]
+# Members are listed explicitly (not globbed) so a half-created crate can never break the build.
+members = [
+    "crates/window-config",
+    "crates/window-clearing",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.89.0"
+license = "MIT"
+repository = "https://github.com/kaushtubh/the-window-stocks"
+
+[workspace.dependencies]
+# --- On-chain framework. Pinned EXACTLY to the installed anchor-cli; verified with `anchor build`
+# and executed on SBF inside LiteSVM (docs/toolchain.md). Bumping requires re-running the gate test.
+anchor-lang = { version = "=1.1.2", features = ["init-if-needed"] }
+anchor-spl = { version = "=1.1.2" }
+
+# --- Confidential-transfer primitives. This is the exact set anchor-spl 1.1.2 itself carries
+# (spl-token-2022-interface ^2 -> proof-extraction 0.5 -> solana-zk-sdk 4.0.0), so it is coherent
+# by construction. solana-zk-sdk 7/8 and proof-extraction 0.6 moved to solana-instruction 4 and
+# cannot be combined with Anchor 1.x — do not "upgrade" them independently.
+solana-zk-sdk = { version = "=4.0.0", default-features = false }
+solana-curve25519 = "=3.1.14"
+spl-token-2022-interface = { version = "=2.1.0", default-features = false }
+spl-token-confidential-transfer-proof-extraction = "=0.5.1"
+spl-token-confidential-transfer-proof-generation = "=0.5.1"
+solana-instructions-sysvar = "3"
+solana-pubkey = "3"
+solana-instruction = "3"
+solana-sdk-ids = "3"
+
+# --- Pure-math / host side.
+curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "precomputed-tables"] }
+# bytemuck must be a DIRECT dependency of any crate using #[zero_copy]: the macro emits
+# `::bytemuck::Pod` resolved in the local crate. `derive` refuses to compile a struct with implicit
+# padding, which is the safety net for the fixed-layout Epoch/Print accounts.
+bytemuck = { version = "1.24", features = ["derive", "min_const_generics"] }
+thiserror = "2"
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+sha2 = "0.10"
+rand = "0.8"
+hex = "0.4"
+
+# --- Test substrate (host only). litesvm 0.10 = agave 3.1 runtime; it compiles on the installed
+# Rust 1.90. litesvm >= 0.14 pulls agave 4.2 crates that need Rust >= 1.97 (see docs/toolchain.md).
+litesvm = "=0.10.0"
+litesvm-token = "=0.10.0"
+solana-keypair = "3"
+solana-signer = "3"
+solana-transaction = "3"
+solana-message = "3"
+solana-system-interface = { version = "2", features = ["bincode"] }
+bincode = "1"
+proptest = "1"
+
+# --- Workspace crates.
+window-elgamal = { path = "crates/window-elgamal", default-features = false }
+window-clearing = { path = "crates/window-clearing", default-features = false }
+window-proofs = { path = "crates/window-proofs", default-features = false }
+window-config = { path = "crates/window-config" }
+window-testkit = { path = "crates/window-testkit" }
+
+[profile.release]
+# overflow-checks stays ON in release. These programs account other people's collateral and loans;
+# a silent wrap in a bound check is exactly the bug class that cannot be fixed after the freeze.
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1

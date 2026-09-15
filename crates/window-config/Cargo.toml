@@ -1,0 +1,12 @@
+[package]
+name = "window-config"
+version = "0.1.0"
+description = "Typed loader for config/<profile>.toml — the single source of market parameters"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["std"] }
+toml.workspace = true
+thiserror.workspace = true

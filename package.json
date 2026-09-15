@@ -1,0 +1,24 @@
+{
+  "name": "the-window-stocks",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.4",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "pnpm -r --filter=!@thewindow/app build && pnpm --filter=@thewindow/app build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "pnpm -r --filter=!@thewindow/integration test",
+    "test:integration": "pnpm --filter=@thewindow/integration test",
+    "codegen": "pnpm --filter=@thewindow/solana-sdk codegen",
+    "docs:measurements": "node scripts/measurements_to_md.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0"
+  }
+}

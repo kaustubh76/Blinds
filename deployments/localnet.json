@@ -1,0 +1,14 @@
+{
+  "_comment": "Written by scripts/setup_localnet.ts; program ids are fixed at Phase 0 (deployments/program-keypairs).",
+  "cluster": "localnet",
+  "programs": {
+    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
+    "window_auction": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
+    "window_oracle": "78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV",
+    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3",
+    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr"
+  },
+  "mints": {},
+  "auditor_elgamal_pubkey": null,
+  "pyth_feed_id": null
+}

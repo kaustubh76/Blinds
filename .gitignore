@@ -1,0 +1,26 @@
+# Rust / Anchor
+target/
+.anchor/
+**/*.rs.bk
+# Program deploy keys are NOT committed: programs are immutable after the submission tag and the
+# keys are only needed by the deployer. Keep them in a password manager; docs/toolchain.md.
+deployments/program-keypairs/
+# Node
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+sdk/wasm/
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+# Local run artefacts
+test-ledger/
+*.log
+services/indexer/data/

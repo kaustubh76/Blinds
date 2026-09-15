@@ -1,0 +1,7 @@
+# Host toolchain for crates, services and LiteSVM tests. On-chain code is compiled by the
+# platform-tools rustc that ships with solana-cli 4.2.1 (`anchor build`), not by this one.
+# 1.90 is the installed stable; everything in the workspace is verified on it. Moving to 1.97+
+# unlocks litesvm 0.16 (agave 4.2 runtime) — see docs/toolchain.md before changing.
+[toolchain]
+channel = "1.90.0"
+components = ["rustfmt", "clippy"]
