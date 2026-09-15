@@ -10,25 +10,30 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
 |---|---|---|
 | solana-cli / Agave | **4.2.1** | Installed; devnet runs 4.2/4.3. Ships platform-tools 1.52 (rustc 1.89 for SBF). |
 | anchor-cli / anchor-lang / anchor-spl | **1.1.2** (exact) | Installed CLI. `anchor build` + on-chain execution verified. 1.2.0 is the same `solana-*` 3.x crate family and compiles on the host; move both CLI and crates together, then re-run the gate test. |
-| solana-zk-sdk | **4.0.0** (exact) | The version `anchor-spl 1.1.2 → spl-token-2022-interface 2.1.0 → proof-extraction 0.5.1` already carries. |
-| solana-curve25519 | **3.1.14** (exact) | Same family; host = dalek, SBF = syscalls, one API. |
-| spl-token-2022-interface | **2.1.0** (exact) | What anchor-spl uses. Confidential-transfer instruction builders live here. |
-| spl-token-confidential-transfer-proof-extraction / -generation | **0.5.1** (exact) | `verify_and_extract_context` (programs) and transfer/withdraw proof builders (services). |
-| litesvm / litesvm-token | **0.10.0** (exact) | Agave 3.1 runtime; bundles Token-2022 v10 and the ZK ElGamal builtin; compiles on Rust 1.90. |
-| Rust (host) | 1.90.0 | Installed stable. |
+| solana-zk-sdk | **7.0.1** (exact) | Proof *generation*. Carries the zk-sdk ≥ 5 transcript that the deployed ZK ElGamal program (Agave ≥ 4.2) verifies. See trap 1. |
+| solana-zk-elgamal-proof-interface / solana-zk-sdk-pod | **0.1.3 / 0.1.2** (exact) | Proof-data and context types, instruction encoding, `ProofContextState` — what the programs read. On `solana-instruction 3` (Anchor 1.x). |
+| solana-curve25519 | **4.0.1** (exact) | host = dalek, SBF = syscalls, one API. |
+| spl-token-2022-interface | **3.1.1** (exact) | Confidential-transfer and `ScaledUiAmount` instruction builders, extension parsing. (anchor-spl 1.1.2 carries its own 2.x internally; the two coexist.) |
+| spl-token-confidential-transfer-proof-extraction / -generation | **0.6.1** (exact) | `verify_and_extract_context` (programs) and transfer/withdraw proof builders (services, wasm). |
+| litesvm / litesvm-token | **0.16.0** (exact) | Agave 4.2.2 runtime = devnet's; its ZK ElGamal builtin verifies the same transcript as devnet. Needs Rust ≥ 1.97. |
+| Rust (host) | 1.98.1 | Required by the Agave 4.2 crates LiteSVM 0.16 links. |
 | Node / pnpm | ≥ 24 / 10.12.4 | `packageManager` pinned in `package.json`. Never `npm`. |
 | @solana/kit / @solana-program/token-2022 | 8.x / 0.17 | The current JS SDK line. `@solana/web3.js` 1.x is the maintenance branch and is not used anywhere. |
 
 ## Traps (each cost real time; do not rediscover them)
 
-1. **`solana-zk-sdk` 7/8 and `spl-token-confidential-transfer-proof-extraction` 0.6 are not usable with Anchor 1.x.**
-   They moved to `solana-address` and `solana-instruction 4`; Anchor 1.x is on `solana-instruction 3`. Cargo will
-   either refuse to resolve or produce two incompatible copies of the pod types. Wait for the Anchor release that
-   moves with them.
-2. **LiteSVM ≥ 0.14 needs Rust ≥ 1.97.** It pulls the Agave 4.2 runtime crates (`solana-syscalls 4.2.2`) which use
-   `maybe_uninit_write_slice`, unstable on 1.90. After `rustup update stable` (1.98.1) `litesvm 0.16` resolves
-   cleanly with this pin set (verified) and gives the devnet runtime version; until then stay on 0.10.
-3. **`litesvm 0.13` pins `solana-instruction = "=3.2.0"`**, which conflicts with Anchor's `^3.3`. Skip it.
+1. **`solana-zk-sdk` 5.0 changed the proof transcripts** (a global domain separator
+   `solana-zk-elgamal-proof-program-v1` and the proof context hashed into the transcript — the post-audit
+   hardening). The deployed ZK ElGamal Proof program (Agave ≥ 4.2, i.e. devnet and mainnet today) verifies that
+   transcript. Proofs built with zk-sdk 4.x verify in LiteSVM 0.10 (Agave 3.1) and are **rejected by a real
+   validator** (`SigmaProof(PubkeyValidity, AlgebraicRelation)`). Generate proofs with zk-sdk ≥ 5 — 7.0.1 here,
+   whose transcript is byte-identical to 5.0.1 — and test on LiteSVM ≥ 0.14. zk-sdk 8 / interface 1.0 move to
+   `solana-instruction 4` and cannot be combined with Anchor 1.x yet.
+2. **LiteSVM ≥ 0.14 needs Rust ≥ 1.97** (Agave 4.2 runtime crates use `maybe_uninit_write_slice`). LiteSVM 0.13
+   pins `solana-instruction =3.2.0`, which conflicts with Anchor's `^3.3`. Use 0.16.
+2b. **LiteSVM's bundled Token-2022 is built without `zk-ops`** — every confidential-transfer instruction returns
+   `InvalidInstructionData`. The harness and the local validator load the *deployed* Token-2022 dumped from devnet
+   (`scripts/fetch_external_programs.sh`, checksum committed).
 4. **Anchor 1.x API:** `Context<'info, T<'info>>` has a single lifetime. The Instructions sysvar is not an Anchor
    `Sysvar<T>`; declare it as `UncheckedAccount` with `#[account(address = solana_instructions_sysvar::ID)]`.
 5. **`verify_and_extract_context` does not check the context account's authority.** Programs read

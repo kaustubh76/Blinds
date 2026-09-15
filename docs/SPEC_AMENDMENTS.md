@@ -296,3 +296,4 @@ the natural upgrade path once Anchor moves to `solana-instruction 4`.
 | A7 | 5, 9 | Multiplier from the mint's `ScaledUiAmount` extension |
 | A8 | 7.4, 11 | Zero-copy `Epoch`/`Print`; `auditor_pubkey` per epoch |
 | A9 | 1, 6, 16 | Fresh build; nothing from the prior project; CI lineage check |
+| A10 | 15, 16 | Toolchain errata (2026-09-16): proofs must be generated with `solana-zk-sdk` ≥ 5 (7.0.1 used) — zk-sdk 5.0 changed the sigma-proof transcript and the deployed verifier (Agave ≥ 4.2) rejects zk-sdk 4 proofs. Tier-1 tests run on LiteSVM 0.16 (Agave 4.2 runtime) with the deployed Token-2022 (zk-ops) loaded; Rust 1.98. Partial-fill loans carry an ECDH-sealed opening note so the borrower can prove solvency for them. Measured numbers in §15 are unchanged. |
