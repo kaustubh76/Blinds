@@ -4,6 +4,8 @@ members = [
     "programs/window_registry",
     "programs/window_auction",
     "programs/window_oracle",
+    "programs/window_wrap",
+    "programs/window_credit",
     "crates/window-config",
     "crates/window-clearing",
     "crates/window-elgamal",

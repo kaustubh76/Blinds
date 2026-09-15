@@ -1,0 +1,41 @@
+[package]
+name = "window_credit"
+version = "0.1.0"
+description = "Loans against encrypted stock collateral: priced solvency proof, two-step lock, attested funding, price-fresh seize"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "window_credit"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "window_registry/idl-build", "window_auction/idl-build", "window_oracle/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang.workspace = true
+anchor-spl.workspace = true
+bytemuck.workspace = true
+spl-token-2022-interface.workspace = true
+solana-zk-sdk.workspace = true
+spl-token-confidential-transfer-proof-extraction.workspace = true
+solana-instructions-sysvar.workspace = true
+window_registry = { path = "../window_registry", features = ["no-entrypoint"] }
+window_auction = { path = "../window_auction", features = ["no-entrypoint"] }
+window_oracle = { path = "../window_oracle", features = ["no-entrypoint"] }
+window-elgamal.workspace = true
+window-clearing.workspace = true
+# `scalar` module only: the solvency units are literally the same code as the prover's.
+window-proofs.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

@@ -1,0 +1,31 @@
+[package]
+name = "window_wrap"
+version = "0.1.0"
+description = "1:1 confidential wrapper: mock-xStock (Token-2022) in program custody ↔ cSTOCK-W confidential balance"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "window_wrap"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "window_registry/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang.workspace = true
+anchor-spl.workspace = true
+spl-token-2022-interface.workspace = true
+window_registry = { path = "../window_registry", features = ["no-entrypoint"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
