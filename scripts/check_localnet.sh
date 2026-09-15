@@ -8,11 +8,20 @@ CURVE_FEATURE=7rcw5UtqgDTBBv2EcynNfYckgdAaH1MAsCjKgXMkN7Ri
 ZK_PROGRAM=ZkE1Gama1Proof11111111111111111111111111111
 TOKEN_2022=TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
 
-solana cluster-version -u "$URL" >/dev/null || { echo "no validator at $URL"; exit 1; }
-for f in $ZK_FEATURE $CURVE_FEATURE; do
-  solana feature status "$f" -u "$URL" | grep -q "active" || { echo "feature $f not active"; exit 1; }
-done
-for p in $ZK_PROGRAM $TOKEN_2022; do
-  solana account "$p" -u "$URL" | grep -q "Executable: true" || { echo "program $p not executable"; exit 1; }
+# A freshly started validator answers RPC before its genesis features and programs are visible:
+# retry the whole check for up to CHECK_TIMEOUT seconds.
+check() {
+  solana cluster-version -u "$URL" >/dev/null 2>&1 || { echo "no validator at $URL"; return 1; }
+  for f in $ZK_FEATURE $CURVE_FEATURE; do
+    solana feature status "$f" -u "$URL" 2>/dev/null | grep -q "active" || { echo "feature $f not active"; return 1; }
+  done
+  for p in $ZK_PROGRAM $TOKEN_2022; do
+    solana account "$p" -u "$URL" 2>/dev/null | grep -q "Executable: true" || { echo "program $p not executable"; return 1; }
+  done
+}
+deadline=$(( $(date +%s) + ${CHECK_TIMEOUT:-60} ))
+until check; do
+  [ "$(date +%s)" -lt "$deadline" ] || { echo "check_localnet: gave up after ${CHECK_TIMEOUT:-60}s"; exit 1; }
+  sleep 2
 done
 echo "check_localnet: ok ($URL)"
