@@ -125,6 +125,25 @@ importers:
         specifier: ^5.0.0
         version: 5.0.1(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.13))
 
+  tests/integration:
+    dependencies:
+      '@solana/kit':
+        specifier: ^8.3.0
+        version: 8.3.0(typescript@5.9.3)
+      '@thewindow/solana-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.5
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.1(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+
 packages:
 
   '@babel/code-frame@7.29.7':

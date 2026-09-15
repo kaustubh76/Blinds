@@ -18,8 +18,10 @@ args=(--reset --quiet --ledger "$LEDGER" --rpc-port 8899)
 # the deployed Token-2022 (zk-ops) and ATA programs, identical to devnet
 args+=(--bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb deployments/external/spl_token_2022.so)
 args+=(--bpf-program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL deployments/external/spl_associated_token_account.so)
+# program ids: the fixed ones in Anchor.toml (the keypairs themselves are only needed to deploy to devnet)
+program_id() { grep -E "^$1 = " Anchor.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/'; }
 for p in "${PROGRAMS[@]}"; do
-  args+=(--bpf-program "$(solana-keygen pubkey deployments/program-keypairs/$p-keypair.json)" "target/deploy/$p.so")
+  args+=(--bpf-program "$(program_id "$p")" "target/deploy/$p.so")
 done
 
 cleanup() { for v in VALIDATOR_PID ADMIN_PID AGENTS_PID; do [ -n "${!v:-}" ] && kill "${!v}" 2>/dev/null || true; done; }
