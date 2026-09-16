@@ -143,15 +143,19 @@ pub fn run(
         if args.airdrop {
             let _ = chain.airdrop(&wallet.pubkey(), 2_000_000_000);
         } else {
-            let _ = chain.send(
+            // Devnet: the admin funds each agent out of its own balance. An agent pays ~0.0062 SOL
+            // of rent for its two token accounts, then fees plus Bid rent that `close_bid` returns,
+            // so 0.15 SOL is a long runway. Every lamport here is a lamport not available for the
+            // Epoch/Print rent the market itself burns (config/devnet.toml).
+            chain.send(
                 admin,
                 &[solana_system_interface::instruction::transfer(
                     &admin_pk,
                     &wallet.pubkey(),
-                    300_000_000,
+                    agent_funding_lamports(),
                 )],
                 &[],
-            );
+            )?;
         }
         let eg = keys.agent_elgamal(i);
         chain.send(
@@ -218,4 +222,12 @@ pub fn run(
     dep.save(root)?;
     info!(path = %Deployment::path(root, &args.cluster).display(), "deployment written");
     Ok(dep)
+}
+
+/// SOL given to each simulated agent on a cluster with no faucet (`WINDOW_AGENT_FUNDING_LAMPORTS`).
+fn agent_funding_lamports() -> u64 {
+    std::env::var("WINDOW_AGENT_FUNDING_LAMPORTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(150_000_000)
 }

@@ -20,9 +20,14 @@ args+=(--bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb deployments/ext
 args+=(--bpf-program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL deployments/external/spl_associated_token_account.so)
 # program ids: the fixed ones in Anchor.toml (the keypairs themselves are only needed to deploy to devnet)
 program_id() { grep -E "^$1 = " Anchor.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/'; }
-for p in "${PROGRAMS[@]}"; do
-  args+=(--bpf-program "$(program_id "$p")" "target/deploy/$p.so")
-done
+# LOCALNET_DEPLOY=1 loads the programs through the real upgradeable loader (`solana program deploy`)
+# instead of genesis. Slower, but it is the same code path devnet uses — worth running once before
+# paying devnet rent for a binary whose ELF the loader might reject.
+if [ "${LOCALNET_DEPLOY:-0}" != "1" ]; then
+  for p in "${PROGRAMS[@]}"; do
+    args+=(--bpf-program "$(program_id "$p")" "target/deploy/$p.so")
+  done
+fi
 
 cleanup() { for v in VALIDATOR_PID ADMIN_PID AGENTS_PID; do [ -n "${!v:-}" ] && kill "${!v}" 2>/dev/null || true; done; }
 trap cleanup EXIT
@@ -31,6 +36,17 @@ solana-test-validator "${args[@]}" >"$LEDGER.log" 2>&1 &
 VALIDATOR_PID=$!
 for _ in $(seq 1 60); do solana cluster-version -u "$WINDOW_RPC_URL" >/dev/null 2>&1 && break; sleep 1; done
 ./scripts/check_localnet.sh
+
+if [ "${LOCALNET_DEPLOY:-0}" = "1" ]; then
+  echo "localnet: deploying through the upgradeable loader (the devnet code path)"
+  solana airdrop 100 -u "$WINDOW_RPC_URL" >/dev/null
+  for p in "${PROGRAMS[@]}"; do
+    cp "deployments/program-keypairs/$p-keypair.json" "target/deploy/$p-keypair.json"
+    solana program deploy "target/deploy/$p.so" \
+      --program-id "deployments/program-keypairs/$p-keypair.json" -u "$WINDOW_RPC_URL" >/dev/null
+    echo "  $p -> $(program_id "$p")"
+  done
+fi
 
 export WINDOW_AUDITOR_SEED_HEX="${WINDOW_AUDITOR_SEED_HEX:-1111111111111111111111111111111111111111111111111111111111111111}"
 cargo run -q -p window-admin --release -- --cluster localnet --profile "$PROFILE" setup --agents "${WINDOW_AGENTS:-6}"

@@ -1,0 +1,18 @@
+{
+  "cluster": "devnet",
+  "profile": "devnet",
+  "programs": {
+    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
+    "window_auction": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
+    "window_oracle": "78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV",
+    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3",
+    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr"
+  },
+  "mock_mint": "",
+  "cstock_mint": "",
+  "decimals": 3,
+  "escrow_account": "",
+  "feed_id_hex": "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+  "auditor_elgamal_pubkey_hex": "",
+  "agents": []
+}

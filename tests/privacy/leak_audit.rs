@@ -9,29 +9,56 @@ use window_testkit::Harness;
 
 const USDC: u64 = 1_000_000;
 
-/// Byte patterns an attacker would grep for.
-fn patterns(v: u64) -> Vec<(String, Vec<u8>)> {
+/// A byte pattern an attacker would grep for. `decimal` patterns are the number written out, and
+/// only count as a hit when they stand alone: "987" inside a compute-unit count like "589874" is
+/// arithmetic noise, not a disclosed quantity, while a real leak reads `amount: 987`.
+struct Pattern {
+    label: String,
+    bytes: Vec<u8>,
+    decimal: bool,
+}
+
+fn patterns(v: u64) -> Vec<Pattern> {
+    let bin = |label: String, bytes: Vec<u8>| Pattern { label, bytes, decimal: false };
+    let dec =
+        |label: String, v: u64| Pattern { label, bytes: v.to_string().into_bytes(), decimal: true };
     let mut out = vec![
-        (format!("{v} le-u64"), v.to_le_bytes().to_vec()),
-        (format!("{v} le-u128"), (v as u128).to_le_bytes().to_vec()),
-        (format!("{v} be-u64"), v.to_be_bytes().to_vec()),
-        (format!("{v} ascii"), v.to_string().into_bytes()),
+        bin(format!("{v} le-u64"), v.to_le_bytes().to_vec()),
+        bin(format!("{v} le-u128"), (v as u128).to_le_bytes().to_vec()),
+        bin(format!("{v} be-u64"), v.to_be_bytes().to_vec()),
+        dec(format!("{v} ascii"), v),
     ];
     if v.is_multiple_of(USDC) {
         let whole = v / USDC;
-        out.push((format!("{whole} usdc le-u64"), whole.to_le_bytes().to_vec()));
-        out.push((format!("{whole} usdc ascii"), whole.to_string().into_bytes()));
+        out.push(bin(format!("{whole} usdc le-u64"), whole.to_le_bytes().to_vec()));
+        out.push(dec(format!("{whole} usdc ascii"), whole));
     }
     if v.is_multiple_of(1_000) {
         let shares = v / 1_000;
-        out.push((format!("{shares} shares le-u64"), shares.to_le_bytes().to_vec()));
-        out.push((format!("{shares} shares ascii"), shares.to_string().into_bytes()));
+        out.push(bin(format!("{shares} shares le-u64"), shares.to_le_bytes().to_vec()));
+        out.push(dec(format!("{shares} shares ascii"), shares));
     }
     out
 }
 
 fn contains(hay: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty() && hay.windows(needle.len()).any(|w| w == needle)
+}
+
+/// Like [`contains`], but a decimal pattern must not be a digit-run inside a longer number.
+fn contains_pattern(hay: &[u8], p: &Pattern) -> bool {
+    if p.bytes.is_empty() {
+        return false;
+    }
+    if !p.decimal {
+        return contains(hay, &p.bytes);
+    }
+    let n = p.bytes.len();
+    hay.windows(n).enumerate().any(|(i, w)| {
+        w == p.bytes.as_slice()
+            && !hay.get(i.wrapping_sub(1)).is_some_and(u8::is_ascii_digit)
+            && !hay.get(i + n).is_some_and(u8::is_ascii_digit)
+    })
 }
 
 #[test]
@@ -84,13 +111,13 @@ fn no_secret_quantity_appears_in_transactions_logs_or_accounts() {
     for (i, entry) in h.tape.iter().enumerate() {
         scanned_bytes += entry.bytes.len();
         for s in secrets {
-            for (label, pat) in patterns(s) {
-                if contains(&entry.bytes, &pat) {
-                    hits.push(format!("tx #{i} data contains {label}"));
+            for p in patterns(s) {
+                if contains_pattern(&entry.bytes, &p) {
+                    hits.push(format!("tx #{i} data contains {}", p.label));
                 }
                 for log in &entry.logs {
-                    if contains(log.as_bytes(), &pat) {
-                        hits.push(format!("tx #{i} log contains {label}: {log}"));
+                    if contains_pattern(log.as_bytes(), &p) {
+                        hits.push(format!("tx #{i} log contains {}: {log}", p.label));
                     }
                 }
             }
@@ -114,9 +141,9 @@ fn no_secret_quantity_appears_in_transactions_logs_or_accounts() {
         program_accounts += 1;
         scanned_bytes += acc.data.len();
         for s in secrets {
-            for (label, pat) in patterns(s) {
-                if contains(&acc.data, &pat) {
-                    hits.push(format!("account {key} (owner {}) contains {label}", acc.owner));
+            for p in patterns(s) {
+                if contains_pattern(&acc.data, &p) {
+                    hits.push(format!("account {key} (owner {}) contains {}", acc.owner, p.label));
                 }
             }
         }

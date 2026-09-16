@@ -101,3 +101,22 @@ codegen-units = 1
 opt-level = 3
 incremental = false
 codegen-units = 1
+
+# Size, not speed, for the on-chain programs: `programdata` rent is paid once and forever at the
+# first deploy (devnet: 5,080.9 lamports/byte), and these programs are nowhere near the CU limit.
+# Per-package overrides inherit `overflow-checks = true` from [profile.release] above — that must
+# stay true, and these blocks must stay in the workspace root (Cargo ignores member profiles).
+[profile.release.package.window_registry]
+opt-level = "z"
+
+[profile.release.package.window_auction]
+opt-level = "z"
+
+[profile.release.package.window_oracle]
+opt-level = "z"
+
+[profile.release.package.window_wrap]
+opt-level = "z"
+
+[profile.release.package.window_credit]
+opt-level = "z"

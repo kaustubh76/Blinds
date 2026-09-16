@@ -48,8 +48,42 @@ pub struct Print {
 pub struct Asset {
     pub symbol: String,
     pub decimals: u8,
+    /// Pyth feed id, 32 bytes hex. The documented all-zero id marks a profile whose price is the
+    /// local mock walk, so a mock price is never published under a real Pyth feed id (A11).
     pub pyth_feed_id: String,
+    /// Pyth `PriceUpdateV2` account holding that feed, read over `price_rpc_url`. Empty on the
+    /// mock profiles.
+    #[serde(default)]
+    pub price_account: String,
+    /// RPC the price account is read from — Pyth publishes equity feeds on mainnet, so this is a
+    /// different cluster from the one the desk runs on. Empty on the mock profiles.
+    #[serde(default)]
+    pub price_rpc_url: String,
     pub initial_multiplier: f64,
+}
+
+impl Asset {
+    /// `true` when this asset is priced by the documented local mock walk rather than by Pyth.
+    pub fn is_mock_price(&self) -> bool {
+        let id = self.pyth_feed_id.trim_start_matches("0x");
+        id.is_empty() || id.chars().all(|c| c == '0')
+    }
+
+    pub fn feed_id_bytes(&self) -> Option<[u8; 32]> {
+        let id = self.pyth_feed_id.trim_start_matches("0x");
+        hex_32(id)
+    }
+}
+
+fn hex_32(s: &str) -> Option<[u8; 32]> {
+    if s.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(s.get(2 * i..2 * i + 2)?, 16).ok()?;
+    }
+    Some(out)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -104,6 +138,21 @@ impl Profile {
         if self.print.bsgs_max_bits > 63 || self.print.bsgs_baby_bits >= self.print.bsgs_max_bits {
             return bad("bsgs bits out of range");
         }
+        for (name, a) in &self.assets {
+            if a.feed_id_bytes().is_none() {
+                return bad(&format!("{name}: pyth_feed_id must be 32 bytes hex"));
+            }
+            // A real feed id must name the on-chain account it is read from, and vice versa:
+            // that pairing is what makes the posted price checkable by anyone.
+            if a.is_mock_price() != a.price_account.is_empty() {
+                return bad(&format!(
+                    "{name}: a real pyth_feed_id needs a price_account (and the mock id must have none)"
+                ));
+            }
+            if !a.price_account.is_empty() && a.price_rpc_url.is_empty() {
+                return bad(&format!("{name}: price_account needs price_rpc_url"));
+            }
+        }
         Ok(())
     }
 }
@@ -119,6 +168,24 @@ mod tests {
             assert_eq!(p.credit.haircut_bps, 15_000, "{name}: haircut is fixed at 150%");
             assert_eq!(p.market.bid_min_micro_usdc, 1_000_000);
             assert!(p.assets.contains_key("mock_tsla"));
+        }
+    }
+
+    #[test]
+    fn local_profiles_price_from_the_mock_walk_and_never_borrow_a_real_feed_id() {
+        for name in ["demo", "integration"] {
+            let a = &Profile::load(name).unwrap().assets["mock_tsla"];
+            assert!(a.is_mock_price(), "{name} runs on localnet: it must not claim a Pyth feed");
+            assert!(a.price_account.is_empty());
+        }
+    }
+
+    #[test]
+    fn deployed_profiles_name_the_pyth_account_their_feed_id_lives_in() {
+        for name in ["devnet", "prod"] {
+            let a = &Profile::load(name).unwrap().assets["mock_tsla"];
+            assert!(!a.is_mock_price(), "{name}: a deployed desk posts a real published price");
+            assert!(!a.price_account.is_empty() && !a.price_rpc_url.is_empty());
         }
     }
 

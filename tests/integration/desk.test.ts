@@ -389,18 +389,22 @@ async function leakScan(secrets: Array<[string, bigint]>, wallets: string[]): Pr
     const le = new Uint8Array(8);
     new DataView(le.buffer).setBigUint64(0, v, true);
     return [
-      { name: `${name} (LE u64)`, bytes: le },
-      { name: `${name} (ascii)`, bytes: new TextEncoder().encode(v.toString()) },
+      { name: `${name} (LE u64)`, bytes: le, decimal: false },
+      { name: `${name} (ascii)`, bytes: new TextEncoder().encode(v.toString()), decimal: true },
     ];
   });
-  const indexOf = (hay: Uint8Array, needle: Uint8Array): number => {
+  // A decimal needle must stand alone: "987" inside a compute-unit count like "589874" is
+  // arithmetic noise, while a real leak reads as its own number.
+  const isDigit = (b: number | undefined) => b !== undefined && b >= 0x30 && b <= 0x39;
+  const indexOf = (hay: Uint8Array, needle: Uint8Array, decimal = false): number => {
     outer: for (let i = 0; i + needle.length <= hay.length; i++) {
       for (let j = 0; j < needle.length; j++) if (hay[i + j] !== needle[j]) continue outer;
+      if (decimal && (isDigit(hay[i - 1]) || isDigit(hay[i + needle.length]))) continue;
       return i;
     }
     return -1;
   };
-  const contains = (hay: Uint8Array, needle: Uint8Array) => indexOf(hay, needle) >= 0;
+  const contains = (hay: Uint8Array, needle: Uint8Array, decimal = false) => indexOf(hay, needle, decimal) >= 0;
   const hits: Hit[] = [];
   for (const w of wallets) {
     const sigs = await rpc.getSignaturesForAddress(w as never, { limit: 200 }).send();
@@ -412,8 +416,10 @@ async function leakScan(secrets: Array<[string, bigint]>, wallets: string[]): Pr
       const raw = new Uint8Array(b64.encode(tx.transaction[0]));
       const logs = new TextEncoder().encode((tx.meta?.logMessages ?? []).join("\n"));
       for (const n of needles) {
-        if (contains(raw, n.bytes)) hits.push({ where: `tx ${s.signature}`, kind: "transaction", secret: n.name });
-        if (contains(logs, n.bytes)) hits.push({ where: `logs of ${s.signature}`, kind: "logs", secret: n.name });
+        if (contains(raw, n.bytes, n.decimal))
+          hits.push({ where: `tx ${s.signature}`, kind: "transaction", secret: n.name });
+        if (contains(logs, n.bytes, n.decimal))
+          hits.push({ where: `logs of ${s.signature}`, kind: "logs", secret: n.name });
       }
     }
   }
@@ -422,7 +428,7 @@ async function leakScan(secrets: Array<[string, bigint]>, wallets: string[]): Pr
     for (const a of accounts) {
       const data = new Uint8Array(b64.encode(a.account.data[0]));
       for (const n of needles) {
-        const offset = indexOf(data, n.bytes);
+        const offset = indexOf(data, n.bytes, n.decimal);
         if (offset >= 0) hits.push({ where: `account ${a.pubkey}`, kind: kindOf(data), secret: n.name, offset });
       }
     }

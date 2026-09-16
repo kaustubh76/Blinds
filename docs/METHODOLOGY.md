@@ -9,7 +9,7 @@ administrator whose decryption is proven on-chain. This document is the benchmar
 Overnight (one `tenor_slots` window) USDC loans collateralised by cSTOCK-W, a confidential wrapper
 of a Token-2022 xStock mint (mock on devnet; same extension layout — `ScaledUiAmount`,
 `MetadataPointer`, `PermanentDelegate`). Haircut 150 % (`haircut_bps = 15000`), priced against the
-keeper-posted Pyth price with the corporate-action multiplier folded into the solvency scalar.
+keeper-posted Pyth price (§5a) with the corporate-action multiplier folded into the solvency scalar.
 
 ## 2. Rate grid
 
@@ -40,7 +40,26 @@ above and checked against a brute-force evaluation by proptest.
 `band_edge`. A print missed for `stale_after_slots` after close can be marked stale by anyone; a
 late finalize is still accepted. Five consecutive band-edge prints raise `band_edge`.
 
-## 5. Proof of correct decryption
+## 5a. The public price
+
+The keeper reads Pyth's own **on-chain** `PriceUpdateV2` account over RPC — no API key and no
+off-chain endpoint — checks that it is owned by the Pyth receiver program
+`rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ` and that the `feed_id` inside it is the one this
+deployment was initialised with, and copies `price`, `expo` and `publish_time` into `PriceCache`
+unmodified. Anyone can read the same account and compare. The demo asset is Pyth
+**Crypto.TSLAX/USD** (`0x47a15647…a362`), published at mainnet account
+`GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY`; the desk runs on devnet, where Pyth publishes no
+equity feed, so that one account is read cross-cluster.
+
+Two honest limits. First, the on-chain freshness rule (`slot − posted_slot ≤ max_price_age`) bounds
+how recently *the keeper posted*, not how recently Pyth published; the feed's own `publish_time` is
+stored as-is, so the age of the quote is public and checkable. Second, TSLAx is an equity feed: it
+stops advancing outside US market hours, and the desk keeps quoting the last published value with
+its true timestamp rather than inventing movement. On a local validator there is no Pyth at all, so
+those profiles carry the documented all-zero feed id and a deterministic mock walk — the
+configuration is rejected if a real feed id is ever paired with a mock price (amendment A11).
+
+## 5b. Proof of correct decryption
 
 Each nonzero tick's accumulator `(C, D)` is a twisted-ElGamal ciphertext under the epoch's auditor
 key. The administrator publishes `v` and a `ZeroCiphertext` proof that `(C − v·G, D)` encrypts 0;

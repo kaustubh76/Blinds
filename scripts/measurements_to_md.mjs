@@ -34,6 +34,9 @@ const rows = [
 ];
 const table = [
   "Measured on Agave 4.2 (LiteSVM 0.16) by `cargo test -p window-tests --test measurements`; `attest_batch = 4`.",
+  'The programs are compiled `opt-level = "z"` because `programdata` rent is paid once and permanently at',
+  "deploy (1,252,952 B \u21d2 6.37 SOL on devnet; `make size`): that trades 11\u201326 % more compute units for",
+  "0.58 SOL and leaves transaction counts and sizes \u2014 the binding constraints \u2014 unchanged (amendment A12).",
   "",
   "| Path | Transactions / size | Compute units |",
   "|---|---|---|",

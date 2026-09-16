@@ -1,9 +1,14 @@
 //! Epoch clock, price posting, seize scan. Stateless per tick: everything is re-derived from chain.
 
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use solana_signer::Signer;
 use tracing::{info, warn};
-use window_client::{accounts, ix, pda, AuctionConfig, EpochStatus, Loan, LoanStatus};
+use window_clearing::Side;
+use window_client::{
+    accounts, ix, pda, AuctionConfig, Bid, EpochStatus, Loan, LoanStatus, PriceCache,
+};
 
 use crate::{chain::read, price::PriceSource, Ctx};
 
@@ -34,11 +39,17 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
             }
         }
     }
-    // refresh the price at half the freshness window so credit never sees a stale cache
-    if slot % (ctx.profile.market.max_price_age_slots / 2).max(1) == 0 {
+    // Refresh the price at half the freshness window so credit never sees a stale cache. This is a
+    // staleness check, not `slot % period == 0`: the loop samples one slot per tick, and on devnet
+    // ~13 slots pass per tick, so a modulo test is usually missed and every lock fails PriceStale.
+    let half = (ctx.profile.market.max_price_age_slots / 2).max(1);
+    let posted = read::<PriceCache>(chain, &pda::price_cache(&ctx.deployment.feed_id()))?
+        .map(|c| c.posted_slot);
+    if posted.is_none_or(|p| slot.saturating_sub(p) >= half) {
         post_price(ctx, price)?;
     }
     seize_matured(ctx)?;
+    close_settled_bids(ctx, &config, slot)?;
     ctx.metrics
         .keeper_lamports
         .store(chain.balance(&admin.pubkey()).unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
@@ -81,6 +92,60 @@ fn seize_matured(ctx: &Ctx) -> Result<()> {
                 }
                 Err(e) => warn!(loan = %key, "seize failed: {e}"),
             }
+        }
+    }
+    Ok(())
+}
+
+/// Permissionless `close_bid` for bids whose epoch has settled and whose matching window has
+/// passed: the rent (0.001438 SOL on devnet) goes back to the member, which is what keeps the
+/// simulated agents solvent over a long run. The keeper pays only the fee.
+fn close_settled_bids(ctx: &Ctx, config: &AuctionConfig, slot: u64) -> Result<()> {
+    const PER_TX: usize = 8;
+    let chain = ctx.chain.as_ref();
+    let admin = &ctx.keys.admin;
+    let disc = accounts::discriminator::<Bid>();
+    let bids: Vec<Bid> = chain
+        .program_accounts(&window_client::programs::AUCTION, &disc)?
+        .into_iter()
+        .filter_map(|(_, data)| accounts::decode::<Bid>(&data))
+        .collect();
+    // One epoch read per distinct epoch, not per bid: on a public devnet RPC the N+1 version is a
+    // rate-limit generator.
+    let mut settled: BTreeMap<u64, bool> = BTreeMap::new();
+    let mut closable = Vec::new();
+    for bid in bids {
+        let ok = match settled.get(&bid.epoch) {
+            Some(v) => *v,
+            None => {
+                let v = chain
+                    .account_data(&pda::epoch(bid.epoch))?
+                    .and_then(|d| accounts::decode_epoch(&d))
+                    .is_some_and(|e| {
+                        let done = e.status == EpochStatus::Printed as u8
+                            || e.status == EpochStatus::NoTrade as u8;
+                        done && e.close_slot > 0
+                            && slot >= e.close_slot.saturating_add(config.stale_after_slots)
+                    });
+                settled.insert(bid.epoch, v);
+                v
+            }
+        };
+        if !ok {
+            continue;
+        }
+        let side = if bid.side == Side::Bid as u8 { Side::Bid } else { Side::Ask };
+        closable.push(ix::close_bid(&admin.pubkey(), bid.epoch, &bid.member, side, bid.tick));
+    }
+    for chunk in closable.chunks(PER_TX) {
+        match chain.send(admin, chunk, &[]) {
+            Ok(_) => {
+                ctx.metrics
+                    .bids_closed
+                    .fetch_add(chunk.len() as u64, std::sync::atomic::Ordering::Relaxed);
+                info!(bids = chunk.len(), "settled bids closed; rent returned to members");
+            }
+            Err(e) => warn!("close_bid batch failed: {e:#}"),
         }
     }
     Ok(())

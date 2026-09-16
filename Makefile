@@ -2,8 +2,11 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 PROFILE ?= demo
+# Program bytes are paid for once, forever, at the first devnet deploy (5,080.9 lamports/byte).
+# The budget is the measured size at opt-level="z" plus ~2% headroom; raising it costs real SOL.
+SIZE_BUDGET ?= 1280000
 
-.PHONY: help build test lint fmt check-localnet test-integration demo deploy-devnet freeze clean
+.PHONY: help build test lint fmt size check-localnet test-integration demo deploy-devnet freeze clean
 
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -43,3 +46,12 @@ freeze: ## set upgrade authority to None on every devnet program (irreversible)
 
 clean:
 	rm -rf target .anchor test-ledger sdk/dist app/dist
+
+size: ## per-program .so bytes and the devnet rent they will lock forever
+	@total=0; for p in window_registry window_auction window_oracle window_wrap window_credit; do \
+	  s=$$(stat -f%z target/deploy/$$p.so 2>/dev/null || stat -c%s target/deploy/$$p.so); \
+	  total=$$((total+s)); \
+	  printf "  %-17s %8d B  %s\n" "$$p" "$$s" "$$(solana rent $$((s+45)) -ud 2>/dev/null | awk '/minimum/{print $$3" SOL"}')"; \
+	done; \
+	printf "  %-17s %8d B  %s\n" TOTAL "$$total" "$$(solana rent $$((total+225)) -ud 2>/dev/null | awk '/minimum/{print $$3" SOL"}')"; \
+	if [ $$total -gt $(SIZE_BUDGET) ]; then echo "size: $$total B exceeds the $(SIZE_BUDGET) B budget"; exit 1; fi

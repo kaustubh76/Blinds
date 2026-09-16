@@ -6693,6 +6693,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anyhow",
+ "base64 0.22.1",
  "clap",
  "hex",
  "rand 0.8.8",

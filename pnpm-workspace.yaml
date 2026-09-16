@@ -1,6 +1,4 @@
 packages:
   - sdk
-  - services/indexer
-  - services/agents
   - app
   - tests/integration

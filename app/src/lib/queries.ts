@@ -17,9 +17,12 @@ import {
   fetchTokenAmount,
   pda,
 } from "@thewindow/solana-sdk";
+import { config } from "../config";
 import { fetchDeployment, rpc } from "./chain";
 
-const SLOT_MS = 2_000;
+// Public devnet RPC rate-limits browsers hard, and a devnet epoch lasts minutes, so poll slowly
+// there; a localnet epoch is seconds and the validator is ours.
+const SLOT_MS = config.cluster === "devnet" ? 10_000 : 2_000;
 
 export const useDeployment = () =>
   useQuery({ queryKey: ["deployment"], queryFn: fetchDeployment, staleTime: Number.POSITIVE_INFINITY });

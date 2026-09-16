@@ -14,10 +14,14 @@
     "test": "pnpm -r --filter=!@thewindow/integration test",
     "test:integration": "pnpm --filter=@thewindow/integration test",
     "codegen": "pnpm --filter=@thewindow/solana-sdk codegen",
-    "docs:measurements": "node scripts/measurements_to_md.mjs"
+    "docs:measurements": "node scripts/measurements_to_md.mjs",
+    "watch:epoch": "tsx scripts/watch_epoch.ts",
+    "leak-audit": "tsx scripts/leak_audit.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.13",
+    "@solana/kit": "^8.3.0",
+    "@thewindow/solana-sdk": "workspace:*",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",

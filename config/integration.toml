@@ -25,5 +25,10 @@ bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in prac
 [assets.mock_tsla]
 symbol = "TSLAx-mock"
 decimals = 3                 # milli-shares
-pyth_feed_id = "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1"
+# All-zero = "this profile runs on a local validator, where there is no Pyth". The keeper posts a
+# documented mock walk; the all-zero id is what `PriceCache.feed_id` carries, so nothing on-chain
+# ever claims a Pyth feed it did not read (amendment A11).
+pyth_feed_id = "0x0000000000000000000000000000000000000000000000000000000000000000"
+price_account = ""
+price_rpc_url = ""
 initial_multiplier = 1.0

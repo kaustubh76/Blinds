@@ -25,5 +25,12 @@ bsgs_max_bits = 48
 [assets.mock_tsla]
 symbol = "TSLAx-mock"
 decimals = 3                 # milli-shares
-pyth_feed_id = "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1"
+# Pyth Crypto.TSLAX/USD. The keeper reads Pyth's own on-chain `PriceUpdateV2` account (no API key)
+# and copies price/expo/publish_time into `PriceCache`; anyone can read the same account and
+# compare. Pyth publishes equity feeds on mainnet only, hence the mainnet RPC — the desk itself
+# runs on devnet. It is an equity feed: outside US market hours `publish_time` stops advancing,
+# which is visible on-chain and is the honest presentation (docs/METHODOLOGY.md §6).
+pyth_feed_id = "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362"
+price_account = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY"
+price_rpc_url = "https://api.mainnet-beta.solana.com"
 initial_multiplier = 1.0

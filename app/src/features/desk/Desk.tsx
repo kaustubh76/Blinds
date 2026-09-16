@@ -40,6 +40,15 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {d.dep.data && !d.dep.data.faucet && (
+        <div className="lg:col-span-2">
+          <Note tone="warn">
+            The desk's demo faucet is not reachable from this browser, so joining and minting mock shares are
+            unavailable. Everything that only reads the chain — the market, the explorer, and your own positions —
+            still works, and so does bidding if this wallet is already a registered member.
+          </Note>
+        </div>
+      )}
       <Panel title="1 · keys">
         <p className="text-sm text-mute">
           Your ElGamal keys are derived from two wallet signatures (member key; cSTOCK-W account key). Signatures stay
@@ -72,7 +81,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               faucet). Membership is a public fact; positions are not.
             </p>
             <div className="mt-3">
-              <Button onClick={() => d.join.mutate()} disabled={busy || !keysReady}>
+              <Button onClick={() => d.join.mutate()} disabled={busy || !keysReady || !d.dep.data?.faucet}>
                 Join the desk
               </Button>
             </div>

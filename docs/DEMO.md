@@ -5,10 +5,10 @@ Two ways to see the desk run: locally in one command, or on devnet with a browse
 ## A. Localnet, one command (≈ 3 minutes)
 
 ```bash
-make build                     # anchor build → target/deploy/*.so, IDLs frozen into sdk/idl
-pnpm install && pnpm -r build  # SDK (with wasm proofs) + app
-make test-integration          # real solana-test-validator + real admin service + agents,
-                               # driven through the TS SDK: 8 tests, one full lifecycle
+make build                          # anchor build → target/deploy/*.so, IDLs frozen into sdk/idl
+pnpm install && ./scripts/build_wasm.sh && pnpm -r build   # SDK (with the browser proofs) + dashboard
+make test-integration               # real solana-test-validator + real admin service + agents,
+                                    # driven through the TS SDK: 8 tests, one full lifecycle
 ```
 
 What the suite does, in the dashboard's own code path: two fresh wallets join, configure
@@ -36,7 +36,7 @@ The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Ta
    *Re-verify locally* to re-run the PoCD verifier in your browser on the raw accounts and attest
    transactions.
 3. **Desk** — *Derive keys* (two wallet signatures; nothing leaves the tab) → *Join the desk* (the
-   admin registers the key, mints 10,000 mock shares and sends 0.2 SOL for fees) → *Set up
+   admin registers the key, mints 10,000 mock shares and sends 0.1 SOL for fees) → *Set up
    confidential account* → *Wrap* → *Submit encrypted bid*. Every transaction of a plan is listed
    with its signature.
 4. **Positions** — loans as borrower/lender (sizes render as ciphertexts), bids on-chain, and for a

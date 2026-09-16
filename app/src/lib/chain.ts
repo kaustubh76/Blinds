@@ -1,6 +1,9 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
 import { type Address, address, createSolanaRpc } from "@solana/kit";
 import { config } from "../config";
+// Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
+// admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
+import bundledDeployment from "../../../deployments/devnet.json";
 
 export const rpc = createSolanaRpc(config.rpcUrl);
 export type Rpc = typeof rpc;
@@ -21,6 +24,8 @@ export interface Deployment {
 
 export interface DeploymentView {
   raw: Deployment;
+  /** Whether the admin service answered — i.e. whether `POST /join` can work right now. */
+  faucet: boolean;
   mockMint: Address;
   cstockMint: Address;
   escrow: Address;
@@ -40,12 +45,10 @@ export function bytesToHex(b: ArrayLike<number>): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-export async function fetchDeployment(): Promise<DeploymentView> {
-  const res = await fetch(`${config.adminUrl}/deployment`);
-  if (!res.ok) throw new Error(`admin service: ${res.status}`);
-  const raw = (await res.json()) as Deployment;
+function view(raw: Deployment, faucet: boolean): DeploymentView {
   return {
     raw,
+    faucet,
     mockMint: address(raw.mock_mint),
     cstockMint: address(raw.cstock_mint),
     escrow: address(raw.escrow_account),
@@ -53,6 +56,23 @@ export async function fetchDeployment(): Promise<DeploymentView> {
     auditorPubkey: hexToBytes(raw.auditor_elgamal_pubkey_hex),
     decimals: raw.decimals,
   };
+}
+
+/**
+ * The deployment descriptor. Preferred live from the admin service (which also tells us the faucet
+ * is up); otherwise the copy committed to the repo, so a judge with only a browser still gets the
+ * market, the explorer and their own positions.
+ */
+export async function fetchDeployment(): Promise<DeploymentView> {
+  try {
+    const res = await fetch(`${config.adminUrl}/deployment`, { signal: AbortSignal.timeout(4_000) });
+    if (res.ok) return view((await res.json()) as Deployment, true);
+  } catch {
+    // admin service down or unreachable from this browser — fall through
+  }
+  const bundled = bundledDeployment as unknown as Deployment;
+  if (!bundled?.mock_mint) throw new Error("no deployment: admin service unreachable and no bundled copy");
+  return view(bundled, false);
 }
 
 /** `POST /join`: registers the wallet as a member and funds it with mock stock + fee SOL (demo faucet). */

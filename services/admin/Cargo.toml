@@ -41,4 +41,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 anyhow = "1"
 ureq = { version = "2", features = ["json"] }
+base64 = "0.22"
 tiny_http = "0.12"

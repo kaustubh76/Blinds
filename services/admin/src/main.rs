@@ -44,8 +44,10 @@ enum Cmd {
     },
     /// Run keeper + administrator + operator + price poster (one key)
     Run {
-        #[arg(long, default_value_t = 2000)]
-        tick_ms: u64,
+        /// Loop period. Defaults to 2 s on localnet and 6 s on devnet, where the per-tick
+        /// `getProgramAccounts` scans otherwise run into public-RPC rate limits.
+        #[arg(long)]
+        tick_ms: Option<u64>,
         #[arg(long, default_value_t = 9090)]
         metrics_port: u16,
         /// Stop after this many prints (0 = forever)
@@ -57,9 +59,36 @@ enum Cmd {
     },
     /// Run the simulated members
     Agents {
-        #[arg(long, default_value_t = 3000)]
-        tick_ms: u64,
+        /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
+        #[arg(long)]
+        tick_ms: Option<u64>,
     },
+}
+
+/// SOL the demo faucet sends a joining wallet. It pays for that wallet's two token accounts
+/// (~0.0062 SOL), its proof-context rent (refunded on close) and its fees
+/// (`WINDOW_JOIN_FUNDING_LAMPORTS`).
+fn join_funding_lamports() -> u64 {
+    std::env::var("WINDOW_JOIN_FUNDING_LAMPORTS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100_000_000)
+}
+
+/// The price source this profile asks for: Pyth's on-chain price-update account when the asset
+/// names one, otherwise the documented mock walk (localnet/CI). `Profile::validate` guarantees the
+/// two never mix, so a mock price can never be published under a real Pyth feed id (A11).
+fn price_source(profile: &Profile) -> Result<PriceSource> {
+    let asset = profile
+        .assets
+        .get("mock_tsla")
+        .ok_or_else(|| anyhow::anyhow!("profile has no mock_tsla asset"))?;
+    if asset.is_mock_price() {
+        return Ok(PriceSource::mock(40_012));
+    }
+    let feed = asset.feed_id_bytes().ok_or_else(|| anyhow::anyhow!("bad pyth_feed_id"))?;
+    let rpc = std::env::var("WINDOW_PRICE_RPC_URL").unwrap_or_else(|_| asset.price_rpc_url.clone());
+    Ok(PriceSource::on_chain_pyth(rpc, asset.price_account.clone(), feed))
 }
 
 fn main() -> Result<()> {
@@ -104,6 +133,7 @@ fn main() -> Result<()> {
             )?;
         }
         Cmd::Run { tick_ms, metrics_port, max_prints, default_every } => {
+            let tick_ms = tick_ms.unwrap_or(if cli.cluster == "devnet" { 6_000 } else { 2_000 });
             let deployment = Deployment::load(&root, &cli.cluster)?;
             // The dashboard's demo faucet: register a wallet as a member and mint it mock stock.
             let join_chain = RpcChain::new(&rpc);
@@ -145,8 +175,8 @@ fn main() -> Result<()> {
                 ixs.push(solana_system_interface::instruction::transfer(
                     &admin.pubkey(),
                     &wallet,
-                    200_000_000,
-                )); // 0.2 SOL for fees/rent
+                    join_funding_lamports(),
+                )); // fees + rent for the judge's own accounts
                 join_chain.send(admin, &ixs, &[]).map_err(|e| e.to_string())
             });
             metrics::serve(
@@ -164,12 +194,8 @@ fn main() -> Result<()> {
                 backfill_epochs: 25,
                 default_every,
             };
-            let hermes = if cli.cluster == "devnet" {
-                std::env::var("PYTH_HERMES_URL").ok().or(Some("https://hermes.pyth.network".into()))
-            } else {
-                None
-            };
-            let mut price = PriceSource::new(hermes, deployment.feed_id_hex.clone(), 40_012);
+            let mut price = price_source(&profile)?;
+            info!(source = %price.describe(), "price source");
             let admin = Administrator::new(profile.print.bsgs_baby_bits);
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");
@@ -193,6 +219,7 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Agents { tick_ms } => {
+            let tick_ms = tick_ms.unwrap_or(if cli.cluster == "devnet" { 8_000 } else { 3_000 });
             let deployment = Deployment::load(&root, &cli.cluster)?;
             let ctx = Ctx {
                 chain: Box::new(chain),

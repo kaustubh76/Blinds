@@ -35,13 +35,34 @@ pub trait Chain: Send + Sync {
 
 pub struct RpcChain {
     pub client: RpcClient,
+    /// Priority fee in micro-lamports per compute unit, prepended to every transaction.
+    /// Devnet drops unprioritised transactions under load; 0 (the default) omits the instruction.
+    priority_fee: u64,
 }
+
+/// `ComputeBudget111111111111111111111111111111`.
+const COMPUTE_BUDGET: Pubkey =
+    solana_pubkey::pubkey!("ComputeBudget111111111111111111111111111111");
 
 impl RpcChain {
     pub fn new(url: &str) -> Self {
         Self {
             client: RpcClient::new_with_commitment(url.to_string(), CommitmentConfig::confirmed()),
+            priority_fee: std::env::var("WINDOW_PRIORITY_FEE_MICROLAMPORTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
         }
+    }
+
+    /// `SetComputeUnitPrice` (ComputeBudget instruction 3).
+    fn priority_fee_ix(&self) -> Option<Instruction> {
+        (self.priority_fee > 0).then(|| {
+            let mut data = Vec::with_capacity(9);
+            data.push(3u8);
+            data.extend_from_slice(&self.priority_fee.to_le_bytes());
+            Instruction { program_id: COMPUTE_BUDGET, accounts: vec![], data }
+        })
     }
 }
 
@@ -101,7 +122,11 @@ impl Chain for RpcChain {
     }
     fn send(&self, payer: &Keypair, ixs: &[Instruction], extra: &[&Keypair]) -> Result<String> {
         let blockhash = self.client.get_latest_blockhash()?;
-        let msg = Message::new_with_blockhash(ixs, Some(&payer.pubkey()), &blockhash);
+        let with_fee: Vec<Instruction> = match self.priority_fee_ix() {
+            Some(fee) => std::iter::once(fee).chain(ixs.iter().cloned()).collect(),
+            None => ixs.to_vec(),
+        };
+        let msg = Message::new_with_blockhash(&with_fee, Some(&payer.pubkey()), &blockhash);
         let mut signers: Vec<&Keypair> = vec![payer];
         signers.extend_from_slice(extra);
         let tx = Transaction::new(&signers, msg, blockhash);

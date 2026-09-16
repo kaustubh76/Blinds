@@ -11,6 +11,12 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.13
         version: 2.5.13
+      '@solana/kit':
+        specifier: ^8.3.0
+        version: 8.3.0(typescript@5.9.3)
+      '@thewindow/solana-sdk':
+        specifier: workspace:*
+        version: link:sdk
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.5

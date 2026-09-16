@@ -48,6 +48,22 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
    go through `window_elgamal::point`, so a wrapper change is a one-file fix.
 9. **Program keypairs** live in `deployments/program-keypairs/` (git-ignored) and are copied into
    `target/deploy/` before `anchor build` so `declare_id!` and `Anchor.toml` agree across machines.
+10. **Program bytes are permanent money.** `programdata` is sized at the *first* deploy and can never
+    shrink; devnet rent measured 2026-09-16 is 5,080.9 lamports/byte, so the five programs cost 6.37 SOL
+    at `opt-level = "z"` (1,252,952 B) against 6.95 SOL at the Cargo default `opt-level = 3`
+    (1,367,224 B). Shrink *before* deploying: afterwards the only path is `solana program extend`
+    (paid), and `solana program close` on a program refunds the rent but **burns the program id
+    forever**. `cargo-build-sbf` already runs `llvm-objcopy --strip-all`, so stripping saves nothing;
+    `lto = "fat"` and `codegen-units = 1` were already set. `make size` prints the bytes and the rent.
+11. **Pyth's public Hermes API returns `401` for price updates** (observed 2026-09-16); the metadata
+    route (`/v2/price_feeds`) still answers. Read Pyth's **on-chain** `PriceUpdateV2` account instead —
+    owner `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ`, layout
+    `disc(8) ‖ write_authority(32) ‖ verification_level(1 for Full, 2 for Partial) ‖ feed_id(32) ‖
+    price i64 ‖ conf u64 ‖ expo i32 ‖ publish_time i64 ‖ …` — which needs no API key. Sponsored feed
+    accounts are PDAs of the **push oracle** `pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT` with seeds
+    `[shard_le_u16, feed_id]` (the receiver program id derives nothing). Equity feeds
+    (Crypto.TSLAX/USD `0x47a15647…`, mainnet `GpoWLTd6…`) are mainnet-only and stop advancing outside
+    US market hours; devnet publishes crypto feeds such as SOL/USD (`7UVimffx…`).
 
 ## Feature gates (checked live)
 

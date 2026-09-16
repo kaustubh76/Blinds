@@ -54,15 +54,18 @@ budget — what *is* public and why — is in [`docs/METHODOLOGY.md`](docs/METHO
 ## Measurements
 
 Measured on Agave 4.2 (LiteSVM 0.16) by `cargo test -p window-tests --test measurements`; `attest_batch = 4`.
+The programs are compiled `opt-level = "z"` because `programdata` rent is paid once and permanently at
+deploy (1,252,952 B ⇒ 6.37 SOL on devnet; `make size`): that trades 11–26 % more compute units for
+0.58 SOL and leaves transaction counts and sizes — the binding constraints — unchanged (amendment A12).
 
 | Path | Transactions / size | Compute units |
 |---|---|---|
-| `submit_bid` (validity inline + range context) | 769 B / 1,141 B | 33,040 + 111,000 |
-| `attest_ticks`, 2 inline PoCDs (gate) | 768 B | 27,169 |
-| print, 1 nonzero tick | 3 tx · ≤ 561 B | 69,535 |
-| print, 10 nonzero ticks | 5 tx · ≤ 1,182 B | 173,997 |
-| print, 37 nonzero ticks | 12 tx · ≤ 1,182 B | 486,630 |
-| print, 74 nonzero ticks (worst case) | 21 tx · ≤ 1,182 B | 917,924 |
+| `submit_bid` (validity inline + range context) | 769 B / 1,141 B | 37,035 + 111,000 |
+| `attest_ticks`, 2 inline PoCDs (gate) | 768 B | 30,448 |
+| print, 1 nonzero tick | 3 tx · ≤ 561 B | 87,906 |
+| print, 10 nonzero ticks | 5 tx · ≤ 1,182 B | 202,167 |
+| print, 37 nonzero ticks | 12 tx · ≤ 1,182 B | 545,810 |
+| print, 74 nonzero ticks (worst case) | 21 tx · ≤ 1,182 B | 1,018,228 |
 
 ## Amendments to the specification
 
