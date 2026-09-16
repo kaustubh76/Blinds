@@ -258,6 +258,7 @@ impl Harness {
                 borrower_record: pda::member(&b),
                 loan,
                 partial_validity_ctx: None,
+                zk_program: window_credit::zk::zk_program_id(),
                 system_program: solana_system_interface::program::ID,
             }
             .to_account_metas(None),

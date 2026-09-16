@@ -398,6 +398,7 @@ pub fn post_match(
             borrower_record: pda::member(borrower),
             loan: pda::loan(epoch, borrower, bid_tick, k),
             partial_validity_ctx,
+            zk_program: zk::zk_program_id(),
             system_program: system(),
         }
         .to_account_metas(None),

@@ -247,7 +247,8 @@ impl Administrator {
                 )
             };
             let _ = setup;
-            chain.send(
+            // One unpostable match must not strand the rest of the epoch's matches.
+            match chain.send(
                 admin,
                 &[ix::post_match(
                     &admin.pubkey(),
@@ -261,8 +262,10 @@ impl Administrator {
                     ctx_acc,
                 )],
                 &[],
-            )?;
-            posted += 1;
+            ) {
+                Ok(_) => posted += 1,
+                Err(err) => warn!(epoch = e.index, k = m.k, "post_match failed: {err:#}"),
+            }
         }
         ctx.metrics.matches_posted.fetch_add(posted, std::sync::atomic::Ordering::Relaxed);
         info!(epoch = e.index, matches = posted, "matches posted");

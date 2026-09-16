@@ -14,12 +14,17 @@
  *     at the marginal tick.
  * Anything else — a Bid, a Loan size, an Epoch, instruction data, a log line — is a leak and fails.
  *
- * Usage: pnpm leak-audit --cluster devnet [--secrets 1000000000,50000000000] [--limit 200]
+ * The quantities scanned for must be the ones that actually exist, or a clean result proves
+ * nothing. By default they are read from the simulated agents' own memory file — every bid size
+ * they ever submitted, in micro-USDC — which is the ground truth for this deployment. Pass
+ * `--secrets` to audit specific values instead (a judge auditing their own wallet would).
+ *
+ * Usage: pnpm leak-audit --cluster devnet [--secrets 1000000000,...] [--limit 200]
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type Address, address, createSolanaRpc, getBase64Encoder } from "@solana/kit";
-import { auction, credit, oracle, PROGRAMS } from "@thewindow/solana-sdk";
+import { auction, credit, oracle, PROGRAMS, withRpcRetry } from "@thewindow/solana-sdk";
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -74,6 +79,19 @@ function needles(secrets: bigint[]) {
   });
 }
 
+/**
+ * Every bid size the simulated members have submitted on this cluster, from the memory they persist
+ * (`{"epoch/side/tick": [size, opening]}`). These are exactly the quantities that must not appear
+ * anywhere on chain.
+ */
+function agentSecrets(): bigint[] {
+  const path = resolve(import.meta.dirname, `../services/admin/data/agents-${cluster}.json`);
+  if (!existsSync(path)) return [];
+  const memory = JSON.parse(readFileSync(path, "utf8")) as { bids?: Record<string, [number, string]> };
+  const sizes = Object.values(memory.bids ?? {}).map(([size]) => BigInt(size));
+  return [...new Set(sizes)].sort((a, b) => (a < b ? -1 : 1));
+}
+
 interface Hit {
   where: string;
   kind: string;
@@ -92,25 +110,27 @@ async function main() {
     .map((w) => address(w))
     .concat(arg("wallets") ? [] : deployment.agents.map((a) => address(a.wallet)));
 
-  // Default secrets: the agent bid sizes are 100..2,100 USDC in whole micro-USDC steps, so scan the
-  // whole grid of round sizes an agent could have bid plus any explicitly given values.
   const explicit = (arg("secrets") ?? "")
     .split(",")
     .filter(Boolean)
     .map((s) => BigInt(s));
-  const grid = explicit.length ? explicit : Array.from({ length: 21 }, (_, i) => BigInt(100 + i * 100) * 1_000_000n);
-  const ns = needles(grid);
+  const secrets = explicit.length ? explicit : agentSecrets();
+  if (secrets.length === 0)
+    throw new Error("no secrets to scan for: pass --secrets, or run the agents so their memory exists");
+  const ns = needles(secrets);
   const hits: Hit[] = [];
 
   console.log(`leak audit · ${cluster} · ${rpcUrl}`);
-  console.log(`  ${wallets.length} wallets, ${grid.length} candidate secrets, ${ns.length} needles`);
+  console.log(
+    `  ${wallets.length} wallets, ${secrets.length} real secrets${explicit.length ? "" : " from the agents' memory"}, ${ns.length} needles`,
+  );
 
   for (const w of wallets) {
-    const sigs = await rpc.getSignaturesForAddress(w, { limit }).send();
+    const sigs = await withRpcRetry(() => rpc.getSignaturesForAddress(w, { limit }).send());
     for (const s of sigs) {
-      const tx = await rpc
-        .getTransaction(s.signature, { encoding: "base64", maxSupportedTransactionVersion: 0 })
-        .send();
+      const tx = await withRpcRetry(() =>
+        rpc.getTransaction(s.signature, { encoding: "base64", maxSupportedTransactionVersion: 0 }).send(),
+      );
       if (!tx) continue;
       const raw = new Uint8Array(b64.encode(tx.transaction[0]));
       const logs = new TextEncoder().encode((tx.meta?.logMessages ?? []).join("\n"));
@@ -125,7 +145,7 @@ async function main() {
   }
 
   for (const [name, program] of Object.entries(PROGRAMS)) {
-    const accounts = await rpc.getProgramAccounts(program, { encoding: "base64" }).send();
+    const accounts = await withRpcRetry(() => rpc.getProgramAccounts(program, { encoding: "base64" }).send());
     for (const a of accounts) {
       const data = new Uint8Array(b64.encode(a.account.data[0]));
       const kind = kindOf(data);

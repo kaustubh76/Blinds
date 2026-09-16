@@ -53,6 +53,10 @@ pub struct PostMatch<'info> {
     /// CHECK: validity context for a `Partial` fill; owner/type/authority checked in the handler, closed by CPI.
     #[account(mut)]
     pub partial_validity_ctx: Option<UncheckedAccount<'info>>,
+    /// CHECK: ZK ElGamal Proof program, for the close CPI on a `Partial` fill. A CPI's callee must
+    /// be among the transaction's accounts; the real runtime rejects the instruction otherwise.
+    #[account(address = zk::zk_program_id())]
+    pub zk_program: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
 }
 

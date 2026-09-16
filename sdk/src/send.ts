@@ -108,3 +108,35 @@ function describeSendError(e: unknown): string {
   }
   return message;
 }
+
+/**
+ * Retries an RPC call through the rate limits and transient failures a public endpoint hands out.
+ * `api.devnet.solana.com` answers 429 readily when a service and a script share an IP, and a
+ * dropped connection is normal; neither means the query was wrong.
+ */
+export async function withRpcRetry<T>(
+  f: () => Promise<T>,
+  opts: { attempts?: number; baseDelayMs?: number; label?: string } = {},
+): Promise<T> {
+  const attempts = opts.attempts ?? 6;
+  const base = opts.baseDelayMs ?? 700;
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await f();
+    } catch (e) {
+      lastError = e;
+      if (!isTransientRpcError(e) || i === attempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, base * 2 ** i));
+    }
+  }
+  throw lastError;
+}
+
+function isTransientRpcError(e: unknown): boolean {
+  if (!e || typeof e !== "object") return false;
+  const status = (e as { context?: { statusCode?: number } }).context?.statusCode;
+  if (status === 429 || (status !== undefined && status >= 500)) return true;
+  const message = e instanceof Error ? e.message.toLowerCase() : "";
+  return /too many requests|timed out|timeout|connection|socket|fetch failed|econnreset/.test(message);
+}

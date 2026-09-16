@@ -4,7 +4,7 @@
  * Usage: WINDOW_RPC_URL=https://api.devnet.solana.com pnpm tsx scripts/watch_epoch.ts --epochs 1
  */
 import { createSolanaRpc } from "@solana/kit";
-import { fetchOracle, fetchPrint, formatRate, PrintStatus, verifyPrint } from "@thewindow/solana-sdk";
+import { fetchOracle, fetchPrint, formatRate, PrintStatus, verifyPrint, withRpcRetry } from "@thewindow/solana-sdk";
 
 const flag = (name: string, fallback: number) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -18,7 +18,7 @@ const pollMs = flag("poll-ms", rpcUrl.includes("devnet") ? 20_000 : 2_000);
 const timeoutMs = flag("timeout-s", 3_600) * 1_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const start = await fetchOracle(rpc);
+const start = await withRpcRetry(() => fetchOracle(rpc));
 let seen = start?.hasPrinted ? start.lastPrintEpoch : -1n;
 let ok = true;
 console.log(`watching ${rpcUrl} from epoch ${seen} for ${want} print(s), polling every ${pollMs / 1000}s…`);
@@ -29,12 +29,12 @@ for (let n = 0; n < want; ) {
     process.exit(2);
   }
   await sleep(pollMs);
-  const o = await fetchOracle(rpc);
+  const o = await withRpcRetry(() => fetchOracle(rpc));
   if (!o?.hasPrinted || o.lastPrintEpoch <= seen) continue;
   seen = o.lastPrintEpoch;
   n++;
-  const p = await fetchPrint(rpc, seen);
-  const v = await verifyPrint(rpc, seen);
+  const p = await withRpcRetry(() => fetchPrint(rpc, seen));
+  const v = await withRpcRetry(() => verifyPrint(rpc, seen));
   ok &&= v.ok;
   const rate = p?.status === PrintStatus.Printed ? formatRate(p.rStarTick) : "no trade";
   console.log(

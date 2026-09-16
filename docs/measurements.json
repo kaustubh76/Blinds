@@ -1,4 +1,13 @@
 {
+  "devnet.deploy.bytes_total": 1252952,
+  "devnet.deploy.programdata_rent_lamports_per_byte": 5080.9,
+  "devnet.deploy.rent_sol": 6.3667894,
+  "devnet.epoch.rent_sol": 0.0362,
+  "devnet.leak_audit.hits_in_published_aggregates": 47,
+  "devnet.leak_audit.leaks": 0,
+  "devnet.print.epoch0_ms": 14651,
+  "devnet.print.epoch0_nonzero_ticks": 8,
+  "devnet.print.epoch0_txs": 4,
   "gate.attest_ticks_2.bytes": 768,
   "gate.attest_ticks_2.cu": 30448,
   "gate.print.total_cu": 99383,

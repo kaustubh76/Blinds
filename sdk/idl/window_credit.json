@@ -372,6 +372,13 @@
           "optional": true
         },
         {
+          "name": "zk_program",
+          "docs": [
+            "be among the transaction's accounts; the real runtime rejects the instruction otherwise."
+          ],
+          "address": "ZkE1Gama1Proof11111111111111111111111111111"
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }

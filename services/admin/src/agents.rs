@@ -12,7 +12,7 @@ use solana_signer::Signer;
 use tracing::{info, warn};
 use window_clearing::Side;
 use window_client::{
-    accounts, ct, ix, pda, AuctionConfig, Bid, Loan, LoanStatus, OracleState, PriceCache,
+    accounts, ct, ix, pda, AuctionConfig, Loan, LoanStatus, OracleState, PriceCache,
 };
 use window_elgamal::encrypt::Opening;
 use window_proofs::{
@@ -116,7 +116,9 @@ impl Agents {
                 self.save();
                 info!(agent = i, "borrower wrapped collateral (simulated)");
             }
-            // bid once per open epoch (and not in its last slots, to avoid racing the close)
+            // One bid per (epoch, side, tick) — an agent's tick is drawn from a narrow band around
+            // the last print, so over an epoch it ends up quoting a handful of adjacent ticks and
+            // then stops. Never in the epoch's last slots, to avoid racing the close.
             let epoch_open = config.has_open_epoch
                 && chain
                     .account_data(&pda::epoch(config.current_epoch))?
@@ -231,14 +233,14 @@ impl Agents {
                 if opening_hex.is_empty() {
                     continue;
                 }
-                let bid_ct =
-                    read::<Bid>(chain, &pda::bid(loan.epoch, &wallet.pubkey(), 1, loan.bid_tick))?
-                        .ok_or_else(|| anyhow!("bid"))?;
-                // Full fill: our own bid's opening. Partial fill: the administrator sealed the
-                // part's opening to us (ECDH one-time pad); the loan size is then unknown to us
-                // in plaintext, so we recover it by comparing against our tracked bid size is
-                // impossible — instead we read it from the ciphertext with our key (bounded BSGS).
-                let (loan_size, opening) = if bid_ct.ciphertext == loan.size_ct {
+                // Full fill: the loan carries our own bid ciphertext, so our stored opening
+                // applies and we already know the size. Partial fill: the administrator sealed the
+                // part's opening to us (ECDH one-time pad) and we recover the size from the
+                // ciphertext with our own key (bounded BSGS). A zero note means a full fill —
+                // read from the loan itself, because by now the keeper may have reclaimed the
+                // bid's rent with the permissionless `close_bid`.
+                let full_fill = loan.opening_note == [0u8; 32];
+                let (loan_size, opening) = if full_fill {
                     (
                         bid_size,
                         Opening(

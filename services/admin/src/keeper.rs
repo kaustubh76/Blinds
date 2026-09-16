@@ -1,8 +1,9 @@
 //! Epoch clock, price posting, seize scan. Stateless per tick: everything is re-derived from chain.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
+use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use tracing::{info, warn};
 use window_clearing::Side;
@@ -48,8 +49,9 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
     if posted.is_none_or(|p| slot.saturating_sub(p) >= half) {
         post_price(ctx, price)?;
     }
-    seize_matured(ctx)?;
-    close_settled_bids(ctx, &config, slot)?;
+    let loans = load_loans(ctx)?;
+    seize_matured(ctx, &loans)?;
+    close_settled_bids(ctx, &config, slot, &loans)?;
     ctx.metrics
         .keeper_lamports
         .store(chain.balance(&admin.pubkey()).unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
@@ -74,12 +76,21 @@ pub fn post_price(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
     Ok(())
 }
 
-fn seize_matured(ctx: &Ctx) -> Result<()> {
+/// Every loan on chain, read once per tick and shared by the scans below.
+fn load_loans(ctx: &Ctx) -> Result<Vec<(Pubkey, Loan)>> {
+    let disc = accounts::discriminator::<Loan>();
+    Ok(ctx
+        .chain
+        .program_accounts(&window_client::programs::CREDIT, &disc)?
+        .into_iter()
+        .filter_map(|(key, data)| accounts::decode::<Loan>(&data).map(|l| (key, l)))
+        .collect())
+}
+
+fn seize_matured(ctx: &Ctx, loans: &[(Pubkey, Loan)]) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let slot = chain.slot()?;
-    let disc = accounts::discriminator::<Loan>();
-    for (key, data) in chain.program_accounts(&window_client::programs::CREDIT, &disc)? {
-        let Some(loan) = accounts::decode::<Loan>(&data) else { continue };
+    for (key, loan) in loans.iter().map(|(k, l)| (*k, l)) {
         if loan.status == LoanStatus::Active as u8 && slot > loan.deadline_slot {
             match chain.send(
                 &ctx.keys.admin,
@@ -100,7 +111,12 @@ fn seize_matured(ctx: &Ctx) -> Result<()> {
 /// Permissionless `close_bid` for bids whose epoch has settled and whose matching window has
 /// passed: the rent (0.001438 SOL on devnet) goes back to the member, which is what keeps the
 /// simulated agents solvent over a long run. The keeper pays only the fee.
-fn close_settled_bids(ctx: &Ctx, config: &AuctionConfig, slot: u64) -> Result<()> {
+fn close_settled_bids(
+    ctx: &Ctx,
+    config: &AuctionConfig,
+    slot: u64,
+    loans: &[(Pubkey, Loan)],
+) -> Result<()> {
     const PER_TX: usize = 8;
     let chain = ctx.chain.as_ref();
     let admin = &ctx.keys.admin;
@@ -112,9 +128,20 @@ fn close_settled_bids(ctx: &Ctx, config: &AuctionConfig, slot: u64) -> Result<()
         .collect();
     // One epoch read per distinct epoch, not per bid: on a public devnet RPC the N+1 version is a
     // rate-limit generator.
+    // A borrower still needs its own bid ciphertext to prove solvency for a full fill, so a bid is
+    // off limits while any loan of that member in that epoch is still Pending. Reclaiming its rent
+    // early would strand the loan.
+    let pending: BTreeSet<(u64, Pubkey)> = loans
+        .iter()
+        .filter(|(_, l)| l.status == LoanStatus::Pending as u8)
+        .map(|(_, l)| (l.epoch, l.borrower))
+        .collect();
     let mut settled: BTreeMap<u64, bool> = BTreeMap::new();
     let mut closable = Vec::new();
     for bid in bids {
+        if pending.contains(&(bid.epoch, bid.member)) {
+            continue;
+        }
         let ok = match settled.get(&bid.epoch) {
             Some(v) => *v,
             None => {
