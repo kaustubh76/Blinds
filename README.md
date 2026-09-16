@@ -14,7 +14,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 |---|---|
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
-| Status | Phases 0–5 built and green: five programs on SBF, tier-1 suites (e2e, 8 attack tests, invariants, privacy, measurements) on Agave 4.2 via LiteSVM, tier-2 lifecycle through the TS SDK on `solana-test-validator` with the real services, dashboard. Devnet deployment pending faucet funding (`docs/DEMO.md` §C). |
+| Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 19 attack cases, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
 
 ## Layout

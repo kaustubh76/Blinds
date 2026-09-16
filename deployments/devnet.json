@@ -2,17 +2,60 @@
   "cluster": "devnet",
   "profile": "devnet",
   "programs": {
-    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
     "window_auction": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
+    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr",
     "window_oracle": "78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV",
-    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3",
-    "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr"
+    "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
+    "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3"
   },
-  "mock_mint": "",
-  "cstock_mint": "",
+  "mock_mint": "HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn",
+  "cstock_mint": "4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr",
   "decimals": 3,
-  "escrow_account": "",
+  "escrow_account": "BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ",
   "feed_id_hex": "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
-  "auditor_elgamal_pubkey_hex": "",
-  "agents": []
+  "auditor_elgamal_pubkey_hex": "f829061ce55de73698f3ac6e5b143f5f9a2c5b78d6b62544d7fb550823a63777",
+  "agents": [
+    {
+      "index": 0,
+      "wallet": "51gsw5oEYXhcUVPQWW4c5Y5c1HWABtgzNMNdWCDLr62z",
+      "mock_account": "GVDrkXm2yDyuQP1Nmn14umqPXS2aucWwXzy6MqTZyK58",
+      "cstock_account": "FWCYPbJsaxhcfC5g6jiwnX18Us5Qs4QCUtyaQdVWpKh2",
+      "role": "lender"
+    },
+    {
+      "index": 1,
+      "wallet": "FXCVh2Qavdw26hczhGEoAHaXe1pmSdBM7tRXTUQEjvnE",
+      "mock_account": "2gxFv8J2Ha6Am7mgTJu8sqyQBGoVS7joLL5GVorajfsq",
+      "cstock_account": "GFioPp4N7oXEpvYRSeNr7UfGhQY5oGBR1kJsbqPMEcd9",
+      "role": "borrower"
+    },
+    {
+      "index": 2,
+      "wallet": "FFfZbJAyCBWBZuM6qwtudN2Xw998LU8b7u4WWfGKg4yf",
+      "mock_account": "6KhzTFexSTvHMxw5LgtGALLcnybUrc8SiBdZ45khvnGR",
+      "cstock_account": "G5Xr9CkRGgFCKGxC64GRtcLgSrGyuSmbNpjsZZph4CUa",
+      "role": "lender"
+    },
+    {
+      "index": 3,
+      "wallet": "4PikNwJKiWLW1UbCxknMZaBTvEH6zuAF6AcJC2wusaMV",
+      "mock_account": "9hrRqvPDDTF82DYBEALfs5u7ZkXvSh1tqxPD5pEHLdAX",
+      "cstock_account": "838jPCAGUQhsjYRfwSKPuf5MSat2AqpGWv6QwpRwRhAz",
+      "role": "borrower"
+    },
+    {
+      "index": 4,
+      "wallet": "BPQsDKqMhhDFgT5niPuFa8EXcRAAbFGrEovkugZFJXVW",
+      "mock_account": "R9vJh3SL57G6BhCPENrEqDVb1E7GKLv4qejwp8G66G1",
+      "cstock_account": "8gHsyPuWCEBLoTJsB8n7KrAY94FwNytPe4YDM5UXLSyt",
+      "role": "lender"
+    },
+    {
+      "index": 5,
+      "wallet": "4UgLaC3GS1uxrPpZ4g6FhLk2qiYg3vXZfrDeWP3ZzzA5",
+      "mock_account": "BzWFd4QHVWufBRzJzqhwXiP15Jv8ejnD5VSeB42dumGg",
+      "cstock_account": "G5W8cG5XHsnLwAFuj7kLPQvHfLbZnkDNJMJmMrL3d4pT",
+      "role": "borrower"
+    }
+  ]
 }

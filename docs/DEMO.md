@@ -42,21 +42,60 @@ The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Ta
 4. **Positions** — loans as borrower/lender (sizes render as ciphertexts), bids on-chain, and for a
    `Pending` loan the *Lock collateral* → *Deposit to escrow* buttons.
 
-## C. Devnet
+## C. Devnet — the deployment that is judged
 
-Program ids are fixed (`Anchor.toml`); `deployments/devnet.json` is written by
-`scripts/deploy_devnet.sh` (needs ≈ 10 SOL on the deployer and `WINDOW_AUDITOR_SEED_HEX`). Then:
+Everything below is live on devnet and readable by anyone; no account of ours is needed to check it.
+
+| | address |
+|---|---|
+| registry | [`3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi`](https://explorer.solana.com/address/3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi?cluster=devnet) |
+| auction | [`HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6`](https://explorer.solana.com/address/HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6?cluster=devnet) |
+| oracle | [`78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV`](https://explorer.solana.com/address/78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV?cluster=devnet) |
+| wrap | [`E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3`](https://explorer.solana.com/address/E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3?cluster=devnet) |
+| credit | [`3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr`](https://explorer.solana.com/address/3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr?cluster=devnet) |
+| mock xStock mint (`ScaledUiAmount`) | [`HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn`](https://explorer.solana.com/address/HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn?cluster=devnet) |
+| cSTOCK-W mint (confidential, auditor key) | [`4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr`](https://explorer.solana.com/address/4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr?cluster=devnet) |
+| operator escrow (confidential account) | [`BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ`](https://explorer.solana.com/address/BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ?cluster=devnet) |
+| price feed | Pyth `Crypto.TSLAX/USD` `0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362`, read from mainnet account [`GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY) |
+
+Profile `config/devnet.toml`: ~7-minute epochs, 150 % haircut, `attest_batch = 4`. The
+6 simulated members are labelled `simulated` in `deployments/devnet.json` — they are
+ours, and the depth they provide is not organic demand.
+
+### Watch it yourself
 
 ```bash
-WINDOW_CLUSTER=devnet ./target/release/window-admin run &
-WINDOW_CLUSTER=devnet ./target/release/window-admin agents &
-WINDOW_RPC_URL=https://api.devnet.solana.com pnpm tsx scripts/watch_epoch.ts --epochs 1
-cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com VITE_ADMIN_URL=http://<admin-host>:9090 pnpm dev
+# the next print, re-verified from chain data alone (no trust in us, no admin service)
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm watch:epoch --epochs 1
+
+# the attacker script: scan every transaction, log and program account for a plaintext size
+pnpm leak-audit --cluster devnet
 ```
 
-`watch_epoch.ts` waits for the next print, re-verifies it and reports the attest transaction count
-and wall-clock. Judges use the same Desk flow as above with a devnet wallet; the admin's `/join`
-endpoint is the faucet.
+### The dashboard
+
+Run it locally (see below); a hosted URL is published in `deployments/app-url.txt` when it is up.
+
+```bash
+cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev
+```
+
+Market, Explorer and Positions read the chain directly, so they work with no service of ours
+running. The Desk's *Join* button is a demo faucet served by the admin service: it registers your
+wallet as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees. It needs
+`VITE_ADMIN_URL` pointing at a reachable admin service; the UI says so when it is not.
+
+### Running the market yourself
+
+```bash
+WINDOW_AUDITOR_SEED_HEX=<64 hex> ./scripts/deploy_devnet.sh   # preflight, resumable
+WINDOW_CLUSTER=devnet ./target/release/window-admin run &     # administrator + keeper + operator + price
+WINDOW_CLUSTER=devnet ./target/release/window-admin agents &  # the simulated members
+```
+
+Cost, measured: every epoch permanently locks ~0.0362 SOL of rent (`Epoch` 0.0266 + `Print` 0.0041 +
+~2 `Loan` at 0.0028), so the market burns ~0.33 SOL/hour. Bid rent comes back through the
+permissionless `close_bid` the keeper runs.
 
 ## What to look at
 

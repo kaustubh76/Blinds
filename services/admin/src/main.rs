@@ -38,8 +38,9 @@ enum Cmd {
         agents: usize,
         #[arg(long, env = "PYTH_FEED_ID", default_value = "")]
         feed_id: String,
-        /// Request airdrops (localnet/devnet faucet)
-        #[arg(long, default_value_t = true)]
+        /// Request airdrops from the cluster faucet. `--airdrop=false` funds the simulated agents
+        /// out of the admin balance instead, which is what devnet needs (no usable faucet).
+        #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
         airdrop: bool,
     },
     /// Run keeper + administrator + operator + price poster (one key)
