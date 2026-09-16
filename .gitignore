@@ -10,7 +10,9 @@ node_modules/
 dist/
 .turbo/
 *.tsbuildinfo
-sdk/wasm/
+# sdk/wasm is COMMITTED: it is the browser proof engine, and committing it lets the dashboard be
+# built and deployed (Vercel, a clean clone) without a Rust toolchain or wasm-pack. Regenerate with
+# ./scripts/build_wasm.sh — the source of truth is crates/window-proofs-wasm.
 # Env / secrets
 .env
 .env.*
