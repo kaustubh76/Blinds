@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "codegen": "tsx scripts/codegen.ts",
-    "build": "tsup src/index.ts --format esm --dts --clean --external @thewindow/solana-sdk/wasm",
+    "build": "tsup src/index.ts --format esm --dts --clean --external @thewindow/solana-sdk/wasm --env.NODE_ENV production",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },

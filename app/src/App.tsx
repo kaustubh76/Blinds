@@ -1,54 +1,30 @@
-import { useState } from "react";
-import { WalletButton } from "./components/WalletButton";
-import { config } from "./config";
-import { Desk } from "./features/desk/Desk";
-import { Explorer } from "./features/explorer/Explorer";
-import { Home } from "./features/home/Home";
-import { Positions } from "./features/positions/Positions";
-import { useDeployment } from "./lib/queries";
+import { lazy, Suspense } from "react";
+import { Shell } from "./components/Shell";
+import { Skeleton } from "./components/Skeleton";
+import { useHashRoute } from "./lib/useHashRoute";
 
-const TABS = ["Market", "Explorer", "Desk", "Positions"] as const;
-type Tab = (typeof TABS)[number];
+const Market = lazy(() => import("./features/market/Market").then((m) => ({ default: m.Market })));
+const Explorer = lazy(() => import("./features/explorer/Explorer").then((m) => ({ default: m.Explorer })));
+const Desk = lazy(() => import("./features/desk/Desk").then((m) => ({ default: m.Desk })));
+const Positions = lazy(() => import("./features/positions/Positions").then((m) => ({ default: m.Positions })));
 
 export function App() {
-  const [tab, setTab] = useState<Tab>("Market");
-  const dep = useDeployment();
+  const route = useHashRoute();
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">THE WINDOW for Stocks</h1>
-          <p className="text-xs text-mute">
-            A private margin desk for tokenized stocks on Solana · {config.cluster}
-            {dep.data ? ` · ${dep.data.raw.profile} profile` : ""}
-          </p>
-        </div>
-        <nav className="flex gap-1 rounded border border-line p-1">
-          {TABS.map((t) => (
-            <button
-              type="button"
-              key={t}
-              onClick={() => setTab(t)}
-              className={`rounded px-3 py-1 text-sm ${tab === t ? "bg-line text-fg" : "text-mute hover:text-fg"}`}
-            >
-              {t}
-            </button>
-          ))}
-        </nav>
-        <WalletButton />
-      </header>
-      <main>
-        {tab === "Market" && <Home />}
-        {tab === "Explorer" && <Explorer />}
-        {tab === "Desk" && <Desk />}
-        {tab === "Positions" && <Positions />}
-      </main>
-      <footer className="mt-10 border-t border-line pt-4 text-xs text-mute">
-        Bids, loan sizes and collateral are ElGamal ciphertexts on-chain. The administrator holds the auditor key and
-        reads them to run the market; per-tick sums are published with proofs of correct decryption and can be
-        re-verified in this browser. Membership, side, rate and timing are public by design. Simulated members are
-        labelled as such by the admin service.
-      </footer>
-    </div>
+    <Shell tab={route.tab}>
+      <Suspense
+        fallback={
+          <div className="grid gap-4">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        }
+      >
+        {route.tab === "market" && <Market />}
+        {route.tab === "explorer" && <Explorer epochParam={route.param} />}
+        {route.tab === "desk" && <Desk />}
+        {route.tab === "positions" && <Positions />}
+      </Suspense>
+    </Shell>
   );
 }

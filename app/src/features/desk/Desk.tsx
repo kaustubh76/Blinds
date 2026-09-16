@@ -1,28 +1,40 @@
 /**
- * Borrow / lend desk: connect → derive keys → join → confidential account → wrap → bid.
- * Every quantity typed here is encrypted in this browser before it touches a transaction.
+ * Borrow / lend desk as five steps: keys → membership → confidential account → wrap → bid.
+ * Every quantity typed here is encrypted in this browser before it touches a transaction; the
+ * administrator (auditor key) can read it, other members cannot.
  */
 import { TICKS } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { useState } from "react";
+import { Card } from "../../components/Card";
+import { EmptyState } from "../../components/EmptyState";
 import { EncryptedValue } from "../../components/EncryptedValue";
-import { Badge, Button, Field, inputCls, Mono, Note, Panel } from "../../components/ui";
+import { type Step, Stepper } from "../../components/Stepper";
+import { TxTimeline } from "../../components/TxTimeline";
+import { Badge, Button, ExplorerLink, Field, inputCls, Note } from "../../components/ui";
 import { WalletButton } from "../../components/WalletButton";
-import { formatRate, formatShares, formatUsdc, parseUnits, shortAddr } from "../../lib/format";
+import { config } from "../../config";
+import { formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
 import { useSession } from "../../lib/wallet";
-import { StepList } from "./StepList";
 import { useDesk } from "./useDesk";
 
 export function Desk() {
   const s = useSession();
   if (!s.account)
     return (
-      <Panel title="desk">
-        <p className="mb-3 text-sm text-mute">Connect a wallet-standard wallet to borrow or lend.</p>
-        <WalletButton />
-      </Panel>
+      <Card eyebrow="desk" title="Borrow or lend against tokenized stock">
+        <EmptyState icon="wallet" title="Connect a wallet-standard wallet to start." action={<WalletButton />}>
+          Two signatures derive your ElGamal keys; they stay in this tab. Nothing is sent anywhere but the chain.
+        </EmptyState>
+      </Card>
     );
   return <DeskFlow account={s.account} />;
+}
+
+function sameBytes(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 function DeskFlow({ account }: { account: UiWalletAccount }) {
@@ -31,179 +43,228 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const [side, setSide] = useState<0 | 1>(1);
   const [tick, setTick] = useState(8);
   const [size, setSize] = useState("1000");
+  const cluster = config.cluster;
   const keysReady = !!d.memberKey.data;
   const isMember = !!d.member.data;
   const configured = !!d.accounts.data?.cstock.configured;
   const decimals = d.dep.data?.decimals ?? 3;
+  const faucet = !!d.dep.data?.faucet;
   const busy = d.deriveKeys.isPending || d.join.isPending || d.onboard.isPending || d.wrap.isPending || d.bid.isPending;
   const err = [d.deriveKeys, d.join, d.onboard, d.wrap, d.applyPending, d.bid].find((m) => m.error)?.error;
+  const keyMatches =
+    d.memberKey.data && d.member.data ? sameBytes(d.memberKey.data, d.member.data.elgamalPubkey) : null;
+  const balances = d.balances.data;
+  const v = d.accounts.data?.cstock.view;
 
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {d.dep.data && !d.dep.data.faucet && (
-        <div className="lg:col-span-2">
-          <Note tone="warn">
-            The desk's demo faucet is not reachable from this browser, so joining and minting mock shares are
-            unavailable. Everything that only reads the chain — the market, the explorer, and your own positions — still
-            works, and so does bidding if this wallet is already a registered member.
-          </Note>
-        </div>
-      )}
-      <Panel title="1 · keys">
-        <p className="text-sm text-mute">
-          Your ElGamal keys are derived from two wallet signatures (member key; cSTOCK-W account key). Signatures stay
-          in this tab's memory and are never sent anywhere.
-        </p>
-        <div className="mt-3 flex items-center gap-3">
-          <Button onClick={() => d.deriveKeys.mutate()} disabled={busy || !d.accounts.data}>
-            {keysReady ? "Re-derive keys" : "Derive keys (sign ×2)"}
-          </Button>
-          {d.memberKey.data && <EncryptedValue bytes={d.memberKey.data} label="member key" />}
-        </div>
-      </Panel>
-      <Panel title="2 · membership">
-        {isMember ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Badge tone="good">member</Badge>
-            <span className="text-mute">joined epoch {d.member.data?.joinedEpoch.toString()}</span>
-            {d.memberKey.data && d.member.data && (
-              <Badge tone={sameBytes(d.memberKey.data, d.member.data.elgamalPubkey) ? "good" : "bad"}>
-                {sameBytes(d.memberKey.data, d.member.data.elgamalPubkey)
-                  ? "key matches registry"
-                  : "registry holds a different key"}
-              </Badge>
-            )}
-          </div>
-        ) : (
-          <>
-            <p className="text-sm text-mute">
-              The administrator registers your wallet and key, mints 10,000 mock shares and sends 0.2 SOL for fees (demo
-              faucet). Membership is a public fact; positions are not.
-            </p>
-            <div className="mt-3">
-              <Button onClick={() => d.join.mutate()} disabled={busy || !keysReady || !d.dep.data?.faucet}>
-                Join the desk
-              </Button>
-            </div>
-          </>
-        )}
-      </Panel>
-      <Panel title="3 · confidential account">
-        {d.accounts.data ? (
-          <div className="space-y-2 text-sm">
-            <div>
-              mock xStock <Mono>{shortAddr(d.accounts.data.mockAta)}</Mono> ·{" "}
-              {d.accounts.data.mockAmount === null
-                ? "not created"
-                : `${formatShares(d.accounts.data.mockAmount, decimals)} shares (public balance)`}
-            </div>
-            <div>
-              cSTOCK-W <Mono>{shortAddr(d.accounts.data.cstockAta)}</Mono> ·{" "}
-              {configured ? (
-                <Badge tone="good">confidential extension configured</Badge>
-              ) : (
-                <Badge tone="warn">not configured</Badge>
+  const steps: Step[] = [
+    {
+      title: "Derive your keys",
+      state: keysReady ? "done" : "active",
+      detail: (
+        <>
+          Two wallet signatures — one for the member key your bids are encrypted to, one for your confidential token
+          account. The signatures stay in this tab's memory; the keys never leave your browser.
+          {d.memberKey.data && (
+            <span className="mt-2 block">
+              <EncryptedValue bytes={d.memberKey.data} label="member key" />
+            </span>
+          )}
+        </>
+      ),
+      action: (
+        <Button
+          onClick={() => d.deriveKeys.mutate()}
+          loading={d.deriveKeys.isPending}
+          disabled={busy || !d.accounts.data}
+          icon="key"
+          variant={keysReady ? "ghost" : "primary"}
+        >
+          {keysReady ? "Re-derive" : "Sign twice to derive"}
+        </Button>
+      ),
+    },
+    {
+      title: "Join the desk",
+      state: isMember ? "done" : !keysReady ? "todo" : !faucet ? "blocked" : "active",
+      detail: isMember ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <Badge tone="good" icon="check">
+            member since epoch {d.member.data?.joinedEpoch.toString()}
+          </Badge>
+          {keyMatches !== null && (
+            <Badge tone={keyMatches ? "good" : "bad"} icon={keyMatches ? "check" : "alert"}>
+              {keyMatches ? "registry holds this key" : "registry holds a different key"}
+            </Badge>
+          )}
+        </span>
+      ) : !faucet && keysReady ? (
+        "the demo faucet (admin service) is not reachable from this browser"
+      ) : (
+        "The administrator registers your wallet and member key, mints you 10,000 mock shares and sends 0.1 SOL for fees. Membership is a public fact; your positions are not."
+      ),
+      action: (
+        <Button
+          onClick={() => d.join.mutate()}
+          loading={d.join.isPending}
+          disabled={busy || !keysReady || !faucet}
+          icon="arrowRight"
+        >
+          Join
+        </Button>
+      ),
+    },
+    {
+      title: "Set up your confidential account",
+      state: configured ? "done" : !isMember ? "todo" : "active",
+      detail: d.accounts.data ? (
+        <span className="grid gap-1">
+          <span>
+            mock xStock <ExplorerLink address={d.accounts.data.mockAta} cluster={cluster} /> ·{" "}
+            {d.accounts.data.mockAmount === null
+              ? "not created yet"
+              : `${formatShares(d.accounts.data.mockAmount, decimals)} shares, public balance`}
+          </span>
+          <span>
+            cSTOCK-W <ExplorerLink address={d.accounts.data.cstockAta} cluster={cluster} /> ·{" "}
+            {configured
+              ? "confidential extension configured"
+              : "two transactions: create + configure with a pubkey-validity proof"}
+          </span>
+        </span>
+      ) : (
+        "loading your token accounts…"
+      ),
+      action: !configured ? (
+        <Button
+          onClick={() => d.onboard.mutate()}
+          loading={d.onboard.isPending}
+          disabled={busy || !isMember || !keysReady}
+          icon="shield"
+        >
+          Create + configure
+        </Button>
+      ) : undefined,
+    },
+    {
+      title: "Wrap shares into cSTOCK-W",
+      state: !configured ? "todo" : balances && balances.available + balances.pending > 0n ? "done" : "active",
+      detail: (
+        <>
+          Moves mock shares into custody and credits your confidential balance. The wrap leg is a public token transfer
+          (Token-2022 deposits from a public balance), so wrap a round amount once, ahead of bidding.
+          {configured && v && (
+            <span className="mt-2 flex flex-wrap items-center gap-3">
+              <EncryptedValue
+                bytes={v.availableBalance}
+                label="available"
+                plaintext={balances ? formatShares(balances.available, decimals) : null}
+              />
+              <EncryptedValue
+                bytes={v.pendingBalanceLo}
+                label="pending"
+                plaintext={balances ? formatShares(balances.pending, decimals) : null}
+              />
+              {balances && balances.pending > 0n && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => d.applyPending.mutate()}
+                  loading={d.applyPending.isPending}
+                  disabled={busy}
+                >
+                  Apply pending
+                </Button>
               )}
-            </div>
-            {configured && d.accounts.data.cstock.view && (
-              <div className="flex flex-wrap items-center gap-2">
-                <EncryptedValue
-                  bytes={d.accounts.data.cstock.view.availableBalance}
-                  label="available"
-                  plaintext={d.balances.data ? formatShares(d.balances.data.available, decimals) : null}
-                />
-                <EncryptedValue
-                  bytes={d.accounts.data.cstock.view.pendingBalanceLo}
-                  label="pending"
-                  plaintext={d.balances.data ? formatShares(d.balances.data.pending, decimals) : null}
-                />
-                {d.balances.data && d.balances.data.pending > 0n && (
-                  <Button tone="mute" onClick={() => d.applyPending.mutate()} disabled={busy}>
-                    Apply pending
-                  </Button>
-                )}
-              </div>
-            )}
-            {!configured && (
-              <Button onClick={() => d.onboard.mutate()} disabled={busy || !isMember || !d.accounts.data || !keysReady}>
-                Set up confidential account
-              </Button>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-mute">{d.dep.isError ? "admin service unreachable" : "loading…"}</p>
-        )}
-      </Panel>
-      <Panel title="4 · wrap">
-        <p className="text-sm text-mute">
-          Moves mock shares into custody and credits your confidential cSTOCK-W balance. The wrap leg is a public token
-          transfer (Token-2022 deposits from a public balance), so wrap a round amount once, ahead of bidding.
-        </p>
-        <div className="mt-3 flex items-end gap-2">
+            </span>
+          )}
+        </>
+      ),
+      action: configured ? (
+        <span className="flex items-end gap-2">
           <Field label="shares">
-            <input className={inputCls} value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} />
+            <input className={`${inputCls} w-36`} value={wrapAmount} onChange={(e) => setWrapAmount(e.target.value)} />
           </Field>
           <Button
             onClick={() => {
-              const v = parseUnits(wrapAmount, decimals);
-              if (v && v > 0n) d.wrap.mutate(v);
+              const amt = parseUnits(wrapAmount, decimals);
+              if (amt && amt > 0n) d.wrap.mutate(amt);
             }}
-            disabled={busy || !configured || !d.balances.data}
+            loading={d.wrap.isPending}
+            disabled={busy || !balances}
           >
             Wrap
           </Button>
-        </div>
-      </Panel>
-      <div className="lg:col-span-2">
-        <Panel title="5 · bid">
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Field label="side">
-              <select className={inputCls} value={side} onChange={(e) => setSide(Number(e.target.value) as 0 | 1)}>
-                <option value={1}>Borrow USDC (bid)</option>
-                <option value={0}>Lend USDC (ask)</option>
-              </select>
-            </Field>
-            <Field label="rate">
-              <select className={inputCls} value={tick} onChange={(e) => setTick(Number(e.target.value))}>
-                {Array.from({ length: TICKS }, (_, t) => (
-                  <option key={formatRate(t)} value={t}>
-                    {formatRate(t)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="size (USDC)">
-              <input className={inputCls} value={size} onChange={(e) => setSize(e.target.value)} />
-            </Field>
-            <div className="flex items-end">
-              <Button
-                onClick={() => {
-                  const v = parseUnits(size, 6);
-                  if (v && v > 0n) d.bid.mutate({ side, tick, sizeMicroUsdc: v });
-                }}
-                disabled={busy || !isMember || !keysReady || !d.cfg.data?.hasOpenEpoch}
-              >
-                {d.bid.isPending ? "proving…" : "Submit encrypted bid"}
-              </Button>
-            </div>
-          </div>
-          <Note>
+        </span>
+      ) : undefined,
+    },
+    {
+      title: "Submit an encrypted bid",
+      state: !isMember || !keysReady ? "todo" : !d.cfg.data?.hasOpenEpoch ? "blocked" : "active",
+      detail:
+        !d.cfg.data?.hasOpenEpoch && isMember && keysReady ? (
+          "no window is open right now — the keeper opens the next one"
+        ) : (
+          <>
             {d.cfg.data?.hasOpenEpoch
-              ? `epoch ${d.cfg.data.currentEpoch.toString()} is open · minimum ${formatUsdc(d.cfg.data.sMin)} · one bid per (side, rate)`
-              : "no open epoch right now"}
-            . The size is encrypted to your key and the auditor key, proven in range, and only the ciphertext goes
-            on-chain; the administrator (auditor key holder) can read it; other members cannot.
-          </Note>
-          <StepList steps={d.steps.steps} />
+              ? `Epoch ${d.cfg.data.currentEpoch.toString()} is open · minimum ${formatUsdc(d.cfg.data.sMin)} · one bid per (side, rate). `
+              : ""}
+            The size is encrypted to your key and the auditor key and proven in range; only the ciphertext goes on
+            chain. The administrator can read it with the auditor key; other members cannot.
+          </>
+        ),
+      action: (
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <Field label="side">
+            <select className={inputCls} value={side} onChange={(e) => setSide(Number(e.target.value) as 0 | 1)}>
+              <option value={1}>Borrow USDC (bid)</option>
+              <option value={0}>Lend USDC (ask)</option>
+            </select>
+          </Field>
+          <Field label="rate">
+            <select className={inputCls} value={tick} onChange={(e) => setTick(Number(e.target.value))}>
+              {Array.from({ length: TICKS }, (_, t) => (
+                <option key={formatRate(t)} value={t}>
+                  {formatRate(t)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="size (USDC)">
+            <input className={inputCls} value={size} onChange={(e) => setSize(e.target.value)} />
+          </Field>
+          <div className="flex items-end">
+            <Button
+              onClick={() => {
+                const s = parseUnits(size, 6);
+                if (s && s > 0n) d.bid.mutate({ side, tick, sizeMicroUsdc: s });
+              }}
+              loading={d.bid.isPending}
+              disabled={busy || !isMember || !keysReady || !d.cfg.data?.hasOpenEpoch}
+              icon="lock"
+            >
+              {d.bid.isPending ? "proving…" : "Seal and submit"}
+            </Button>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="grid gap-4">
+      {d.dep.data && !faucet && (
+        <Note tone="warn">
+          The demo faucet is not reachable from this browser, so joining and minting mock shares are unavailable.
+          Everything that only reads the chain still works, and so does bidding if this wallet is already a member.
+        </Note>
+      )}
+      <Stepper steps={steps} />
+      {(d.steps.steps.length > 0 || err) && (
+        <Card eyebrow="transactions" title="This session">
+          <TxTimeline steps={d.steps.steps} cluster={cluster} />
           {err && <Note tone="bad">{err.message}</Note>}
-        </Panel>
-      </div>
+        </Card>
+      )}
     </div>
   );
-}
-
-function sameBytes(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
 }

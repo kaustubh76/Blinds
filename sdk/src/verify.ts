@@ -2,7 +2,16 @@
 import type { Address, Rpc, Signature, SolanaRpcApi } from "@solana/kit";
 import * as pda from "./pda.js";
 import { PROGRAMS, ZK_ELGAMAL_PROOF_PROGRAM } from "./programs.js";
+import { withRpcRetry } from "./send.js";
 import { proofs } from "./wasm.js";
+
+/** The stages of a re-verification, in order, for a UI that wants to show the work. */
+export type VerifyStage = "accounts" | "signatures" | "transactions" | "proofs" | "verify";
+export interface VerifyStageDetail {
+  count?: number;
+  total?: number;
+}
+export type OnVerifyStage = (stage: VerifyStage, detail?: VerifyStageDetail) => void;
 
 export interface PrintVerdict {
   ok: boolean;
@@ -17,11 +26,17 @@ export interface PrintVerdict {
  * Downloads the epoch and print accounts and every `attest_ticks` transaction of the epoch,
  * extracts the inline `VerifyZeroCiphertext` proof data, and re-runs the verifier in wasm.
  */
-export async function verifyPrint(rpc: Rpc<SolanaRpcApi>, epochIndex: bigint): Promise<PrintVerdict> {
+export async function verifyPrint(
+  rpc: Rpc<SolanaRpcApi>,
+  epochIndex: bigint,
+  opts: { onStage?: OnVerifyStage } = {},
+): Promise<PrintVerdict> {
+  const stage: OnVerifyStage = opts.onStage ?? (() => {});
+  stage("accounts", { total: 2 });
   const [epochAddr, printAddr] = await Promise.all([pda.epoch(epochIndex), pda.print(epochIndex)]);
   const [epochAcc, printAcc] = await Promise.all([
-    rpc.getAccountInfo(epochAddr, { encoding: "base64" }).send(),
-    rpc.getAccountInfo(printAddr, { encoding: "base64" }).send(),
+    withRpcRetry(() => rpc.getAccountInfo(epochAddr, { encoding: "base64" }).send()),
+    withRpcRetry(() => rpc.getAccountInfo(printAddr, { encoding: "base64" }).send()),
   ]);
   if (!epochAcc.value || !printAcc.value)
     return {
@@ -35,13 +50,16 @@ export async function verifyPrint(rpc: Rpc<SolanaRpcApi>, epochIndex: bigint): P
   const epochData = Uint8Array.from(atob(epochAcc.value.data[0]), (c) => c.charCodeAt(0));
   const printData = Uint8Array.from(atob(printAcc.value.data[0]), (c) => c.charCodeAt(0));
   // Every transaction touching the Print account that carried inline PoCD proofs.
-  const sigs = await rpc.getSignaturesForAddress(printAddr, { limit: 100 }).send();
+  stage("signatures");
+  const sigs = await withRpcRetry(() => rpc.getSignaturesForAddress(printAddr, { limit: 100 }).send());
+  stage("transactions", { count: 0, total: sigs.length });
   const chunks: Uint8Array[] = [];
   const used: string[] = [];
-  for (const s of sigs) {
-    const tx = await rpc
-      .getTransaction(s.signature as Signature, { encoding: "json", maxSupportedTransactionVersion: 0 })
-      .send();
+  for (const [i, s] of sigs.entries()) {
+    const tx = await withRpcRetry(() =>
+      rpc.getTransaction(s.signature as Signature, { encoding: "json", maxSupportedTransactionVersion: 0 }).send(),
+    );
+    stage("transactions", { count: i + 1, total: sigs.length });
     if (!tx || tx.meta?.err) continue;
     const keys = tx.transaction.message.accountKeys as unknown as Address[];
     for (const ix of tx.transaction.message.instructions) {
@@ -53,8 +71,10 @@ export async function verifyPrint(rpc: Rpc<SolanaRpcApi>, epochIndex: bigint): P
       }
     }
   }
+  stage("proofs", { count: chunks.length });
   const all = new Uint8Array(chunks.length * 192);
   for (const [i, c] of chunks.entries()) all.set(c, i * 192);
+  stage("verify", { count: chunks.length });
   const w = await proofs();
   const v = w.verify_print(epochData, printData, all) as Omit<PrintVerdict, "proofTransactions">;
   return { ...v, r_star_recomputed: v.r_star_recomputed ?? null, proofTransactions: [...new Set(used)] };

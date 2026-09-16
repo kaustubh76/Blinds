@@ -50,3 +50,23 @@ export function parseUnits(input: string, decimals: number): bigint | null {
   const frac = (m[2] ?? "").slice(0, decimals).padEnd(decimals, "0");
   return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(frac || "0");
 }
+
+/** "4 min ago" / "3 d ago" from a unix timestamp in seconds. */
+export function formatAge(unixSeconds: number | bigint, now = Date.now()): string {
+  const s = Math.max(0, Math.round(now / 1000 - Number(unixSeconds)));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.floor(h / 24)} d ago`;
+}
+
+/** Slot delta as a rough duration at ~0.45 s/slot. */
+export function formatSlotAge(slots: number): string {
+  const s = Math.max(0, Math.round(slots * 0.45));
+  if (s < 90) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 120) return `${m} min`;
+  return `${Math.floor(m / 60)} h`;
+}

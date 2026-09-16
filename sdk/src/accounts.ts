@@ -27,6 +27,7 @@ import {
 import {
   fetchMaybeOracleState,
   fetchMaybePrint,
+  getPrintDecoder,
   type OracleState,
   type Print,
 } from "./generated/window_oracle/index.js";
@@ -153,16 +154,30 @@ export function depthFromPrint(p: Print): { curve: DepthCurve; clearing: Clearin
   return { curve, clearing: clear(curve) };
 }
 
-/** The xONIA series: every finalized print up to `latest`. */
+/**
+ * The xONIA series: every finalized print up to `latest`, in one `getMultipleAccounts` call rather
+ * than one request per epoch — a public RPC rate-limits the latter within a minute of polling.
+ */
 export async function fetchSeries(
   rpc: RpcClient,
   latest: bigint,
   limit = 50,
 ): Promise<Array<{ epoch: bigint; print: Print }>> {
+  const first = latest - BigInt(limit) + 1n < 0n ? 0n : latest - BigInt(limit) + 1n;
+  const indices: bigint[] = [];
+  for (let i = first; i <= latest; i++) indices.push(i);
+  const addrs = await Promise.all(indices.map((i) => pda.print(i)));
+  const decoder = getPrintDecoder();
   const out: Array<{ epoch: bigint; print: Print }> = [];
-  for (let i = latest; i >= 0n && out.length < limit; i--) {
-    const p = await fetchPrint(rpc, i);
-    if (p && (p.status === PrintStatus.Printed || p.status === PrintStatus.NoTrade)) out.push({ epoch: i, print: p });
+  // getMultipleAccounts is capped at 100 keys per call
+  for (let o = 0; o < addrs.length; o += 100) {
+    const res = await rpc.getMultipleAccounts(addrs.slice(o, o + 100), { encoding: "base64" }).send();
+    for (const [j, acc] of res.value.entries()) {
+      if (!acc) continue;
+      const p = decoder.decode(new Uint8Array(b64.encode(acc.data[0])));
+      if (p.status === PrintStatus.Printed || p.status === PrintStatus.NoTrade)
+        out.push({ epoch: indices[o + j] as bigint, print: p });
+    }
   }
-  return out.reverse();
+  return out;
 }

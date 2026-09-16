@@ -133,7 +133,7 @@ export async function withRpcRetry<T>(
   throw lastError;
 }
 
-function isTransientRpcError(e: unknown): boolean {
+export function isTransientRpcError(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const status = (e as { context?: { statusCode?: number } }).context?.statusCode;
   if (status === 429 || (status !== undefined && status >= 500)) return true;
