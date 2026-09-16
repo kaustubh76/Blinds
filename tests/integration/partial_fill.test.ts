@@ -24,7 +24,7 @@ import {
   solvencyScalars,
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
-import { bid, SHARES, wrap } from "./flows";
+import { bidsTogether, SHARES, wrap } from "./flows";
 import { airdrop, feedId, type Member, mockMint, newMember, onboard, rentFor, rpc, waitFor } from "./harness";
 
 // No single lender covers the bid, so the administrator must split it: one lender fills part of it
@@ -48,9 +48,12 @@ describe("a bid split across two lenders", () => {
   let epochIndex = 0n;
 
   it("submits two small asks and one larger bid into the same epoch", async () => {
-    const a = await bid(lenderA, 0, 0, LEND_SMALL);
-    const b = await bid(lenderB, 0, 0, LEND_REST);
-    const c = await bid(borrower, 1, 36, BORROW);
+    const [a, b, c] = await bidsTogether([
+      { member: lenderA, side: 0, tick: 0, size: LEND_SMALL },
+      { member: lenderB, side: 0, tick: 0, size: LEND_REST },
+      { member: borrower, side: 1, tick: 36, size: BORROW },
+    ]);
+    if (!a || !b || !c) throw new Error("bid batch incomplete");
     expect(a.epoch).toBe(c.epoch);
     expect(b.epoch).toBe(c.epoch);
     epochIndex = c.epoch;

@@ -25,3 +25,6 @@ test-ledger/
 *.log
 services/indexer/data/
 deployments/external/*.so
+
+# Simulated-agent memory (bid sizes and openings): secret material by definition, and machine-written.
+services/admin/data/

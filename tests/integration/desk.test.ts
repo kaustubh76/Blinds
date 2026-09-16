@@ -9,13 +9,10 @@ import { getAddressEncoder, getBase64Encoder, type ReadonlyUint8Array } from "@s
 import {
   applyPendingBalanceInstruction,
   auction,
-  buildBidPlan,
   buildDepositPlan,
   buildLockPlan,
-  buildWrapPlan,
   collateralPledge,
   credit,
-  fetchAuctionConfig,
   fetchBid,
   fetchConfidentialAccount,
   fetchCreditConfig,
