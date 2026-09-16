@@ -59,9 +59,10 @@ wallet as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees. It 
 ### Running the market yourself
 
 ```bash
-WINDOW_AUDITOR_SEED_HEX=<64 hex> ./scripts/deploy_devnet.sh   # preflight, resumable
-WINDOW_CLUSTER=devnet ./target/release/window-admin run &     # administrator + keeper + operator + price
-WINDOW_CLUSTER=devnet ./target/release/window-admin agents &  # the simulated members
+WINDOW_AUDITOR_SEED_HEX=<64 hex> ./scripts/deploy_devnet.sh   # first time only: preflight, resumable
+./scripts/market.sh start                                      # administrator + keeper + operator + agents
+./scripts/market.sh status                                     # counters and how many hours of runway are left
+./scripts/market.sh stop
 ```
 
 **The market is run in windows, not continuously, and that is a budget decision rather than a
