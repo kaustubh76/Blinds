@@ -44,8 +44,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         <div className="lg:col-span-2">
           <Note tone="warn">
             The desk's demo faucet is not reachable from this browser, so joining and minting mock shares are
-            unavailable. Everything that only reads the chain — the market, the explorer, and your own positions —
-            still works, and so does bidding if this wallet is already a registered member.
+            unavailable. Everything that only reads the chain — the market, the explorer, and your own positions — still
+            works, and so does bidding if this wallet is already a registered member.
           </Note>
         </div>
       )}

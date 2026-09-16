@@ -64,9 +64,14 @@ WINDOW_CLUSTER=devnet ./target/release/window-admin run &     # administrator + 
 WINDOW_CLUSTER=devnet ./target/release/window-admin agents &  # the simulated members
 ```
 
-Cost, measured: every epoch permanently locks ~0.0362 SOL of rent (`Epoch` 0.0266 + `Print` 0.0041 +
-~2 `Loan` at 0.0028), so the market burns ~0.33 SOL/hour. Bid rent comes back through the
-permissionless `close_bid` the keeper runs.
+**The market is run in windows, not continuously, and that is a budget decision rather than a
+limitation of the design.** Measured on this deployment: **0.032 SOL per epoch**, all of it rent for
+accounts that are deliberately never closed — `Epoch` (0.0266) holds the 74 accumulators that make a
+print re-verifiable years later, `Print` (0.0041) holds the proven sums, and each `Loan` (0.0028)
+holds its ciphertexts. Bid rent comes back through the permissionless `close_bid` the keeper runs.
+At ~7-minute epochs that is ~0.28 SOL/hour, so a devnet balance of N SOL buys roughly 3.5·N hours of
+live market. Every print already made stays on chain and stays verifiable while the market is
+paused, which is why the series and the explorer are populated even between runs.
 """
 
 demo = (root / "docs" / "DEMO.md").read_text()

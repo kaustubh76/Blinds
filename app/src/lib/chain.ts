@@ -1,9 +1,9 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
 import { type Address, address, createSolanaRpc } from "@solana/kit";
-import { config } from "../config";
 // Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
 // admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
 import bundledDeployment from "../../../deployments/devnet.json";
+import { config } from "../config";
 
 export const rpc = createSolanaRpc(config.rpcUrl);
 export type Rpc = typeof rpc;
