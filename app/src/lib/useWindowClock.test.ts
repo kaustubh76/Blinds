@@ -54,7 +54,7 @@ describe("window clock", () => {
     expect(c.nonzero).toBe(5);
   });
 
-  it("printed stamps r* while fresh, then goes idle", () => {
+  it("printed keeps r* on the ring until the next window opens", () => {
     const done = epoch({ status: EpochStatus.Printed, closeSlot: 1_900n });
     const p = print({
       status: PrintStatus.Printed,
@@ -67,7 +67,7 @@ describe("window clock", () => {
     expect(fresh.phase).toBe("printed");
     expect(fresh.rStar).toBe(19);
     expect(fresh.matched).toBe(901_000_000n);
-    expect(derivePhase({ ...base, hasOpenEpoch: false, epoch: done, print: p, slot: 2_100 }).phase).toBe("idle");
+    expect(derivePhase({ ...base, hasOpenEpoch: false, epoch: done, print: p, slot: 9_999 }).phase).toBe("printed");
   });
 
   it("no trade is its own phase", () => {

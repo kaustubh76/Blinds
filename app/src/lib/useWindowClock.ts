@@ -11,7 +11,7 @@ import { EpochStatus, PrintStatus } from "@thewindow/solana-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuctionConfig, useEpoch, usePrint, useSlot } from "./queries";
 
-export type Phase = "open" | "overdue" | "closed" | "printing" | "printed" | "notrade" | "idle";
+export type Phase = "loading" | "open" | "overdue" | "closed" | "printing" | "printed" | "notrade" | "idle";
 
 export interface Clock {
   phase: Phase;
@@ -51,11 +51,10 @@ export function derivePhase(args: {
   print: Print | null;
   epochSlots: number;
   slot: number | null;
-  /** How many slots a finished print keeps its stamp on screen. */
-  stampSlots?: number;
+  /** The config has not arrived yet: nothing is known, not even whether a window exists. */
+  loading?: boolean;
 }): Omit<Clock, "slot"> {
   const { epoch, print, epochSlots, slot } = args;
-  const stampSlots = args.stampSlots ?? 45;
   const none = {
     epoch: args.currentEpoch,
     progress: 0,
@@ -66,6 +65,7 @@ export function derivePhase(args: {
     rStar: null,
     matched: null,
   };
+  if (args.loading) return { phase: "loading", ...none };
   if (!epoch) return { phase: "idle", ...none };
   const start = Number(epoch.startSlot);
   const closeAt = start + epochSlots;
@@ -95,19 +95,12 @@ export function derivePhase(args: {
       nonzero: print ? popcount(print.nonzeroBitmap) : 0,
     };
   }
-  const finalized = Number(print.finalizedSlot);
-  const fresh = slot === null || finalized === 0 || slot - finalized <= stampSlots;
+  // A print stays on the ring until the keeper opens the next window: it is the most informative
+  // state the market has, and on a 10-second poll a short-lived stamp would rarely be seen.
   if (print.status === PrintStatus.NoTrade)
-    return {
-      phase: fresh ? "notrade" : "idle",
-      ...none,
-      epoch: epoch.index,
-      progress: 1,
-      bids,
-      attested: print.attested,
-    };
+    return { phase: "notrade", ...none, epoch: epoch.index, progress: 1, bids, attested: print.attested };
   return {
-    phase: fresh ? "printed" : "idle",
+    phase: "printed",
     ...none,
     epoch: epoch.index,
     progress: 1,
@@ -172,6 +165,7 @@ export function useWindowClock(): Clock {
       print: print.data ?? null,
       epochSlots: Number(cfg.data?.epochSlots ?? 0) || 1,
       slot,
+      loading: cfg.data === undefined || (current !== null && epoch.data === undefined),
     });
     return { ...d, slot };
   }, [cfg.data, current, epoch.data, print.data, slot]);

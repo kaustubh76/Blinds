@@ -7,6 +7,7 @@ import { formatCountdown, formatRate, formatUsdc } from "../lib/format";
 import type { Clock, Phase } from "../lib/useWindowClock";
 
 const PHASE_LABEL: Record<Phase, string> = {
+  loading: "connecting",
   open: "window open",
   overdue: "window overdue",
   closed: "window closed",
@@ -96,7 +97,7 @@ export function WindowClock({ clock, size = 160, detail = true }: { clock: Clock
                 </text>
               </>
             )}
-            {(phase === "closed" || phase === "notrade" || phase === "idle") && (
+            {(phase === "closed" || phase === "notrade" || phase === "idle" || phase === "loading") && (
               <text x="50%" y="54%" fontSize={size / 11} fill="var(--color-ink-3)">
                 {PHASE_LABEL[phase]}
               </text>
@@ -141,6 +142,8 @@ function phaseCopy(c: Clock): string {
   switch (c.phase) {
     case "open":
       return "Bids arrive as ciphertexts and are summed on chain as they land. Nothing is decrypted while the window is open.";
+    case "loading":
+      return "Reading the chain — the config, the current epoch and its print.";
     case "overdue":
       return "The window ran its length but the keeper has not closed it — the market is paused. Its sealed bids wait; the last print stays verifiable.";
     case "closed":

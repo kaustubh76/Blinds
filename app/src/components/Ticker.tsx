@@ -27,7 +27,9 @@ export function Ticker() {
             ? `closes in ${Math.floor(t.clock.secondsLeft / 60)}:${String(t.clock.secondsLeft % 60).padStart(2, "0")}`
             : t.clock.phase === "overdue"
               ? "paused"
-              : t.clock.phase.replace("notrade", "no trade")}
+              : t.clock.phase === "printed" && t.clock.rStar !== null
+                ? `printed ${formatRate(t.clock.rStar)}`
+                : t.clock.phase.replace("notrade", "no trade")}
         </span>
       </span>
     </div>

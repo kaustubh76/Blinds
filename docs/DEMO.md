@@ -29,18 +29,26 @@ WINDOW_PROFILE=demo ./scripts/localnet.sh up &      # validator + setup (6 simul
 cd app && cp .env.example .env && pnpm dev           # http://localhost:5173
 ```
 
-The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Tabs:
+The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Four pages, keys 1–4:
 
-1. **Market** — xONIA (last r\*), regime flags, epoch countdown, the series, the last proven curve.
-2. **Explorer** — pick an epoch: the 74 accumulator ciphertexts next to the 74 proven sums; click
-   *Re-verify locally* to re-run the PoCD verifier in your browser on the raw accounts and attest
-   transactions.
-3. **Desk** — *Derive keys* (two wallet signatures; nothing leaves the tab) → *Join the desk* (the
-   admin registers the key, mints 10,000 mock shares and sends 0.1 SOL for fees) → *Set up
-   confidential account* → *Wrap* → *Submit encrypted bid*. Every transaction of a plan is listed
-   with its signature.
-4. **Positions** — loans as borrower/lender (sizes render as ciphertexts), bids on-chain, and for a
-   `Pending` loan the *Lock collateral* → *Deposit to escrow* buttons.
+1. **Market** — the hero xONIA figure with its sparkline, and *the window*: a ring that fills as the
+   open epoch's slots elapse, then shows the print being proven tick by tick, then stamps the rate
+   and keeps it until the next window opens. Below: the series (no-trade windows as hollow markers),
+   the last proven curve, how-a-print-is-made tiles, and the public price with its feed's own
+   timestamp.
+2. **Explorer** (`#/explorer/<epoch>`, linkable) — the 74 accumulators as sealed ciphertexts next
+   to the sums the print proved, the clearing rate row marked; *Re-verify in this browser* shows each
+   stage of the work with its timing (fetch the accounts, find the attest transactions, extract the
+   proofs, verify them in wasm, recompute r\*) and ends in a verdict that compares the printed rate
+   with the recomputed one.
+3. **Desk** — five steps that say why they are blocked: *Derive keys* (two wallet signatures;
+   nothing leaves the tab) → *Join* (the demo faucet registers the key, mints 10,000 mock shares and
+   sends 0.1 SOL) → *confidential account* → *Wrap* → *Seal and submit* a bid. Your own balances
+   open in place, labelled "decrypted in this tab"; every transaction of a plan is listed with an
+   explorer link.
+4. **Positions** — loan cards with a lifecycle track (matched → solvency proven → collateral in
+   escrow → locked → funded → repaid / defaulted), sizes and collateral sealed, and the one action
+   that applies.
 
 ## C. Devnet — the deployment that is judged
 
