@@ -304,6 +304,16 @@ impl Agents {
                 let listing_pda = listing.listing_pda()?;
                 let price = read::<PriceCache>(chain, &pda::price_cache(&feed_id))?
                     .ok_or_else(|| anyhow!("price"))?;
+                // The program would refuse this lock; do not spend rent on proof contexts for it.
+                let now = chain.unix_timestamp()?;
+                let quote_age = now.saturating_sub(price.publish_time);
+                let post_age = chain.slot()?.saturating_sub(price.posted_slot);
+                if quote_age > listing.max_publish_age_secs
+                    || post_age > listing.max_price_age_slots
+                {
+                    warn!(agent = i, listing = %listing.symbol, quote_age, post_age, "price not usable on chain; not locking");
+                    continue;
+                }
                 let mock: Pubkey = listing.mock_mint()?;
                 let mint_data = chain.account_data(&mock)?.ok_or_else(|| anyhow!("mint"))?;
                 let mult = mint_multiplier(&mint_data, chain.unix_timestamp()?)?;
