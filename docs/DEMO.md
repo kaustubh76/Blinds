@@ -82,7 +82,7 @@ pnpm leak-audit --cluster devnet
 
 ### The dashboard
 
-Run it locally (see below); a hosted URL is published in `deployments/app-url.txt` when it is up.
+Hosted: <https://kaustubh76.github.io/Blinds/>
 
 ```bash
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev

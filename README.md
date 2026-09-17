@@ -14,7 +14,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 |---|---|
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
-| Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 19 attack cases, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
+| Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 19 attack cases, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
 
 ## Layout
@@ -44,9 +44,14 @@ cd app && pnpm dev      # dashboard against localnet (docs/DEMO.md)
 
 ## Hosting the dashboard
 
-The app is a static Vite build; the repo is ready for Vercel as-is (`app/vercel.json`; the browser
-proof engine `sdk/wasm` is committed so no Rust toolchain is needed to build). Rehearsed from a clean
-clone with `NODE_ENV=production`.
+**Live at <https://kaustubh76.github.io/Blinds/>**, published by `.github/workflows/pages.yml` on
+every push to `main` (pnpm + Vite only; the browser proof engine `sdk/wasm` is committed, so no
+Rust toolchain is needed). It reads the public devnet RPC by default; set a repository variable
+`VITE_RPC_URL` to a dedicated endpoint to lift the browser rate limits, and the next push picks it
+up. The Desk's demo faucet is off in the hosted build (it needs the admin service reachable).
+
+The app also deploys to Vercel as-is (`app/vercel.json`; rehearsed from a clean clone with
+`NODE_ENV=production`):
 
 1. In Vercel, **Add New → Project → Import** `kaustubh76/Blinds` (the repo is private: grant the Vercel
    GitHub app access to it, or make the repo public).

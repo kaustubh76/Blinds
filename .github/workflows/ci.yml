@@ -39,6 +39,8 @@ jobs:
           avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
       - run: anchor build
       - run: ./scripts/sync_idl.sh --check
+      - name: deployed Token-2022 + ATA (LiteSVM's bundled Token-2022 lacks zk-ops)
+        run: ./scripts/fetch_external_programs.sh
       - name: program size budget (devnet rent is paid once, forever)
         run: make size
       - name: overflow-checks must stay on in release
