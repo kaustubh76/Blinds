@@ -117,6 +117,16 @@ export async function startLive(opts: LiveOptions): Promise<void> {
     const ctrl = new AbortController();
     const stop = () => ctrl.abort();
     opts.signal.addEventListener("abort", stop, { once: true });
+    // A transaction that touches two of the programs arrives on both logs subscriptions: decode once.
+    const seen = new Set<string>();
+    const seenOrder: string[] = [];
+    const firstTime = (sig: string) => {
+      if (seen.has(sig)) return false;
+      seen.add(sig);
+      seenOrder.push(sig);
+      if (seenOrder.length > 500) seen.delete(seenOrder.shift() as string);
+      return true;
+    };
     // The first subscription that resolves means the socket is up.
     let up = false;
     const markUp = () => {
@@ -139,7 +149,7 @@ export async function startLive(opts: LiveOptions): Promise<void> {
           .subscribe({ abortSignal: ctrl.signal });
         markUp();
         for await (const n of it) {
-          if (n.value.err) continue;
+          if (n.value.err || !firstTime(n.value.signature as string)) continue;
           for (const ev of decodeProgramDataLogs(n.value.logs)) {
             opts.onEvent({
               ...ev,

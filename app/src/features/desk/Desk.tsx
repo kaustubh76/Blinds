@@ -308,7 +308,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               })
             }
             loading={d.autopilot.isPending}
-            disabled={busy || !faucet || !d.accounts.data}
+            disabled={busy || (!faucet && !isMember) || !d.accounts.data}
           >
             {d.autopilot.isPending ? "running…" : "derive → join → set up → wrap → bid"}
           </Button>

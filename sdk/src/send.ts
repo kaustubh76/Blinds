@@ -36,7 +36,11 @@ export async function confirmSignature(
 ): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const st = await rpc.getSignatureStatuses([signature]).send();
+    // A rate-limited status poll is just a slower poll, not a failed transaction.
+    const st = await withRpcRetry(() => rpc.getSignatureStatuses([signature]).send(), {
+      attempts: 6,
+      label: "getSignatureStatuses",
+    });
     const s = st.value[0];
     if (s?.err) throw new Error(`transaction ${signature} failed: ${JSON.stringify(s.err)}`);
     if (s && (s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized")) return;
@@ -50,7 +54,9 @@ export async function sendPlannedTx(
   tx: PlannedTx,
   feePayer: TransactionSigner,
 ): Promise<Signature> {
-  const { value: blockhash } = await rpc.getLatestBlockhash({ commitment: "confirmed" }).send();
+  const { value: blockhash } = await withRpcRetry(() => rpc.getLatestBlockhash({ commitment: "confirmed" }).send(), {
+    label: "getLatestBlockhash",
+  });
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (m) => setTransactionMessageFeePayerSigner(feePayer, m),
@@ -61,12 +67,17 @@ export async function sendPlannedTx(
   const signed = await signTransactionMessageWithSigners(message);
   const signature = getSignatureFromTransaction(signed);
   try {
-    await rpc
-      .sendTransaction(getBase64EncodedWireTransaction(signed), {
-        encoding: "base64",
-        preflightCommitment: "confirmed",
-      })
-      .send();
+    // Re-sending the same signed bytes after a 429 is idempotent (same signature).
+    await withRpcRetry(
+      () =>
+        rpc
+          .sendTransaction(getBase64EncodedWireTransaction(signed), {
+            encoding: "base64",
+            preflightCommitment: "confirmed",
+          })
+          .send(),
+      { label: tx.label },
+    );
   } catch (e) {
     throw new Error(`${tx.label}: ${describeSendError(e)}`);
   }

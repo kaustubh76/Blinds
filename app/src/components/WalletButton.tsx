@@ -21,7 +21,7 @@ export function WalletButton() {
             burner
           </Badge>
         )}
-        <span className="mono text-xs text-ink-2">{shortAddr(s.account.address, 6)}</span>
+        <span className="mono text-xs text-ink-2">{shortAddr(s.account.address, 4)}</span>
         <Button variant="ghost" size="sm" onClick={() => void s.disconnect()}>
           Disconnect
         </Button>

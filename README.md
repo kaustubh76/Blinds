@@ -23,9 +23,9 @@ Average: the first on-chain borrow rate for tokenized equities.
 ```
 programs/   window_registry · window_auction · window_oracle · window_wrap · window_credit   (Anchor 1.1.2)
 crates/     window-elgamal · window-clearing · window-proofs · window-proofs-wasm · window-client · window-config · window-testkit
-services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join for the dashboard)
+services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join (rate-limited faucet) for the dashboard)
 sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated clients; transaction plans; wasm proofs; print re-verification)
-app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react)
+app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a developer console, a Build page)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
 config/     demo.toml · integration.toml · prod.toml — the single source of market parameters
 docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
@@ -49,7 +49,44 @@ cd app && pnpm dev      # dashboard against localnet (docs/DEMO.md)
 every push to `main` (pnpm + Vite only; the browser proof engine `sdk/wasm` is committed, so no
 Rust toolchain is needed). It reads the public devnet RPC by default; set a repository variable
 `VITE_RPC_URL` to a dedicated endpoint to lift the browser rate limits, and the next push picks it
-up. The Desk's demo faucet is off in the hosted build (it needs the admin service reachable).
+up. Nothing else is needed to *read* the market; to *trade* from the hosted site the admin service's
+demo faucet must be reachable — see "The faucet from the hosted site" below.
+
+### The faucet from the hosted site
+
+Admission is admin-gated on chain (spec §7.1), so a new wallet is admitted and funded by the admin
+service's `POST /join`. While the market runs, that service is exposed through a Cloudflare quick
+tunnel (`brew install cloudflared` once):
+
+```bash
+./scripts/market.sh start      # …also prints:  share  https://kaustubh76.github.io/Blinds/?admin=https://<x>.trycloudflare.com
+./scripts/publish_admin_url.sh # optional: commit deployments/admin-url.txt so the hosted app finds the faucet without the link
+./scripts/market.sh stop       # closes the tunnel and clears the pointer
+```
+
+The `?admin=` link configures that browser once (it is persisted and stripped from the address
+bar); the Settings sheet (gear) shows and edits it. The faucet funds a wallet once, at most
+`WINDOW_JOIN_MAX_PER_HOUR` (30) wallets an hour, and never below `WINDOW_JOIN_MIN_BALANCE_SOL` (0.5).
+
+### For developers
+
+The hosted dashboard is built to be hooked into, not just looked at:
+
+- **A devnet burner wallet** — one click creates a throwaway key in the browser (a Wallet Standard
+  wallet, so every flow runs with no extension and no prompts); the Desk's **Autopilot** then runs
+  derive → join → set up → wrap → bid in one go. Extension wallets still work.
+- **The console** (`` ` ``) — every SDK call the page makes as copyable TypeScript with the live
+  arguments (wallet signatures and bid openings are never rendered), every transaction with an
+  inspector (logs, compute units, programs), the window's phase changes, and the programs' events
+  decoded as they arrive over the WebSocket.
+- **Build** (key 5) — recipes that run in the tab against the configured RPC and copy as code
+  (read the market, the last print and its curve, re-verify a print, your membership and loans, a
+  bid plan dry run, subscribe to events); the five programs' instructions, accounts, events and
+  errors from their IDLs; PDA seeds; the app's hooks; the admin service's API.
+- **`window.thewindow`** — the SDK, the RPC client, the config, the console store and the query
+  client, on the page for DevTools.
+- **Runtime settings** — `?rpc=` `?ws=` `?admin=` on any link, or the Settings sheet, point the
+  hosted app at your own endpoints or a local validator.
 
 The app also deploys to Vercel as-is (`app/vercel.json`; rehearsed from a clean clone with
 `NODE_ENV=production`):

@@ -45,18 +45,18 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-surface-0 text-ink-1">
       <header className="sticky top-0 z-20 border-b border-line bg-surface-0/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-2 px-5 py-2.5 xl:flex-nowrap">
-          <a href="#/market" className="flex items-baseline gap-2">
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 xl:flex-nowrap">
+          <a href="#/market" className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
             <span className="text-[15px] font-semibold tracking-tight text-ink-1">THE WINDOW</span>
             <span className="text-xs text-ink-3">for Stocks</span>
             <span className="mono rounded-[var(--radius-sm)] border border-line px-1.5 text-[10px] uppercase tracking-[0.12em] text-ink-3">
               {config.cluster}
             </span>
           </a>
-          <div className="hidden min-w-0 lg:block">
+          <div className="hidden min-w-0 flex-1 overflow-hidden xl:block">
             <Ticker />
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <nav className="flex rounded-[var(--radius-md)] border border-line p-0.5" aria-label="Sections">
               {TABS.map((t, i) => (
                 <a

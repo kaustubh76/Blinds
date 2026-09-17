@@ -88,10 +88,19 @@ Hosted: <https://kaustubh76.github.io/Blinds/>
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev
 ```
 
-Market, Explorer and Positions read the chain directly, so they work with no service of ours
-running. The Desk's *Join* button is a demo faucet served by the admin service: it registers your
-wallet as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees. It needs
-`VITE_ADMIN_URL` pointing at a reachable admin service; the UI says so when it is not.
+Market, Explorer, Positions and Build read the chain directly, so they work with no service of ours
+running. The Desk's *Join* is a demo faucet served by the admin service: it registers your wallet
+as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees — once per wallet, at most 30
+wallets an hour. While the market runs, `./scripts/market.sh start` exposes it through a tunnel and
+prints a link of the form `https://kaustubh76.github.io/Blinds/?admin=https://<x>.trycloudflare.com`;
+open the dashboard from that link (or paste the URL in Settings) and the Desk is live.
+
+**No wallet extension needed.** On the Desk, *Create a devnet burner* makes a throwaway key in
+your browser; *Autopilot* then runs derive → join → set up → wrap → bid in one click, and every
+transaction lands in the console (`` ` `` toggles it) as the SDK code that produced it. After the
+next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock and
+deposit run from the same key. *Build* (key 5) has the recipes, the IDLs and the API for anyone
+who wants to integrate.
 
 ### Running the market yourself
 
