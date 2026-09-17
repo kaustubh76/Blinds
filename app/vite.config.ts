@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // GitHub Pages serves a project site under /<repo>/; Vercel and local builds at /.
+  base: process.env.VITE_BASE ?? "/",
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
   build: {
