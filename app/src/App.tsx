@@ -7,6 +7,7 @@ const Market = lazy(() => import("./features/market/Market").then((m) => ({ defa
 const Explorer = lazy(() => import("./features/explorer/Explorer").then((m) => ({ default: m.Explorer })));
 const Desk = lazy(() => import("./features/desk/Desk").then((m) => ({ default: m.Desk })));
 const Positions = lazy(() => import("./features/positions/Positions").then((m) => ({ default: m.Positions })));
+const Build = lazy(() => import("./features/build/Build").then((m) => ({ default: m.Build })));
 
 export function App() {
   const route = useHashRoute();
@@ -24,6 +25,7 @@ export function App() {
         {route.tab === "explorer" && <Explorer epochParam={route.param} />}
         {route.tab === "desk" && <Desk />}
         {route.tab === "positions" && <Positions />}
+        {route.tab === "build" && <Build />}
       </Suspense>
     </Shell>
   );

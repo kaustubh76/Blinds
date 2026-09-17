@@ -174,6 +174,8 @@ export function useWindowClock(): Clock {
   const last = useRef<string>("");
   useEffect(() => {
     if (clock.phase === "loading") return;
+    // An open window with no slot yet is not a phase we know; wait for the first slot poll.
+    if (clock.phase === "open" && clock.slot === null) return;
     const key = `${clock.epoch?.toString() ?? "-"}:${clock.phase}`;
     if (key === last.current) return;
     const first = last.current === "";

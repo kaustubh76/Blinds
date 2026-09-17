@@ -3,19 +3,27 @@ import { type ReactNode, useEffect, useState } from "react";
 import { config } from "../config";
 import { devConsole, useConsole, useConsoleOpen } from "../lib/console";
 import { TABS, type Tab, useHashRoute } from "../lib/useHashRoute";
+import { useLiveEvents } from "../lib/useLive";
 import { DevConsole } from "./DevConsole";
 import { SettingsSheet } from "./SettingsSheet";
 import { Ticker } from "./Ticker";
 import { Button } from "./ui";
 import { WalletButton } from "./WalletButton";
 
-const LABEL: Record<Tab, string> = { market: "Market", explorer: "Explorer", desk: "Desk", positions: "Positions" };
+const LABEL: Record<Tab, string> = {
+  market: "Market",
+  explorer: "Explorer",
+  desk: "Desk",
+  positions: "Positions",
+  build: "Build",
+};
 
 export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
   const { go } = useHashRoute();
   const [settings, setSettings] = useState(false);
   const [consoleOpen] = useConsoleOpen();
   const entryCount = useConsole().length;
+  useLiveEvents(); // the real-time layer lives as long as the shell
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;

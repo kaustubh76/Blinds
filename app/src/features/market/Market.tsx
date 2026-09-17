@@ -3,6 +3,7 @@ import { cumulative, depthFromPrint, PrintStatus } from "@thewindow/solana-sdk";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icon";
+import { LiveEvents } from "../../components/LiveEvents";
 import { Skeleton } from "../../components/Skeleton";
 import { Stat } from "../../components/Stat";
 import { Badge, ExplorerLink } from "../../components/ui";
@@ -216,6 +217,7 @@ export function Market() {
           />
         </div>
       </Card>
+      <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">
           Reading the chain directly — the admin service is not reachable from this browser, which only matters for the
