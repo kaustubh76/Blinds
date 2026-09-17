@@ -11,7 +11,6 @@ import {
   fetchMultiplier,
   fetchPrice,
   multiplierScaled,
-  pda,
   priceCents,
   proofs,
   solvencyScalars,
@@ -68,20 +67,35 @@ export function usePositions(account: UiWalletAccount) {
     return { size: BigInt(part), opening };
   }
 
+  // A query still retrying through the public RPC's 429s is not a reason to fail a click: wait for it.
+  const settled = async <T>(
+    q: { data: T | undefined; refetch: () => Promise<{ data: T | undefined }> },
+    what: string,
+  ) => {
+    if (q.data !== undefined && q.data !== null) return q.data as NonNullable<T>;
+    const r = await q.refetch();
+    if (r.data === undefined || r.data === null) throw new Error(`${what} not loaded yet — try again in a moment`);
+    return r.data as NonNullable<T>;
+  };
+
   const lock = useMutation({
     mutationFn: async ({ address, loan }: { address: Address; loan: Loan }) => {
-      if (!session.memberSignature || !dep.data || !credit.data) throw new Error("not ready");
+      if (!session.memberSignature) throw new Error("derive keys on the desk first");
+      const [depData, creditData] = await Promise.all([
+        settled(dep, "the deployment"),
+        settled(credit, "the credit config"),
+      ]);
       steps.reset();
       const { size, opening } = await loanSecret(address, loan);
       const [epoch, price, mult] = await Promise.all([
         retry(() => fetchEpoch(rpc, loan.epoch)),
-        retry(() => fetchPrice(rpc, dep.data.feedId)),
-        retry(() => fetchMultiplier(rpc, dep.data.mockMint)),
+        retry(() => fetchPrice(rpc, depData.feedId)),
+        retry(() => fetchMultiplier(rpc, depData.mockMint)),
       ]);
       if (!epoch || !price) throw new Error("epoch or price missing");
       const pc = priceCents(price.price, price.expo);
       const ms = multiplierScaled(mult.multiplier);
-      const need = collateralPledge(size, solvencyScalars(pc, ms, credit.data.haircutBps));
+      const need = collateralPledge(size, solvencyScalars(pc, ms, creditData.haircutBps));
       const args = {
         borrower: txSigner,
         signature: session.memberSignature,
@@ -93,10 +107,9 @@ export function usePositions(account: UiWalletAccount) {
         sharesMilli: need,
         priceCents: pc,
         multScaled: ms,
-        haircutBps: credit.data.haircutBps,
-        listing: await pda.listing(dep.data.cstockMint),
-        feedId: dep.data.feedId,
-        mockMint: dep.data.mockMint,
+        haircutBps: creditData.haircutBps,
+        feedId: depData.feedId,
+        mockMint: depData.mockMint,
         rent: rentFor,
       };
       const plan = await buildLockPlan(args);
@@ -114,27 +127,32 @@ export function usePositions(account: UiWalletAccount) {
 
   const deposit = useMutation({
     mutationFn: async ({ address, loan }: { address: Address; loan: Loan }) => {
-      const v = accounts.data?.cstock.view;
-      if (!session.tokenSignature || !dep.data || !credit.data || !accounts.data || !v) throw new Error("not ready");
+      if (!session.tokenSignature) throw new Error("derive keys on the desk first");
+      const [depData, creditData, acc] = await Promise.all([
+        settled(dep, "the deployment"),
+        settled(credit, "the credit config"),
+        settled(accounts, "your token accounts"),
+      ]);
+      const v = acc.cstock.view;
+      if (!v) throw new Error("the confidential account is not configured yet — set it up on the Desk");
       steps.reset();
       const { size } = await loanSecret(address, loan);
       const need = collateralPledge(size, { kC: loan.kC, kL: loan.kL });
-      const escrowAccount = credit.data.escrowAccount;
+      const escrowAccount = creditData.escrowAccount;
       const escrow = await retry(() => fetchConfidentialAccount(rpc, escrowAccount));
       if (!escrow.view) throw new Error("escrow account not configured");
       const args = {
         borrower: txSigner,
         tokenSignature: session.tokenSignature,
-        borrowerCstock: accounts.data.cstockAta,
-        cstockMint: dep.data.cstockMint,
-        escrow: credit.data.escrowAccount,
-        listing: await pda.listing(dep.data.cstockMint),
+        borrowerCstock: acc.cstockAta,
+        cstockMint: depData.cstockMint,
+        escrow: creditData.escrowAccount,
         loan: address,
         availableCt: v.availableBalance,
         decryptable: v.decryptableAvailableBalance,
         amountMilli: need,
         escrowElgamalPubkey: new Uint8Array(getAddressEncoder().encode(escrow.view.elgamalPubkey)),
-        auditorPubkey: dep.data.auditorPubkey,
+        auditorPubkey: depData.auditorPubkey,
         rent: rentFor,
       };
       const plan = await buildDepositPlan(args);
