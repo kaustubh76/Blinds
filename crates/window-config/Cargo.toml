@@ -10,3 +10,7 @@ license.workspace = true
 serde = { workspace = true, features = ["std"] }
 toml.workspace = true
 thiserror.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+hex.workspace = true

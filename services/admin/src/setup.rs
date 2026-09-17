@@ -2,7 +2,7 @@
 //! `deployments/<cluster>.json`. Idempotent per cluster file (re-running overwrites nothing
 //! on-chain that already exists; it fails loudly instead).
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
@@ -39,8 +39,7 @@ pub fn run(
         }
     }
     let auditor = keys.auditor();
-    let asset =
-        profile.assets.get("mock_tsla").ok_or_else(|| anyhow!("profile needs assets.mock_tsla"))?;
+    let asset = profile.primary();
     let decimals = asset.decimals;
 
     // --- mints ---

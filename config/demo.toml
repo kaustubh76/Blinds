@@ -22,13 +22,24 @@ attest_batch = 4             # PoCD proofs per attest_ticks tx; measured 1,170 B
 bsgs_baby_bits = 20          # 1M-entry baby table; giant steps from 0 so realistic sums decode instantly
 bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in practice
 
-[assets.mock_tsla]
+# The collateral schedule. All-zero feed ids = "this profile runs on a local validator, where there
+# is no Pyth": the keeper posts the documented mock walk under the all-zero id, so nothing on-chain
+# ever claims a source it did not read (amendment A11). Two listings so tier 2 exercises a second
+# collateral with its own haircut and price cache.
+[[listings]]
+key = "mock_tsla"
 symbol = "TSLAx-mock"
 decimals = 3                 # milli-shares
-# All-zero = "this profile runs on a local validator, where there is no Pyth". The keeper posts a
-# documented mock walk; the all-zero id is what `PriceCache.feed_id` carries, so nothing on-chain
-# ever claims a Pyth feed it did not read (amendment A11).
-pyth_feed_id = "0x0000000000000000000000000000000000000000000000000000000000000000"
-price_account = ""
-price_rpc_url = ""
+source = "mock"
+haircut_bps = 15000
+max_publish_age_secs = 3600
+initial_multiplier = 1.0
+
+[[listings]]
+key = "mock_preipo"
+symbol = "PREIPO-mock"
+decimals = 3
+source = "mock"
+haircut_bps = 20000          # pre-IPO marks carry a bigger haircut
+max_publish_age_secs = 172800
 initial_multiplier = 1.0

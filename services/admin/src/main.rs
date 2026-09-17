@@ -91,10 +91,7 @@ fn join_funding_lamports() -> u64 {
 /// the documented mock walk (localnet/CI). `Profile::validate` guarantees the two never mix, so a mock
 /// price can never be published under a real Pyth feed id (A11).
 fn price_source(profile: &Profile) -> Result<PriceSource> {
-    let asset = profile
-        .assets
-        .get("mock_tsla")
-        .ok_or_else(|| anyhow::anyhow!("profile has no mock_tsla asset"))?;
+    let asset = profile.primary();
     if asset.is_mock_price() {
         return Ok(PriceSource::mock(40_012));
     }
@@ -130,11 +127,7 @@ fn main() -> Result<()> {
     match cli.cmd {
         Cmd::Setup { agents, feed_id, airdrop } => {
             let feed = if feed_id.is_empty() {
-                profile
-                    .assets
-                    .get("mock_tsla")
-                    .map(|a| a.pyth_feed_id.trim_start_matches("0x").to_string())
-                    .unwrap_or_default()
+                profile.primary().feed_id().map(hex::encode).unwrap_or_default()
             } else {
                 feed_id
             };

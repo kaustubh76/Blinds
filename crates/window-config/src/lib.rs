@@ -4,7 +4,7 @@
 //! harness — reads it from here, so the on-chain `Config` accounts, the keeper's clock and the
 //! tests can never disagree about what an epoch is.
 
-use std::{collections::BTreeMap, path::Path};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -13,8 +13,10 @@ pub struct Profile {
     pub market: Market,
     pub credit: Credit,
     pub print: Print,
+    /// The collateral schedule: one entry per eligible collateral, in the order they are listed on
+    /// chain. The first is the desk's original collateral (the one `window_credit::Config` names).
     #[serde(default)]
-    pub assets: BTreeMap<String, Asset>,
+    pub listings: Vec<ListingCfg>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,34 +46,126 @@ pub struct Print {
     pub bsgs_max_bits: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Asset {
-    pub symbol: String,
-    pub decimals: u8,
-    /// Pyth feed id, 32 bytes hex. The documented all-zero id marks a profile whose price is the
-    /// local mock walk, so a mock price is never published under a real Pyth feed id (A11).
-    pub pyth_feed_id: String,
-    /// Pyth `PriceUpdateV2` account holding that feed, read over `price_rpc_url`. Empty on the
-    /// mock profiles.
-    #[serde(default)]
-    pub price_account: String,
-    /// RPC the price account is read from — Pyth publishes equity feeds on mainnet, so this is a
-    /// different cluster from the one the desk runs on. Empty on the mock profiles.
-    #[serde(default)]
-    pub price_rpc_url: String,
-    pub initial_multiplier: f64,
+/// Where a listing's price comes from. The tag is what `Listing.price_source` carries on chain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PriceSourceKind {
+    /// A Pyth feed: Hermes with a key, Pyth's on-chain accounts otherwise. The quote carries the
+    /// publisher's own `publish_time`.
+    Pyth = 0,
+    /// Tessera's public `token-details` mark price, copied by the keeper and timestamped at fetch.
+    Tessera = 1,
+    /// PreStocks' public `/api/prestocks` mark price, copied by the keeper and timestamped at fetch.
+    Prestocks = 2,
+    /// The documented deterministic walk; localnet/CI only.
+    Mock = 3,
 }
 
-impl Asset {
-    /// `true` when this asset is priced by the documented local mock walk rather than by Pyth.
-    pub fn is_mock_price(&self) -> bool {
-        let id = self.pyth_feed_id.trim_start_matches("0x");
-        id.is_empty() || id.chars().all(|c| c == '0')
+impl PriceSourceKind {
+    pub fn tag(self) -> u8 {
+        self as u8
     }
 
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Pyth => "pyth",
+            Self::Tessera => "tessera",
+            Self::Prestocks => "prestocks",
+            Self::Mock => "mock",
+        }
+    }
+}
+
+/// One collateral listing (`[[listings]]`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ListingCfg {
+    /// Stable handle used by the deployment descriptor and logs (`mock_tsla`).
+    pub key: String,
+    /// On-chain label, at most 16 bytes of UTF-8.
+    pub symbol: String,
+    pub decimals: u8,
+    pub source: PriceSourceKind,
+    /// Collateral must cover this many bps of the loan (≥ 10000).
+    pub haircut_bps: u64,
+    /// Keeper-post liveness in slots; defaults to `[market].max_price_age_slots`.
+    #[serde(default)]
+    pub max_price_age_slots: Option<u64>,
+    /// Quote liveness: `now − publish_time` must not exceed this on chain.
+    pub max_publish_age_secs: i64,
+    pub initial_multiplier: f64,
+    /// Pyth feed id, 32 bytes hex. Required for `source = "pyth"`; ignored otherwise.
+    #[serde(default)]
+    pub pyth_feed_id: String,
+    /// Pyth `PriceUpdateV2` account holding that feed, read over `price_rpc_url` (one of the
+    /// candidates; the push-oracle PDAs are always tried too).
+    #[serde(default)]
+    pub price_account: String,
+    /// RPC the Pyth accounts are read from — Pyth publishes equity feeds on mainnet, so this is a
+    /// different cluster from the one the desk runs on.
+    #[serde(default)]
+    pub price_rpc_url: String,
+    /// Tessera / PreStocks: the public endpoint returning the token array.
+    #[serde(default)]
+    pub source_url: String,
+    /// Tessera / PreStocks: the mainnet mint (Tessera `mint`, PreStocks `contract_address`) that
+    /// identifies the element to read.
+    #[serde(default)]
+    pub source_mint: String,
+    /// Tessera / PreStocks: the sponsor's symbol, part of the feed-id label.
+    #[serde(default)]
+    pub source_symbol: String,
+    /// Tessera / PreStocks: the JSON field carrying the USD mark (`markPrice`).
+    #[serde(default)]
+    pub price_field: String,
+}
+
+impl ListingCfg {
+    /// `true` when this listing is priced by the documented local mock walk rather than by a source.
+    pub fn is_mock_price(&self) -> bool {
+        self.source == PriceSourceKind::Mock
+    }
+
+    /// The 32-byte id `PriceCache` is seeded on. A Pyth id for Pyth; the documented all-zero id
+    /// for the mock walk; `sha256("<source>:<symbol>")` for an attested mark — a label, so that a
+    /// mark can never be mistaken for a Pyth feed.
+    pub fn feed_id(&self) -> Option<[u8; 32]> {
+        match self.source {
+            PriceSourceKind::Pyth => hex_32(self.pyth_feed_id.trim_start_matches("0x")),
+            PriceSourceKind::Mock => Some([0u8; 32]),
+            PriceSourceKind::Tessera | PriceSourceKind::Prestocks => {
+                use sha2::Digest as _;
+                let label = format!("{}:{}", self.source.label(), self.source_symbol);
+                Some(sha2::Sha256::digest(label.as_bytes()).into())
+            }
+        }
+    }
+
+    /// Kept for the single-listing call sites: the Pyth feed id or the mock all-zero id.
     pub fn feed_id_bytes(&self) -> Option<[u8; 32]> {
-        let id = self.pyth_feed_id.trim_start_matches("0x");
-        hex_32(id)
+        self.feed_id()
+    }
+
+    /// The on-chain `symbol` field: UTF-8, zero padded to 16 bytes.
+    pub fn symbol_bytes(&self) -> [u8; 16] {
+        let mut out = [0u8; 16];
+        let b = self.symbol.as_bytes();
+        out[..b.len().min(16)].copy_from_slice(&b[..b.len().min(16)]);
+        out
+    }
+
+    pub fn max_price_age_slots(&self, market: &Market) -> u64 {
+        self.max_price_age_slots.unwrap_or(market.max_price_age_slots)
+    }
+}
+
+impl Profile {
+    /// The desk's original collateral — listing #0, the one `window_credit::Config` names.
+    pub fn primary(&self) -> &ListingCfg {
+        &self.listings[0]
+    }
+
+    pub fn listing(&self, key: &str) -> Option<&ListingCfg> {
+        self.listings.iter().find(|l| l.key == key)
     }
 }
 
@@ -138,19 +232,58 @@ impl Profile {
         if self.print.bsgs_max_bits > 63 || self.print.bsgs_baby_bits >= self.print.bsgs_max_bits {
             return bad("bsgs bits out of range");
         }
-        for (name, a) in &self.assets {
-            if a.feed_id_bytes().is_none() {
-                return bad(&format!("{name}: pyth_feed_id must be 32 bytes hex"));
+        if self.listings.is_empty() {
+            return bad("at least one [[listings]] entry is required");
+        }
+        for (i, l) in self.listings.iter().enumerate() {
+            let name = &l.key;
+            if self.listings[..i].iter().any(|o| o.key == l.key) {
+                return bad(&format!("{name}: duplicate listing key"));
             }
-            // A real feed id must name the on-chain account it is read from, and vice versa:
-            // that pairing is what makes the posted price checkable by anyone.
-            if a.is_mock_price() != a.price_account.is_empty() {
-                return bad(&format!(
-                    "{name}: a real pyth_feed_id needs a price_account (and the mock id must have none)"
-                ));
+            if l.symbol.is_empty() || l.symbol.len() > 16 {
+                return bad(&format!("{name}: symbol must be 1..=16 bytes"));
             }
-            if !a.price_account.is_empty() && a.price_rpc_url.is_empty() {
-                return bad(&format!("{name}: price_account needs price_rpc_url"));
+            if l.haircut_bps < 10_000 || !l.haircut_bps.is_multiple_of(100) {
+                return bad(&format!("{name}: haircut_bps must be >= 10000 and a whole percent"));
+            }
+            if l.max_publish_age_secs <= 0 || l.max_price_age_slots == Some(0) {
+                return bad(&format!("{name}: freshness limits must be > 0"));
+            }
+            match l.source {
+                PriceSourceKind::Pyth => {
+                    // A real feed id must name the account it is read from and the RPC: that
+                    // pairing is what makes the posted price checkable by anyone.
+                    let id = l.pyth_feed_id.trim_start_matches("0x");
+                    if hex_32(id).is_none() || id.chars().all(|c| c == '0') {
+                        return bad(&format!(
+                            "{name}: pyth needs a real pyth_feed_id (32 bytes hex)"
+                        ));
+                    }
+                    if l.price_account.is_empty() || l.price_rpc_url.is_empty() {
+                        return bad(&format!("{name}: pyth needs price_account and price_rpc_url"));
+                    }
+                }
+                PriceSourceKind::Tessera | PriceSourceKind::Prestocks => {
+                    if l.source_url.is_empty()
+                        || l.source_mint.is_empty()
+                        || l.source_symbol.is_empty()
+                    {
+                        return bad(&format!("{name}: an attested mark needs source_url, source_mint and source_symbol"));
+                    }
+                    if l.price_field.is_empty() {
+                        return bad(&format!("{name}: an attested mark needs price_field"));
+                    }
+                }
+                PriceSourceKind::Mock => {
+                    // The mock walk never borrows a real feed id or account (A11).
+                    if !l.price_account.is_empty()
+                        || l.pyth_feed_id.trim_start_matches("0x").chars().any(|c| c != '0')
+                    {
+                        return bad(&format!(
+                            "{name}: a mock listing must not name a Pyth feed or account"
+                        ));
+                    }
+                }
             }
         }
         Ok(())
@@ -163,30 +296,69 @@ mod tests {
 
     #[test]
     fn every_shipped_profile_loads_and_validates() {
-        for name in ["demo", "integration", "prod"] {
+        for name in ["demo", "integration", "prod", "devnet"] {
             let p = Profile::load(name).unwrap_or_else(|e| panic!("{name}: {e}"));
-            assert_eq!(p.credit.haircut_bps, 15_000, "{name}: haircut is fixed at 150%");
+            assert_eq!(p.credit.haircut_bps, 15_000, "{name}: the legacy haircut is fixed at 150%");
             assert_eq!(p.market.bid_min_micro_usdc, 1_000_000);
-            assert!(p.assets.contains_key("mock_tsla"));
+            assert_eq!(
+                p.primary().key,
+                "mock_tsla",
+                "{name}: listing #0 is the original collateral"
+            );
+            assert_eq!(p.primary().haircut_bps, p.credit.haircut_bps);
         }
     }
 
     #[test]
     fn local_profiles_price_from_the_mock_walk_and_never_borrow_a_real_feed_id() {
         for name in ["demo", "integration"] {
-            let a = &Profile::load(name).unwrap().assets["mock_tsla"];
-            assert!(a.is_mock_price(), "{name} runs on localnet: it must not claim a Pyth feed");
-            assert!(a.price_account.is_empty());
+            let p = Profile::load(name).unwrap();
+            for l in &p.listings {
+                assert!(l.is_mock_price(), "{name}/{}: localnet must not claim a source", l.key);
+                assert!(l.price_account.is_empty());
+                assert_eq!(l.feed_id(), Some([0u8; 32]));
+            }
+            assert!(p.listings.len() >= 2, "{name}: tier 2 exercises a second listing");
         }
     }
 
     #[test]
     fn deployed_profiles_name_the_pyth_account_their_feed_id_lives_in() {
         for name in ["devnet", "prod"] {
-            let a = &Profile::load(name).unwrap().assets["mock_tsla"];
-            assert!(!a.is_mock_price(), "{name}: a deployed desk posts a real published price");
-            assert!(!a.price_account.is_empty() && !a.price_rpc_url.is_empty());
+            let l = Profile::load(name).unwrap().primary().clone();
+            assert_eq!(
+                l.source,
+                PriceSourceKind::Pyth,
+                "{name}: a deployed desk posts a real published price"
+            );
+            assert!(!l.price_account.is_empty() && !l.price_rpc_url.is_empty());
+            assert_ne!(l.feed_id(), Some([0u8; 32]));
         }
+    }
+
+    #[test]
+    fn devnet_lists_tessera_and_prestocks_marks_under_labels_not_pyth_ids() {
+        let p = Profile::load("devnet").unwrap();
+        let t = p.listing("tessera_openai").unwrap();
+        let a = p.listing("prestocks_anthropic").unwrap();
+        assert_eq!(t.source, PriceSourceKind::Tessera);
+        assert_eq!(a.source, PriceSourceKind::Prestocks);
+        // The same vector is asserted by sdk/test/listings.test.ts.
+        use sha2::Digest as _;
+        assert_eq!(
+            hex::encode(t.feed_id().unwrap()),
+            hex::encode(sha2::Sha256::digest(b"tessera:T-OpenAI"))
+        );
+        assert_eq!(
+            hex::encode(a.feed_id().unwrap()),
+            hex::encode(sha2::Sha256::digest(b"prestocks:ANTHROPIC"))
+        );
+        assert!(
+            t.haircut_bps >= 20_000 && a.haircut_bps >= 20_000,
+            "pre-IPO marks carry a bigger haircut"
+        );
+        assert_eq!(t.symbol_bytes()[..13], *b"T-OpenAI-mock");
+        assert_eq!(t.symbol_bytes()[13..], [0u8; 3]);
     }
 
     #[test]
@@ -199,6 +371,27 @@ mod tests {
     fn invalid_profiles_are_rejected() {
         let mut p = Profile::load("demo").unwrap();
         p.credit.haircut_bps = 9_000;
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        let mut p = Profile::load("demo").unwrap();
+        p.listings[0].haircut_bps = 15_050;
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        let mut p = Profile::load("demo").unwrap();
+        p.listings[1].key = p.listings[0].key.clone();
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        let mut p = Profile::load("demo").unwrap();
+        p.listings[0].price_account = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY".into();
+        assert!(
+            matches!(p.validate(), Err(ConfigError::Invalid(_))),
+            "a mock never names a Pyth account"
+        );
+        let mut p = Profile::load("devnet").unwrap();
+        p.listings[0].price_account.clear();
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        let mut p = Profile::load("devnet").unwrap();
+        p.listings[1].price_field.clear();
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        let mut p = Profile::load("demo").unwrap();
+        p.listings.clear();
         assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
     }
 }

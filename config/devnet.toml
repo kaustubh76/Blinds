@@ -6,7 +6,7 @@
 #
 # COST (devnet rent measured 2026-09-16 at 5,080.9 lamports/byte, `solana rent -ud`):
 #   Epoch 5,104 B = 0.02658 SOL and Print 680 B = 0.004105 SOL are never closed;
-#   each Loan 414 B = 0.002754 SOL; each Bid 155 B = 0.001438 SOL comes back via `close_bid`.
+#   each Loan 446 B = 0.002917 SOL (414 B before the listing upgrade); each Bid 155 B = 0.001438 SOL comes back via `close_bid`.
 #   With ~2 loans per print that is ~0.0362 SOL per epoch = ~0.33 SOL/hour at the cadence below.
 #   Transaction fees (~35/epoch at 5,000 lamports) are ~0.5% of that.
 [market]
@@ -30,9 +30,10 @@ attest_batch = 4             # PoCD proofs per attest_ticks tx; measured 1,182 B
 bsgs_baby_bits = 20          # 1M-entry baby table; giant steps from 0
 bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in practice
 
-[assets.mock_tsla]
-symbol = "TSLAx-mock"
-decimals = 3                 # milli-shares
+# The collateral schedule: one xONIA rate, several eligible collaterals. Each [[listings]] entry
+# becomes a `Listing` PDA in window_credit with its own PriceCache, haircut and freshness limits
+# (docs/TRACKS.md). The `-mock` mints are devnet twins; no mainnet token is touched.
+
 # Pyth Crypto.TSLAX/USD — a 24/7 feed. With `PYTH_API_KEY` set the keeper reads Hermes
 # (`PYTH_HERMES_URL`, default https://pyth.dourolabs.app/hermes); otherwise, and whenever Hermes
 # fails, it reads Pyth's own on-chain `PriceUpdateV2` accounts — `price_account` below plus the
@@ -40,8 +41,46 @@ decimals = 3                 # milli-shares
 # the desk itself runs on devnet), and copies price/expo/publish_time into `PriceCache` unmodified,
 # so the quote's own age is public. Recorded honestly: `price_account` (shard 0) stopped being
 # updated on 2026-09-12, which is why the keeper no longer trusts a single account
-# (docs/METHODOLOGY.md §5a, docs/TRACKS.md).
+# (docs/METHODOLOGY.md §5a). This is listing #0 — the collateral `Config` was initialised with.
+[[listings]]
+key = "mock_tsla"
+symbol = "TSLAx-mock"
+decimals = 3                 # milli-shares
+source = "pyth"
+haircut_bps = 15000          # matches [credit].haircut_bps, the frozen Config value
+max_publish_age_secs = 3600  # a 24/7 feed: an hour-old quote is a broken feed, not a closed market
+initial_multiplier = 1.0
 pyth_feed_id = "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362"
 price_account = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY"
 price_rpc_url = "https://api.mainnet-beta.solana.com"
+
+# Tessera T-OpenAI (pre-IPO). The keeper copies Tessera's public mark price and stamps it with the
+# fetch time: an attested mark, not a signed feed — the feed id is sha256("tessera:T-OpenAI"), a
+# label that can never be mistaken for a Pyth id. Mainnet mint oPAi…, never touched by the desk.
+[[listings]]
+key = "tessera_openai"
+symbol = "T-OpenAI-mock"
+decimals = 3
+source = "tessera"
+haircut_bps = 20000
+max_publish_age_secs = 172800  # marks move daily; two days without a fetch halts new locks
 initial_multiplier = 1.0
+source_url = "https://rest-api.tessera.pe/v1/public/token-details"
+source_mint = "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ"
+source_symbol = "T-OpenAI"
+price_field = "markPrice"
+
+# PreStocks ANTHROPIC (pre-IPO). Same mechanism with PreStocks' public API; label
+# sha256("prestocks:ANTHROPIC"). Mainnet mint Pren1…, never touched by the desk.
+[[listings]]
+key = "prestocks_anthropic"
+symbol = "ANTHROPIC-mock"
+decimals = 3
+source = "prestocks"
+haircut_bps = 20000
+max_publish_age_secs = 172800
+initial_multiplier = 1.0
+source_url = "https://prestocks.com/api/prestocks"
+source_mint = "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw"
+source_symbol = "ANTHROPIC"
+price_field = "markPrice"
