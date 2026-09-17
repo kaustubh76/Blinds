@@ -64,11 +64,14 @@ function view(raw: Deployment, faucet: boolean): DeploymentView {
  * market, the explorer and their own positions.
  */
 export async function fetchDeployment(): Promise<DeploymentView> {
-  try {
-    const res = await fetch(`${config.adminUrl}/deployment`, { signal: AbortSignal.timeout(4_000) });
-    if (res.ok) return view((await res.json()) as Deployment, true);
-  } catch {
-    // admin service down or unreachable from this browser — fall through
+  // No admin URL configured (a hosted build): skip the probe and go straight to the bundled copy.
+  if (config.adminUrl) {
+    try {
+      const res = await fetch(`${config.adminUrl}/deployment`, { signal: AbortSignal.timeout(4_000) });
+      if (res.ok) return view((await res.json()) as Deployment, true);
+    } catch {
+      // admin service down or unreachable from this browser — fall through
+    }
   }
   const bundled = bundledDeployment as unknown as Deployment;
   if (!bundled?.mock_mint) throw new Error("no deployment: admin service unreachable and no bundled copy");
