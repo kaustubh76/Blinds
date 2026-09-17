@@ -66,6 +66,7 @@ function sameBytes(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
 }
 
 function DeskFlow({ account }: { account: UiWalletAccount }) {
+  const s = useSession();
   const d = useDesk(account);
   const [wrapAmount, setWrapAmount] = useState("1000");
   const [side, setSide] = useState<0 | 1>(1);
@@ -77,8 +78,15 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const configured = !!d.accounts.data?.cstock.configured;
   const decimals = d.dep.data?.decimals ?? 3;
   const faucet = !!d.dep.data?.faucet;
-  const busy = d.deriveKeys.isPending || d.join.isPending || d.onboard.isPending || d.wrap.isPending || d.bid.isPending;
-  const err = [d.deriveKeys, d.join, d.onboard, d.wrap, d.applyPending, d.bid].find((m) => m.error)?.error;
+  const busy =
+    d.deriveKeys.isPending ||
+    d.join.isPending ||
+    d.onboard.isPending ||
+    d.wrap.isPending ||
+    d.bid.isPending ||
+    d.autopilot.isPending;
+  const err = [d.deriveKeys, d.join, d.onboard, d.wrap, d.applyPending, d.bid, d.autopilot].find((m) => m.error)?.error;
+  const isBurner = s.wallet?.name === BURNER_WALLET_NAME;
   const keyMatches =
     d.memberKey.data && d.member.data ? sameBytes(d.memberKey.data, d.member.data.elgamalPubkey) : null;
   const balances = d.balances.data;
@@ -286,6 +294,35 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
           Everything that only reads the chain still works, and so does bidding if this wallet is already a member.
         </Note>
       )}
+      <Card
+        eyebrow="autopilot"
+        title={isBurner ? "Run the whole desk in one click" : "Run the whole desk"}
+        right={
+          <Button
+            icon="play"
+            onClick={() =>
+              d.autopilot.mutate({
+                wrapShares: parseUnits("1000", decimals) ?? 0n,
+                sizeMicroUsdc: 1_000_000_000n,
+                side: 1,
+              })
+            }
+            loading={d.autopilot.isPending}
+            disabled={busy || !faucet || !d.accounts.data}
+          >
+            {d.autopilot.isPending ? "running…" : "derive → join → set up → wrap → bid"}
+          </Button>
+        }
+      >
+        <Note>
+          Derives keys, joins through the faucet, creates the confidential account, wraps 1,000 shares and seals a 1,000
+          USDC borrow bid at the last clearing rate — every step skipped if already done, every transaction in the
+          console (`).{" "}
+          {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}
+          {!faucet &&
+            " Needs the faucet: open this page from the link the market prints, or set the admin URL in Settings."}
+        </Note>
+      </Card>
       <Stepper steps={steps} />
       {(d.steps.steps.length > 0 || err) && (
         <Card eyebrow="transactions" title="This session">

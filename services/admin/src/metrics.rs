@@ -57,10 +57,32 @@ pub struct JoinRequest {
     pub mock_account: String,
 }
 
-pub type JoinHandler = Arc<dyn Fn(JoinRequest) -> Result<String, String> + Send + Sync>;
+/// What `/join` did: a transaction for a new member, or nothing for one already admitted.
+pub struct JoinOutcome {
+    pub signature: Option<String>,
+    pub already_member: bool,
+}
 
-/// Serves `/healthz`, `/metrics`, `/deployment` (JSON) and `POST /join` on `port`.
-pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Option<JoinHandler>) {
+/// Why `/join` refused: a bad request (400), the hourly cap (429), the balance floor (503).
+pub enum JoinRefusal {
+    Bad(String),
+    Busy { retry_after_secs: u64 },
+    Broke,
+}
+
+pub type JoinHandler = Arc<dyn Fn(JoinRequest) -> Result<JoinOutcome, JoinRefusal> + Send + Sync>;
+
+/// `GET /faucet`: what the limiter has left.
+pub type FaucetStatus = Arc<dyn Fn() -> String + Send + Sync>;
+
+/// Serves `/healthz`, `/metrics`, `/deployment` (JSON), `/faucet` and `POST /join` on `port`.
+pub fn serve(
+    metrics: Arc<Metrics>,
+    port: u16,
+    deployment_json: String,
+    join: Option<JoinHandler>,
+    faucet: Option<FaucetStatus>,
+) {
     std::thread::spawn(move || {
         let server = match tiny_http::Server::http(("0.0.0.0", port)) {
             Ok(s) => s,
@@ -92,6 +114,14 @@ pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Op
                 (tiny_http::Method::Get, "/deployment") => {
                     (200, deployment_json.clone(), "application/json")
                 }
+                (tiny_http::Method::Get, "/faucet") => match &faucet {
+                    Some(f) => (200, f(), "application/json"),
+                    None => (
+                        404,
+                        "{\"ok\":false,\"error\":\"no faucet\"}".to_string(),
+                        "application/json",
+                    ),
+                },
                 (tiny_http::Method::Post, "/join") => {
                     let mut body = String::new();
                     let _ = req.as_reader().read_to_string(&mut body);
@@ -110,17 +140,33 @@ pub fn serve(metrics: Arc<Metrics>, port: u16, deployment_json: String, join: Op
                                     .to_string(),
                             };
                             match h(r) {
-                                Ok(sig) => (
+                                Ok(o) => (
                                     200,
-                                    format!("{{\"ok\":true,\"signature\":\"{sig}\"}}"),
+                                    format!(
+                                        "{{\"ok\":true,\"signature\":{},\"already_member\":{}}}",
+                                        serde_json::to_string(&o.signature).unwrap_or_default(),
+                                        o.already_member
+                                    ),
                                     "application/json",
                                 ),
-                                Err(e) => (
+                                Err(JoinRefusal::Bad(e)) => (
                                     400,
                                     format!(
                                         "{{\"ok\":false,\"error\":{}}}",
                                         serde_json::to_string(&e).unwrap_or_default()
                                     ),
+                                    "application/json",
+                                ),
+                                Err(JoinRefusal::Busy { retry_after_secs }) => (
+                                    429,
+                                    format!(
+                                        "{{\"ok\":false,\"error\":\"faucet busy: the hourly cap is reached, retry in {retry_after_secs} s\",\"retry_after_secs\":{retry_after_secs}}}"
+                                    ),
+                                    "application/json",
+                                ),
+                                Err(JoinRefusal::Broke) => (
+                                    503,
+                                    "{\"ok\":false,\"error\":\"faucet paused: the admin balance is below its floor\"}".to_string(),
                                     "application/json",
                                 ),
                             }

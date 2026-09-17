@@ -9,6 +9,7 @@ pub mod administrator;
 pub mod agents;
 pub mod chain;
 pub mod deployment;
+pub mod faucet;
 pub mod keeper;
 pub mod keys;
 pub mod matching;

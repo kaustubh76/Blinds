@@ -7,10 +7,13 @@ import {
   buildOnboardPlan,
   buildWrapPlan,
   fetchEpoch,
+  fetchOracle,
+  fetchPrint,
+  PrintStatus,
   proofs,
 } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { asCode } from "../../lib/asCode";
 import { saveBid } from "../../lib/bidBook";
 import { bytesToHex, joinDesk, rentFor, rpc } from "../../lib/chain";
@@ -255,6 +258,71 @@ export function useDesk(account: UiWalletAccount) {
     onSuccess: invalidate,
   });
 
+  // The latest rendered state, for the autopilot to wait on between steps (queries refetch after
+  // every mutation; each step's preconditions are read from here, never from a stale closure).
+  const latest = useRef({ keys: false, member: false, configured: false, balance: null as bigint | null, open: false });
+  useEffect(() => {
+    latest.current = {
+      keys: !!session.memberSignature && !!memberKey.data,
+      member: !!member.data,
+      configured: !!accounts.data?.cstock.configured,
+      balance: balances.data ? balances.data.available + balances.data.pending : null,
+      open: !!cfg.data?.hasOpenEpoch,
+    };
+  });
+  const waitFor = async (what: string, pred: () => boolean, ms = 30_000) => {
+    const t0 = Date.now();
+    while (!pred()) {
+      if (Date.now() - t0 > ms) throw new Error(`autopilot: timed out waiting for ${what}`);
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  };
+
+  /**
+   * Runs the whole desk in one go — derive → join → set up → wrap → bid — skipping what is done.
+   * Meant for the burner (no prompts); with an extension wallet it asks for each signature in turn.
+   */
+  const autopilot = useMutation({
+    mutationFn: async (opts: { wrapShares: bigint; sizeMicroUsdc: bigint; side: 0 | 1 }) => {
+      const note = (title: string) => devConsole.push({ kind: "note", title: `autopilot: ${title}` });
+      if (!latest.current.keys) {
+        note("deriving keys (2 signatures)");
+        await deriveKeys.mutateAsync();
+        await waitFor("keys", () => latest.current.keys);
+      } else note("keys already derived");
+      if (!latest.current.member) {
+        if (!dep.data?.faucet)
+          throw new Error("autopilot: the faucet is not reachable, so this wallet cannot be admitted");
+        note("joining via the faucet");
+        await join.mutateAsync();
+        await waitFor("membership", () => latest.current.member);
+      } else note("already a member");
+      if (!latest.current.configured) {
+        note("creating + configuring the confidential account");
+        await onboard.mutateAsync();
+        await waitFor("the confidential account", () => latest.current.configured);
+        await waitFor("the decrypted balance", () => latest.current.balance !== null);
+      } else note("confidential account already configured");
+      if ((latest.current.balance ?? 0n) === 0n) {
+        note(`wrapping ${opts.wrapShares.toString()} milli-shares`);
+        await wrap.mutateAsync(opts.wrapShares);
+        await waitFor("the wrapped balance", () => (latest.current.balance ?? 0n) > 0n);
+      } else note("already holds cSTOCK-W");
+      if (!latest.current.open) throw new Error("autopilot: no window is open — the keeper opens the next one");
+      // Bid at the last clearing rate when there is one, so the bid is likely to match.
+      const oracle = await fetchOracle(rpc);
+      let tick = 8;
+      if (oracle?.hasPrinted) {
+        const last = await fetchPrint(rpc, oracle.lastPrintEpoch);
+        if (last?.status === PrintStatus.Printed) tick = last.rStarTick;
+      }
+      note(`sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick}`);
+      const sigs = await bid.mutateAsync({ side: opts.side, tick, sizeMicroUsdc: opts.sizeMicroUsdc });
+      note(`done — ${sigs.length} transactions for the bid; a match becomes a loan after the print`);
+      return { tick, sigs };
+    },
+  });
+
   return {
     wallet,
     dep,
@@ -270,5 +338,6 @@ export function useDesk(account: UiWalletAccount) {
     wrap,
     applyPending,
     bid,
+    autopilot,
   };
 }

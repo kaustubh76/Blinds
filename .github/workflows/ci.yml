@@ -92,6 +92,8 @@ jobs:
       - run: ./scripts/build_wasm.sh && pnpm --filter @thewindow/solana-sdk build
       - run: anchor build
       - run: cargo build -p window-admin --release
+      # The admin service and the localnet scripts sign with the default CLI keypair.
+      - run: solana-keygen new --no-bip39-passphrase --silent --outfile ~/.config/solana/id.json
       - run: make test-integration
 
   docs:

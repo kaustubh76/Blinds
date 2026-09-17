@@ -4,8 +4,15 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing::{error, info};
 use window_admin::{
-    administrator::Administrator, agents::Agents, keeper, keys::Keys, metrics, operator,
-    price::PriceSource, setup, Chain, Ctx, Deployment, RpcChain,
+    administrator::Administrator,
+    agents::Agents,
+    faucet::{self, JoinLimiter},
+    keeper,
+    keys::Keys,
+    metrics::{self, JoinOutcome, JoinRefusal},
+    operator,
+    price::PriceSource,
+    setup, Chain, Ctx, Deployment, RpcChain,
 };
 use window_config::Profile;
 
@@ -152,25 +159,48 @@ fn main() -> Result<()> {
             let join_chain = RpcChain::new(&rpc);
             let join_keys = Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?;
             let mock_mint: solana_pubkey::Pubkey = deployment.mock_mint.parse()?;
+            // Reachable from the public dashboard through a tunnel, so it is limited: a wallet is
+            // funded once, at most `WINDOW_JOIN_MAX_PER_HOUR` wallets an hour, never below the floor.
+            let limiter = Arc::new(JoinLimiter::per_hour(faucet::max_per_hour()));
+            let min_balance = faucet::min_balance_lamports();
+            let status_limiter = limiter.clone();
+            let faucet_status: metrics::FaucetStatus = Arc::new(move || {
+                format!(
+                    "{{\"remaining_this_hour\":{},\"max_per_hour\":{},\"min_balance_sol\":{}}}",
+                    status_limiter.remaining(),
+                    status_limiter.max(),
+                    min_balance as f64 / 1e9
+                )
+            });
             let join: metrics::JoinHandler = Arc::new(move |r: metrics::JoinRequest| {
                 use solana_signer::Signer;
+                let bad = |e: String| JoinRefusal::Bad(e);
                 let wallet: solana_pubkey::Pubkey =
-                    r.wallet.parse().map_err(|e| format!("wallet: {e}"))?;
+                    r.wallet.parse().map_err(|e| bad(format!("wallet: {e}")))?;
                 let mock_account: solana_pubkey::Pubkey =
-                    r.mock_account.parse().map_err(|e| format!("mock account: {e}"))?;
+                    r.mock_account.parse().map_err(|e| bad(format!("mock account: {e}")))?;
                 let eg: [u8; 32] = hex::decode(&r.elgamal_pubkey_hex)
                     .ok()
                     .and_then(|v| v.try_into().ok())
-                    .ok_or("elgamal key must be 32 bytes hex")?;
+                    .ok_or_else(|| bad("elgamal key must be 32 bytes hex".into()))?;
                 let admin = &join_keys.admin;
-                let mut ixs = Vec::new();
+                // Already admitted: nothing to mint or send again, whatever the request says.
                 if join_chain
                     .account_data(&window_client::pda::member(&wallet))
-                    .map_err(|e| e.to_string())?
-                    .is_none()
+                    .map_err(|e| bad(e.to_string()))?
+                    .is_some()
                 {
-                    ixs.push(window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0));
+                    return Ok(JoinOutcome { signature: None, already_member: true });
                 }
+                if join_chain.balance(&admin.pubkey()).map_err(|e| bad(e.to_string()))?
+                    < min_balance + join_funding_lamports()
+                {
+                    return Err(JoinRefusal::Broke);
+                }
+                limiter.try_acquire().map_err(|wait| JoinRefusal::Busy {
+                    retry_after_secs: wait.as_secs().max(1),
+                })?;
+                let mut ixs = vec![window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0)];
                 // The wallet has no SOL yet: the admin creates its mock ATA (idempotent) before minting.
                 if mock_account == window_client::pda::ata(&wallet, &mock_mint) {
                     ixs.push(window_client::ct::create_ata_idempotent(
@@ -190,13 +220,16 @@ fn main() -> Result<()> {
                     &wallet,
                     join_funding_lamports(),
                 )); // fees + rent for the judge's own accounts
-                join_chain.send(admin, &ixs, &[]).map_err(|e| e.to_string())
+                let signature =
+                    join_chain.send(admin, &ixs, &[]).map_err(|e| bad(e.to_string()))?;
+                Ok(JoinOutcome { signature: Some(signature), already_member: false })
             });
             metrics::serve(
                 metrics.clone(),
                 metrics_port,
                 serde_json::to_string(&deployment)?,
                 Some(join),
+                Some(faucet_status),
             );
             let ctx = Ctx {
                 chain: Box::new(chain),
