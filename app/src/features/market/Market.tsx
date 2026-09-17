@@ -6,37 +6,24 @@ import { Icon } from "../../components/Icon";
 import { LiveEvents } from "../../components/LiveEvents";
 import { Skeleton } from "../../components/Skeleton";
 import { Stat } from "../../components/Stat";
-import { Badge, ExplorerLink } from "../../components/ui";
+import { Badge } from "../../components/ui";
 import { WindowClock } from "../../components/WindowClock";
 import { config } from "../../config";
-import { formatAge, formatBps, formatPrice, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
-import {
-  useCreditConfig,
-  useDeployment,
-  useMultiplier,
-  useOracle,
-  usePrice,
-  usePrint,
-  useSeries,
-  useSlot,
-} from "../../lib/queries";
+import { formatBps, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
+import { useDeployment, useOracle, usePrint, useSeries, useSlot } from "../../lib/queries";
 import { popcount, useWindowClock } from "../../lib/useWindowClock";
 import { DepthChart } from "../explorer/DepthChart";
+import { CollateralMark } from "./CollateralMark";
 import { SeriesChart } from "./SeriesChart";
-
-const PYTH_MAINNET_ACCOUNT = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY";
 
 export function Market() {
   const dep = useDeployment();
   const oracle = useOracle();
-  const credit = useCreditConfig();
   const slot = useSlot();
   const clock = useWindowClock();
   const lastPrinted = oracle.data?.hasPrinted ? oracle.data.lastPrintEpoch : null;
   const series = useSeries(clock.epoch ?? lastPrinted);
   const lastPrint = usePrint(lastPrinted);
-  const price = usePrice(dep.data?.feedId);
-  const mult = useMultiplier(dep.data?.mockMint);
 
   const o = oracle.data;
   const xonia = o?.hasPrinted && o.lastRStarTick !== 255 ? o.lastRStarTick : null;
@@ -172,51 +159,8 @@ export function Market() {
         />
       </div>
 
-      {/* The public price. */}
-      <Card
-        eyebrow="collateral reference · public price"
-        title={price.data ? formatPrice(price.data.price, price.data.expo) : "—"}
-        right={
-          <ExplorerLink address={PYTH_MAINNET_ACCOUNT} cluster="mainnet-beta">
-            Pyth TSLAX/USD account
-          </ExplorerLink>
-        }
-        footer={
-          <>
-            The keeper posts Pyth&apos;s <span className="mono">Crypto.TSLAX/USD</span> quote — Hermes when it holds an
-            API key, otherwise the freshest of Pyth&apos;s own on-chain accounts — with the feed&apos;s own timestamp
-            stored unmodified, so the quote&apos;s age is visible here. What is enforced on chain today is how recently
-            the keeper <em>posted</em> ({credit.data ? formatSlotAge(Number(credit.data.maxPriceAge)) : "…"} max).
-          </>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Stat
-            label="quote published"
-            value={price.data ? formatAge(price.data.publishTime) : "—"}
-            hint="the feed's own timestamp"
-          />
-          <Stat
-            label="posted on devnet"
-            value={
-              price.data && slot.data !== undefined
-                ? `${formatSlotAge(slot.data - Number(price.data.postedSlot))} ago`
-                : "—"
-            }
-            hint={price.data ? `${price.data.posts.toString()} posts` : undefined}
-          />
-          <Stat
-            label="multiplier"
-            value={mult.data ? mult.data.multiplier.toFixed(4) : "—"}
-            hint="ScaledUiAmount on the mock mint"
-          />
-          <Stat
-            label="haircut"
-            value={credit.data ? `${Number(credit.data.haircutBps) / 100}%` : "—"}
-            hint={credit.data ? `tenor ${formatSlotAge(Number(credit.data.tenorSlots))}` : undefined}
-          />
-        </div>
-      </Card>
+      {/* The public price, beside the underlying equity feed. */}
+      <CollateralMark />
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">

@@ -31,6 +31,8 @@ jobs:
           VITE_BASE: /Blinds/
           VITE_CLUSTER: devnet
           VITE_RPC_URL: ${{ vars.VITE_RPC_URL || 'https://api.devnet.solana.com' }}
+          # Browser-friendly mainnet RPC for the Pyth underlying-equity read (api.mainnet-beta answers 403 to browsers).
+          VITE_MAINNET_RPC_URL: ${{ vars.VITE_MAINNET_RPC_URL || 'https://solana-rpc.publicnode.com' }}
       # The faucet pointer the hosted app reads at runtime (see deployments/admin-url.txt).
       - run: cp deployments/admin-url.txt app/dist/admin-url.txt
       - uses: actions/configure-pages@v5

@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_ADMIN_URL?: string;
   readonly VITE_WS_URL?: string;
   readonly VITE_CLUSTER?: string;
+  /** Browser-friendly mainnet RPC for reading Pyth's accounts (the public one answers 403 to browsers). */
+  readonly VITE_MAINNET_RPC_URL?: string;
 }
 
 interface Window {

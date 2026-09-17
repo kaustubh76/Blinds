@@ -91,7 +91,7 @@ account died, the feed did not).
 |---|---|---|
 | 0 | This record + `docs/tracks.excalidraw` | done 17 Sep |
 | 1 | Keeper: Hermes with key, freshest on-chain shard fallback, `price-check`, quote-age metric, doc corrections | done 17 Sep (Hermes path live once `PYTH_API_KEY` is set) |
-| 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | — |
+| 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | done 17 Sep (`app/src/lib/pyth.ts`, `CollateralMark.tsx`) |
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | — |
 | 4 | Pyth stretch: receiver-owned account read on chain for the Pyth listing (only if 3 is green on devnet by Tue 22) | — |
 | 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | — |
