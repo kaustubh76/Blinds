@@ -65,9 +65,14 @@ enum Cmd {
         #[arg(long, default_value_t = 4)]
         default_every: usize,
     },
-    /// Fetch the price from the configured source and print it — no transaction. Use it to verify
-    /// `PYTH_API_KEY` before starting the market.
+    /// Fetch every listing's price from its configured source and print it — no transaction. Use
+    /// it to verify `PYTH_API_KEY` and the sponsor APIs before starting the market.
     PriceCheck,
+    /// Bring the deployment up to the profile's collateral schedule: register listing #0 from
+    /// Config's own collateral (its price cache keeps its history) and create the others.
+    ListingsSync,
+    /// Resize every pre-listing Loan (32 bytes shorter) to the current layout, bound to listing #0.
+    MigrateLoans,
     /// Run the simulated members
     Agents {
         /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
@@ -86,26 +91,55 @@ fn join_funding_lamports() -> u64 {
         .unwrap_or(100_000_000)
 }
 
-/// The price source this profile asks for: Pyth via Hermes when `PYTH_API_KEY` is set, with Pyth's
-/// on-chain price-update accounts as the fallback (and as the only source without a key); otherwise
-/// the documented mock walk (localnet/CI). `Profile::validate` guarantees the two never mix, so a mock
-/// price can never be published under a real Pyth feed id (A11).
-fn price_source(profile: &Profile) -> Result<PriceSource> {
-    let asset = profile.primary();
-    if asset.is_mock_price() {
-        return Ok(PriceSource::mock(40_012));
-    }
-    let feed = asset.feed_id_bytes().ok_or_else(|| anyhow::anyhow!("bad pyth_feed_id"))?;
-    let rpc = std::env::var("WINDOW_PRICE_RPC_URL").unwrap_or_else(|_| asset.price_rpc_url.clone());
-    let on_chain = PriceSource::on_chain_pyth(rpc, asset.price_account.clone(), feed);
-    match std::env::var("PYTH_API_KEY").ok().filter(|k| !k.trim().is_empty()) {
-        Some(key) => {
-            let base = std::env::var("PYTH_HERMES_URL")
-                .unwrap_or_else(|_| window_admin::price::DEFAULT_HERMES_URL.to_string());
-            Ok(PriceSource::hermes(base, key.trim().to_string(), feed, on_chain))
+/// The price source one listing asks for. Pyth: Hermes when `PYTH_API_KEY` is set, with Pyth's
+/// on-chain price-update accounts as the fallback (and as the only source without a key).
+/// Tessera / PreStocks: the sponsor's public mark, attested by the keeper. Mock: the documented
+/// walk (localnet/CI). `Profile::validate` guarantees a mock never borrows a real feed id (A11).
+fn price_source(l: &window_config::ListingCfg) -> Result<PriceSource> {
+    use window_config::PriceSourceKind as K;
+    match l.source {
+        K::Mock => Ok(PriceSource::mock(40_012)),
+        K::Tessera => Ok(PriceSource::tessera(
+            l.source_url.clone(),
+            l.source_mint.clone(),
+            l.price_field.clone(),
+        )),
+        K::Prestocks => Ok(PriceSource::prestocks(
+            l.source_url.clone(),
+            l.source_mint.clone(),
+            l.price_field.clone(),
+        )),
+        K::Pyth => {
+            let feed = l.feed_id().ok_or_else(|| anyhow::anyhow!("{}: bad pyth_feed_id", l.key))?;
+            let rpc =
+                std::env::var("WINDOW_PRICE_RPC_URL").unwrap_or_else(|_| l.price_rpc_url.clone());
+            let on_chain = PriceSource::on_chain_pyth(rpc, l.price_account.clone(), feed);
+            match std::env::var("PYTH_API_KEY").ok().filter(|k| !k.trim().is_empty()) {
+                Some(key) => {
+                    let base = std::env::var("PYTH_HERMES_URL")
+                        .unwrap_or_else(|_| window_admin::price::DEFAULT_HERMES_URL.to_string());
+                    Ok(PriceSource::hermes(base, key.trim().to_string(), feed, on_chain))
+                }
+                None => Ok(on_chain),
+            }
         }
-        None => Ok(on_chain),
     }
+}
+
+/// One source per recorded listing, matched to the profile by key.
+fn price_sources(profile: &Profile, deployment: &Deployment) -> Result<keeper::PriceSources> {
+    deployment
+        .listings
+        .iter()
+        .map(|rec| {
+            let l = profile.listing(&rec.key).ok_or_else(|| {
+                anyhow::anyhow!("deployment lists {} but the profile does not", rec.key)
+            })?;
+            let src = price_source(l)?;
+            info!(listing = %rec.symbol, source = %src.describe(), "price source");
+            Ok(src)
+        })
+        .collect()
 }
 
 fn main() -> Result<()> {
@@ -152,6 +186,8 @@ fn main() -> Result<()> {
             let join_chain = RpcChain::new(&rpc);
             let join_keys = Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?;
             let mock_mint: solana_pubkey::Pubkey = deployment.mock_mint.parse()?;
+            let other_mocks: Vec<solana_pubkey::Pubkey> =
+                deployment.listings.iter().skip(1).filter_map(|l| l.mock_mint().ok()).collect();
             // Reachable from the public dashboard through a tunnel, so it is limited: a wallet is
             // funded once, at most `WINDOW_JOIN_MAX_PER_HOUR` wallets an hour, never below the floor.
             let limiter = Arc::new(JoinLimiter::per_hour(faucet::max_per_hour()));
@@ -208,6 +244,16 @@ fn main() -> Result<()> {
                     &admin.pubkey(),
                     10_000_000,
                 )); // 10,000.000 shares
+                    // …and 10,000.000 of every other listed collateral, into the wallet's ATAs.
+                for m in &other_mocks {
+                    ixs.push(window_client::ct::create_ata_idempotent(&admin.pubkey(), &wallet, m));
+                    ixs.push(window_client::ct::mint_to(
+                        m,
+                        &window_client::pda::ata(&wallet, m),
+                        &admin.pubkey(),
+                        10_000_000,
+                    ));
+                }
                 ixs.push(solana_system_interface::instruction::transfer(
                     &admin.pubkey(),
                     &wallet,
@@ -233,13 +279,12 @@ fn main() -> Result<()> {
                 backfill_epochs: 25,
                 default_every,
             };
-            let mut price = price_source(&profile)?;
-            info!(source = %price.describe(), "price source");
+            let mut prices = price_sources(&profile, &ctx.deployment)?;
             let admin = Administrator::new(profile.print.bsgs_baby_bits);
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");
             loop {
-                if let Err(e) = keeper::tick(&ctx, &mut price) {
+                if let Err(e) = keeper::tick(&ctx, &mut prices) {
                     error!("keeper: {e:#}");
                 }
                 if let Err(e) = admin.tick(&ctx) {
@@ -258,22 +303,51 @@ fn main() -> Result<()> {
             }
         }
         Cmd::PriceCheck => {
-            let mut price = price_source(&profile)?;
-            println!("source: {}", price.describe());
             let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs()
                 as i64;
-            let p = price.fetch(now)?;
-            let cents = window_proofs::scalar::price_scaled(p.price, p.expo);
-            println!(
-                "price {} expo {} ({}) publish_time {} age {} s",
-                p.price,
-                p.expo,
-                cents
-                    .map(|c| format!("{}.{:02} USD", c / 100, c % 100))
-                    .unwrap_or_else(|| "out of range".into()),
-                p.publish_time,
-                p.age_secs(now)
-            );
+            for l in &profile.listings {
+                let mut price = price_source(l)?;
+                println!("[{}] source: {}", l.symbol, price.describe());
+                match price.fetch(now) {
+                    Ok(p) => {
+                        let cents = window_proofs::scalar::price_scaled(p.price, p.expo);
+                        println!(
+                            "[{}] price {} expo {} ({}) publish_time {} age {} s (limit {} s)",
+                            l.symbol,
+                            p.price,
+                            p.expo,
+                            cents
+                                .map(|c| format!("{}.{:02} USD", c / 100, c % 100))
+                                .unwrap_or_else(|| "out of range".into()),
+                            p.publish_time,
+                            p.age_secs(now),
+                            l.max_publish_age_secs
+                        );
+                    }
+                    Err(e) => println!("[{}] ERROR {e:#}", l.symbol),
+                }
+            }
+        }
+        Cmd::ListingsSync => {
+            let mut deployment = Deployment::load(&root, &cli.cluster)?;
+            setup::sync_listings(&chain, &keys, &profile, &mut deployment, &root)?;
+            for l in &deployment.listings {
+                println!("{} {} listing {} feed {}", l.key, l.symbol, l.listing, l.feed_id_hex);
+            }
+        }
+        Cmd::MigrateLoans => {
+            let deployment = Deployment::load(&root, &cli.cluster)?;
+            let ctx = Ctx {
+                chain: Box::new(chain),
+                keys,
+                profile,
+                deployment,
+                metrics,
+                backfill_epochs: 0,
+                default_every: 0,
+            };
+            let n = window_admin::migrate::run(&ctx)?;
+            println!("migrated {n} loans");
         }
         Cmd::Agents { tick_ms } => {
             let tick_ms = tick_ms.unwrap_or(if cli.cluster == "devnet" { 8_000 } else { 3_000 });

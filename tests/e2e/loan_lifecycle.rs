@@ -45,6 +45,7 @@ fn matched_loan() -> (World, solana_pubkey::Pubkey, window_proofs::bid::BidProof
     let loan = h.post_match_full(&setup, epoch, borrower, 10, lender, 5, 0).unwrap();
     let l = h.loan(&loan);
     assert_eq!(l.status, LoanStatus::Pending as u8);
+    assert_eq!(l.listing, solana_pubkey::Pubkey::default(), "unbound until the lock");
     assert_eq!(l.size_ct, bid.ciphertext.to_bytes(), "full fill copies the bid ciphertext");
     assert_eq!(
         (l.tick, l.bid_tick, l.fill_num, l.fill_den),
@@ -71,6 +72,7 @@ fn borrow_lock_fund_repay_release_unwrap() {
     eprintln!("lock_collateral: {} CU, {} B", stats.compute_units, stats.bytes);
     let l = h.loan(&loan);
     assert_eq!(l.status, LoanStatus::Requested as u8);
+    assert_eq!(l.listing, setup.listing, "the lock binds the loan to its listing");
     assert_eq!((l.k_c, l.k_l, l.price_at_lock, l.mult_at_lock), (40_012_000, 150, 40_012, 1_000));
     assert_eq!(l.collateral_ct, claim.ciphertext.to_bytes());
     assert_eq!(l.delta_commitment, pair.delta_commitment.0);
@@ -152,7 +154,7 @@ fn default_is_seized_permissionlessly_with_a_fresh_price_and_forwarded_to_the_le
     let anyone = Keypair::new();
     h.svm.airdrop(&window_testkit::addr(&anyone.pubkey()), 1_000_000_000).unwrap();
     // Past the deadline but with a stale price: inaction, never wrong action.
-    h.svm.warp_to_slot(deadline + 1 + h.profile.market.max_price_age_slots);
+    h.warp_to_slot(deadline + 1 + h.profile.market.max_price_age_slots);
     assert!(h.seize(setup, &loan, &anyone).unwrap_err().has_code("PriceStale"));
     h.post_price(setup, PRICE_TSLA.0, PRICE_TSLA.1).unwrap();
     h.seize(setup, &loan, &anyone).unwrap();
@@ -178,4 +180,79 @@ fn default_is_seized_permissionlessly_with_a_fresh_price_and_forwarded_to_the_le
     h.apply_pending_balance(&mut lender_tokens.cstock, &lw, pledge).unwrap();
     assert!(h.available_matches(&lender_tokens.cstock));
     assert_eq!(lender_tokens.cstock.available, pledge);
+}
+
+/// The collateral schedule: a second listing with its own mints, escrow, haircut and cache — the
+/// same loan flow, k_l = 200 instead of 150, nothing shared but the rate and the config.
+#[test]
+fn a_second_listing_locks_with_its_own_haircut_and_price_cache() {
+    let (mut w, loan, bid, loan_size) = matched_loan();
+    let World { h, setup, borrower, .. } = &mut w;
+    let second = h.add_listing(setup, [9u8; 32], 20_000, 7 * 24 * 3600);
+    assert_ne!(second.listing, setup.listing);
+    assert_ne!(second.price_cache, setup.price_cache);
+    let l = h.listing(&second.listing);
+    assert_eq!(
+        (l.haircut_bps, l.max_publish_age_secs, l.feed_id),
+        (20_000, 7 * 24 * 3600, [9u8; 32])
+    );
+    assert_eq!(&l.symbol[..11], b"SECOND-mock");
+
+    // The borrower wraps the second collateral and prices it: $1,007.66, 200 %.
+    let mut tokens2 = h.onboard_tokens(&second, *borrower, 5_000_000);
+    h.wrap(&second, *borrower, &mut tokens2, 2_000_000).unwrap();
+    h.post_price(&second, 100_766_000_000, -8).unwrap();
+    h.post_price(setup, PRICE_TSLA.0, PRICE_TSLA.1).unwrap();
+    let scalars = h.current_scalars(&second, 1.0);
+    assert_eq!((scalars.k_c, scalars.k_l), (100_766_000, 200));
+
+    // 400.000 shares × $1,007.66 = 403,064 ≥ 200 % × 200,000.
+    let pledge = 400_000;
+    let (claim, pair) = h
+        .build_lock_proofs(*borrower, &h.loan(&loan), pledge, loan_size, &bid.opening, &scalars)
+        .unwrap();
+    // The proof was built for the second listing's scalars: listing #0's cache rejects it.
+    let err = h.lock_collateral(setup, *borrower, &loan, &claim, &pair).unwrap_err();
+    assert!(err.has_code("DeltaMismatch"), "{err}");
+    h.lock_collateral(&second, *borrower, &loan, &claim, &pair).unwrap();
+    let l = h.loan(&loan);
+    assert_eq!((l.k_c, l.k_l, l.listing), (100_766_000, 200, second.listing));
+
+    // Deposit goes to the second listing's escrow, from its cSTOCK account (the cross-listing
+    // refusals are attack_09's subject).
+    h.deposit_collateral(&second, *borrower, &mut tokens2, &loan, pledge).unwrap();
+    h.confirm_lock(&second, &loan).unwrap();
+    h.confirm_funding(&second, &loan).unwrap();
+    assert_eq!(h.loan(&loan).status, LoanStatus::Active as u8);
+}
+
+/// A loan written before the collateral schedule (32 bytes shorter) is resized by the admin and
+/// bound to listing #0; the current-size loan is refused.
+#[test]
+fn a_legacy_loan_is_migrated_once() {
+    use anchor_lang::{Discriminator as _, Space as _};
+    let (mut w, loan, _bid, _loan_size) = matched_loan();
+    let World { h, setup, .. } = &mut w;
+    let admin = h.admin.insecure_clone();
+    // Already the current layout: refused.
+    let err = h.migrate_loan(&admin, setup, &loan).unwrap_err();
+    assert!(err.has_code("BadParams"), "{err}");
+
+    // Forge a pre-listing loan: the same bytes minus the trailing `listing`.
+    let mut acc = h.svm.get_account(&window_testkit::addr(&loan)).unwrap();
+    assert_eq!(acc.data.len(), 8 + window_credit::state::Loan::INIT_SPACE);
+    acc.data.truncate(window_credit::state::LEGACY_LOAN_LEN);
+    assert_eq!(&acc.data[..8], window_credit::state::Loan::DISCRIMINATOR);
+    let legacy = solana_keypair::Keypair::new().pubkey();
+    h.svm.set_account(window_testkit::addr(&legacy), acc).unwrap();
+    let before = h.svm.get_balance(&window_testkit::addr(&admin.pubkey())).unwrap();
+    h.migrate_loan(&admin, setup, &legacy).unwrap();
+    let l = h.loan(&legacy);
+    assert_eq!(l.listing, setup.listing);
+    assert_eq!(l.status, LoanStatus::Pending as u8);
+    assert!(
+        h.svm.get_balance(&window_testkit::addr(&admin.pubkey())).unwrap() < before,
+        "admin paid the rent top-up"
+    );
+    assert!(h.migrate_loan(&admin, setup, &legacy).unwrap_err().has_code("BadParams"));
 }

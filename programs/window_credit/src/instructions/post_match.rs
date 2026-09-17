@@ -119,6 +119,7 @@ pub(crate) fn handler(ctx: Context<PostMatch>, epoch: u64, k: u8, kind: MatchKin
     loan.size_ct = size_ct;
     loan.opening_note = opening_note;
     loan.bump = ctx.bumps.loan;
+    loan.listing = Pubkey::default(); // bound at lock_collateral
     emit!(MatchPosted {
         loan: loan.key(),
         epoch,

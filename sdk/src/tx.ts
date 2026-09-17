@@ -122,6 +122,8 @@ export async function buildLockPlan(args: {
   priceCents: bigint;
   multScaled: bigint;
   haircutBps: bigint;
+  /** The listing the collateral is locked under; `feedId` and `mockMint` are that listing's. */
+  listing: Address;
   feedId: Uint8Array;
   mockMint: Address;
   rent: Rent;
@@ -164,6 +166,7 @@ export async function buildLockPlan(args: {
     auctionConfig: await pda.auctionConfig(),
     borrowerRecord: await pda.member(b),
     loan: args.loan,
+    listing: args.listing,
     priceCache: await pda.priceCache(args.feedId),
     mockMint: args.mockMint,
     validityCtx: cV.address,
@@ -316,6 +319,8 @@ export async function buildDepositPlan(args: {
   borrowerCstock: Address;
   cstockMint: Address;
   escrow: Address;
+  /** The loan's listing (`Loan.listing`); `cstockMint` and `escrow` are that listing's. */
+  listing: Address;
   loan: Address;
   availableCt: Uint8Array;
   decryptable: Uint8Array;
@@ -363,6 +368,7 @@ export async function buildDepositPlan(args: {
     borrower: args.borrower,
     config: await pda.creditConfig(),
     loan: args.loan,
+    listing: args.listing,
     borrowerCstock: args.borrowerCstock,
     instructions: INSTRUCTIONS_SYSVAR,
   }) as unknown as Instruction;

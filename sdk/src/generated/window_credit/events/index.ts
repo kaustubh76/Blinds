@@ -7,6 +7,7 @@
  */
 
 export * from './collateralReleased';
+export * from './listingAdded';
 export * from './loanStatusChanged';
 export * from './lockRequested';
 export * from './matchPosted';

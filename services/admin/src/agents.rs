@@ -20,7 +20,7 @@ use window_proofs::{
     solvency::{self, SolvencyInputs},
 };
 
-use crate::{chain::read, keys::Keys, Ctx};
+use crate::{chain::read, deployment::ListingRecord, keys::Keys, Ctx};
 
 /// What a borrower must remember to lock later: its bid's size and opening.
 #[derive(Serialize, Deserialize, Default)]
@@ -77,11 +77,12 @@ impl Agents {
             .filter(|s| s.has_printed)
             .map(|s| s.last_r_star_tick)
             .unwrap_or(12);
-        let cstock: Pubkey = ctx.deployment.cstock_mint.parse()?;
-        let mock: Pubkey = ctx.deployment.mock_mint.parse()?;
         let auditor_pk = keys.auditor().pubkey_bytes();
         for rec in ctx.deployment.agents.clone() {
             let i = rec.index;
+            let listing = ctx.deployment.listing_of(&rec)?.clone();
+            let cstock: Pubkey = listing.cstock_mint()?;
+            let mock: Pubkey = listing.mock_mint()?;
             let wallet = keys.agent_wallet(i);
             let eg = keys.agent_elgamal(i);
             let tkeys = keys.agent_token_keys(i);
@@ -154,9 +155,17 @@ impl Agents {
             }
             // borrowers: lock + deposit pending loans they can prove
             if rec.role == "borrower" {
-                if let Err(e) =
-                    self.serve_loans(ctx, keys, i, &wallet, &eg, &tkeys, &cstock_acc, &auditor_pk)
-                {
+                if let Err(e) = self.serve_loans(
+                    ctx,
+                    keys,
+                    i,
+                    &wallet,
+                    &eg,
+                    &tkeys,
+                    &cstock_acc,
+                    &auditor_pk,
+                    &listing,
+                ) {
                     warn!(agent = i, "loan service failed: {e:#}");
                 }
             }
@@ -217,6 +226,7 @@ impl Agents {
         tkeys: &ct::ConfidentialKeys,
         cstock_acc: &Pubkey,
         auditor_pk: &[u8; 32],
+        listing: &ListingRecord,
     ) -> Result<()> {
         let chain = ctx.chain.as_ref();
         let disc = accounts::discriminator::<Loan>();
@@ -271,16 +281,17 @@ impl Agents {
                         .ok_or_else(|| anyhow!("part size"))?;
                     (part, opening)
                 };
-                let feed_id = ctx.deployment.feed_id();
+                let feed_id = listing.feed_id();
+                let listing_pda = listing.listing_pda()?;
                 let price = read::<PriceCache>(chain, &pda::price_cache(&feed_id))?
                     .ok_or_else(|| anyhow!("price"))?;
-                let mock: Pubkey = ctx.deployment.mock_mint.parse()?;
+                let mock: Pubkey = listing.mock_mint()?;
                 let mint_data = chain.account_data(&mock)?.ok_or_else(|| anyhow!("mint"))?;
                 let mult = mint_multiplier(&mint_data, chain.unix_timestamp()?)?;
                 let p = scalar::price_scaled(price.price, price.expo)
                     .ok_or_else(|| anyhow!("price scale"))?;
                 let a = scalar::multiplier_scaled(mult).ok_or_else(|| anyhow!("mult scale"))?;
-                let scalars = scalar::solvency_scalars(p, a, ctx.profile.credit.haircut_bps)
+                let scalars = scalar::solvency_scalars(p, a, listing.haircut_bps)
                     .ok_or_else(|| anyhow!("scalars"))?;
                 // pledge: 160% of the requirement so a small price move does not strand the loan
                 let need_milli = ((loan_size as u128 * scalars.k_l as u128 * 16 / 10)
@@ -356,13 +367,20 @@ impl Agents {
                 };
                 chain.send(
                     wallet,
-                    &[ix::lock_collateral(&wallet.pubkey(), &key, &feed_id, &mock, &lc)],
+                    &[ix::lock_collateral(
+                        &wallet.pubkey(),
+                        &key,
+                        &listing_pda,
+                        &feed_id,
+                        &mock,
+                        &lc,
+                    )],
                     &[],
                 )?;
                 info!(agent = i, loan = %key, "collateral locked (priced proof)");
                 // deposit: confidential transfer into escrow + deposit_collateral
-                let escrow: Pubkey = ctx.deployment.escrow_account.parse()?;
-                let cstock: Pubkey = ctx.deployment.cstock_mint.parse()?;
+                let escrow: Pubkey = listing.escrow()?;
+                let cstock: Pubkey = listing.cstock_mint()?;
                 let state = ct::confidential_state(
                     &chain.account_data(cstock_acc)?.ok_or_else(|| anyhow!("acc"))?,
                 )
@@ -397,7 +415,10 @@ impl Agents {
                 }
                 chain.send(
                     wallet,
-                    &[plan.transfer, ix::deposit_collateral(&wallet.pubkey(), &key, cstock_acc)],
+                    &[
+                        plan.transfer,
+                        ix::deposit_collateral(&wallet.pubkey(), &key, &listing_pda, cstock_acc),
+                    ],
                     &[],
                 )?;
                 chain.send(wallet, &plan.close, &[])?;

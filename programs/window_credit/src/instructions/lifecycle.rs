@@ -4,7 +4,7 @@ use crate::{
     errors::CreditError,
     events::LoanStatusChanged,
     seeds,
-    state::{Config, Loan, LoanStatus, PriceCache},
+    state::{Config, Listing, Loan, LoanStatus, PriceCache},
 };
 
 #[derive(Accounts)]
@@ -68,22 +68,30 @@ pub struct Seize<'info> {
     pub anyone: Signer<'info>,
     #[account(seeds = [seeds::CONFIG], bump = config.bump)]
     pub config: Account<'info, Config>,
-    #[account(seeds = [seeds::PRICE, config.feed_id.as_ref()], bump = price_cache.bump)]
-    pub price_cache: Account<'info, PriceCache>,
     #[account(mut)]
     pub loan: Account<'info, Loan>,
+    #[account(address = loan.listing @ CreditError::WrongListing)]
+    pub listing: Account<'info, Listing>,
+    #[account(seeds = [seeds::PRICE, listing.feed_id.as_ref()], bump = price_cache.bump)]
+    pub price_cache: Account<'info, PriceCache>,
 }
 
 pub(crate) fn seize(ctx: Context<Seize>) -> Result<()> {
     let loan = &mut ctx.accounts.loan;
     require!(loan.status() == Some(LoanStatus::Active), CreditError::NotActive);
-    let slot = Clock::get()?.slot;
+    let clock = Clock::get()?;
+    let slot = clock.slot;
     require!(slot > loan.deadline_slot, CreditError::NotMatured);
-    // Safety degrades to inaction: a stale price cannot seize.
+    // Safety degrades to inaction: a stale price cannot seize — neither a stale post nor a stale quote.
+    let price = &ctx.accounts.price_cache;
+    let listing = &ctx.accounts.listing;
     require!(
-        slot.saturating_sub(ctx.accounts.price_cache.posted_slot)
-            <= ctx.accounts.config.max_price_age,
+        slot.saturating_sub(price.posted_slot) <= listing.max_price_age,
         CreditError::PriceStale
+    );
+    require!(
+        clock.unix_timestamp.saturating_sub(price.publish_time) <= listing.max_publish_age_secs,
+        CreditError::QuoteStale
     );
     loan.status = LoanStatus::Defaulted as u8;
     emit!(LoanStatusChanged { loan: loan.key(), status: loan.status });

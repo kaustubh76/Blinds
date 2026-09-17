@@ -1,6 +1,6 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
 import { type Address, address, createSolanaRpc } from "@solana/kit";
-import { isTransientRpcError, withRpcRetry } from "@thewindow/solana-sdk";
+import { isTransientRpcError, pda, withRpcRetry } from "@thewindow/solana-sdk";
 // Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
 // admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
 import bundledDeployment from "../../../deployments/devnet.json";
@@ -20,7 +20,48 @@ export interface Deployment {
   escrow_account: string;
   feed_id_hex: string;
   auditor_elgamal_pubkey_hex: string;
-  agents: Array<{ index: number; wallet: string; mock_account: string; cstock_account: string; role: string }>;
+  /** The collateral schedule (absent in a descriptor written before it). */
+  listings?: RawListing[];
+  agents: Array<{
+    index: number;
+    wallet: string;
+    mock_account: string;
+    cstock_account: string;
+    role: string;
+    listing?: number;
+  }>;
+}
+
+export interface RawListing {
+  key: string;
+  symbol: string;
+  source: string;
+  listing: string;
+  mock_mint: string;
+  cstock_mint: string;
+  escrow_account: string;
+  feed_id_hex: string;
+  decimals: number;
+  haircut_bps: number;
+  max_price_age_slots: number;
+  max_publish_age_secs: number;
+}
+
+/** One eligible collateral, as the dashboard addresses it. */
+export interface ListingView {
+  key: string;
+  symbol: string;
+  /** `pyth` | `tessera` | `prestocks` | `mock` */
+  source: string;
+  listing: Address;
+  mockMint: Address;
+  cstockMint: Address;
+  escrow: Address;
+  feedId: Uint8Array;
+  decimals: number;
+  haircutBps: bigint;
+  maxPriceAgeSlots: number;
+  maxPublishAgeSecs: number;
 }
 
 export interface DeploymentView {
@@ -35,6 +76,8 @@ export interface DeploymentView {
   feedId: Uint8Array;
   auditorPubkey: Uint8Array;
   decimals: number;
+  /** The collateral schedule; `listings[0]` is the original collateral the legacy fields mirror. */
+  listings: ListingView[];
 }
 
 export function hexToBytes(hex: string): Uint8Array {
@@ -48,7 +91,43 @@ export function bytesToHex(b: ArrayLike<number>): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+function listingView(l: RawListing): ListingView {
+  return {
+    key: l.key,
+    symbol: l.symbol,
+    source: l.source,
+    listing: address(l.listing),
+    mockMint: address(l.mock_mint),
+    cstockMint: address(l.cstock_mint),
+    escrow: address(l.escrow_account),
+    feedId: hexToBytes(l.feed_id_hex),
+    decimals: l.decimals,
+    haircutBps: BigInt(l.haircut_bps),
+    maxPriceAgeSlots: l.max_price_age_slots,
+    maxPublishAgeSecs: l.max_publish_age_secs,
+  };
+}
+
+/** A descriptor written before the schedule: its one collateral becomes listing #0 (`listing` is filled in by `fetchDeployment`). */
+function legacyListing(raw: Deployment): RawListing {
+  return {
+    key: "mock_tsla",
+    symbol: "TSLAx-mock",
+    source: "pyth",
+    listing: raw.cstock_mint, // overwritten with the derived `["listing", cstock_mint]` PDA below
+    mock_mint: raw.mock_mint,
+    cstock_mint: raw.cstock_mint,
+    escrow_account: raw.escrow_account,
+    feed_id_hex: raw.feed_id_hex,
+    decimals: raw.decimals,
+    haircut_bps: 15_000,
+    max_price_age_slots: 1_200,
+    max_publish_age_secs: 3_600,
+  };
+}
+
 function view(raw: Deployment, adminUrl: string | null): DeploymentView {
+  const listings = (raw.listings?.length ? raw.listings : [legacyListing(raw)]).map(listingView);
   return {
     raw,
     faucet: adminUrl !== null,
@@ -59,6 +138,7 @@ function view(raw: Deployment, adminUrl: string | null): DeploymentView {
     feedId: hexToBytes(raw.feed_id_hex),
     auditorPubkey: hexToBytes(raw.auditor_elgamal_pubkey_hex),
     decimals: raw.decimals,
+    listings,
   };
 }
 
@@ -113,12 +193,19 @@ export async function fetchDeployment(): Promise<DeploymentView> {
     const raw = await probe(url);
     if (raw) {
       activeAdminUrl = url;
-      return view(raw, url);
+      return withListingPdas(view(raw, url));
     }
   }
   const bundled = bundledDeployment as unknown as Deployment;
   if (!bundled?.mock_mint) throw new Error("no deployment: admin service unreachable and no bundled copy");
-  return view(bundled, null);
+  return withListingPdas(view(bundled, null));
+}
+
+/** A descriptor without `listings` names no PDA for its one collateral: derive it. */
+async function withListingPdas(v: DeploymentView): Promise<DeploymentView> {
+  if (v.raw.listings?.length) return v;
+  const listings = await Promise.all(v.listings.map(async (l) => ({ ...l, listing: await pda.listing(l.cstockMint) })));
+  return { ...v, listings };
 }
 
 export interface JoinResult {

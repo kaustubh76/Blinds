@@ -34,8 +34,8 @@ export async function wrap(m: Member, amount: bigint) {
   const b = await balances(m);
   const plan = await buildWrapPlan({
     member: m.signer,
-    mockMint,
-    cstockMint,
+    mockMint: m.on?.mockMint ?? mockMint,
+    cstockMint: m.on?.cstockMint ?? cstockMint,
     memberMock: m.mockAta,
     memberCstock: m.cstockAta,
     amount,

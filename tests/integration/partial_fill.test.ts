@@ -25,7 +25,7 @@ import {
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
 import { bidsTogether, SHARES, wrap } from "./flows";
-import { airdrop, feedId, type Member, mockMint, newMember, onboard, rentFor, rpc, waitFor } from "./harness";
+import { airdrop, feedId, listing, type Member, mockMint, newMember, onboard, rentFor, rpc, waitFor } from "./harness";
 
 // No single lender covers the bid, so the administrator must split it: one lender fills part of it
 // and that loan carries a fresh ciphertext plus a sealed opening.
@@ -118,6 +118,7 @@ describe("a bid split across two lenders", () => {
       priceCents: pc,
       multScaled: multiplierScaled(mult.multiplier),
       haircutBps: credit.haircutBps,
+      listing,
       feedId,
       mockMint,
       rent: rentFor,

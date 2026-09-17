@@ -15,8 +15,8 @@ export const DEPOSIT_COLLATERAL_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Arr
 
 export function getDepositCollateralDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(DEPOSIT_COLLATERAL_DISCRIMINATOR); }
 
-export type DepositCollateralInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountBorrower extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountLoan extends string | AccountMeta<string> = string, TAccountBorrowerCstock extends string | AccountMeta<string> = string, TAccountInstructions extends string | AccountMeta<string> = "Sysvar1nstructions1111111111111111111111111", TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
-Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountBorrower extends string ? ReadonlySignerAccount<TAccountBorrower> & AccountSignerMeta<TAccountBorrower> : TAccountBorrower, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountLoan extends string ? WritableAccount<TAccountLoan> : TAccountLoan, TAccountBorrowerCstock extends string ? ReadonlyAccount<TAccountBorrowerCstock> : TAccountBorrowerCstock, TAccountInstructions extends string ? ReadonlyAccount<TAccountInstructions> : TAccountInstructions, ...TRemainingAccounts]>;
+export type DepositCollateralInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountBorrower extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountLoan extends string | AccountMeta<string> = string, TAccountListing extends string | AccountMeta<string> = string, TAccountBorrowerCstock extends string | AccountMeta<string> = string, TAccountInstructions extends string | AccountMeta<string> = "Sysvar1nstructions1111111111111111111111111", TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
+Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountBorrower extends string ? ReadonlySignerAccount<TAccountBorrower> & AccountSignerMeta<TAccountBorrower> : TAccountBorrower, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountLoan extends string ? WritableAccount<TAccountLoan> : TAccountLoan, TAccountListing extends string ? ReadonlyAccount<TAccountListing> : TAccountListing, TAccountBorrowerCstock extends string ? ReadonlyAccount<TAccountBorrowerCstock> : TAccountBorrowerCstock, TAccountInstructions extends string ? ReadonlyAccount<TAccountInstructions> : TAccountInstructions, ...TRemainingAccounts]>;
 
 export type DepositCollateralInstructionData = { discriminator: ReadonlyUint8Array;  };
 
@@ -34,15 +34,16 @@ export function getDepositCollateralInstructionDataCodec(): FixedSizeCodec<Depos
     return combineCodec(getDepositCollateralInstructionDataEncoder(), getDepositCollateralInstructionDataDecoder());
 }
 
-export type DepositCollateralAsyncInput<TAccountBorrower extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput = InstructionAccountInput, TAccountInstructions extends InstructionAccountInput = InstructionAccountInput> =  {
+export type DepositCollateralAsyncInput<TAccountBorrower extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput = InstructionAccountInput, TAccountInstructions extends InstructionAccountInput = InstructionAccountInput> =  {
   borrower: TAccountBorrower;
 config?: TAccountConfig;
 loan: TAccountLoan;
+listing: TAccountListing;
 borrowerCstock: TAccountBorrowerCstock;
 instructions?: TAccountInstructions;
 }
 
-export async function getDepositCollateralInstructionAsync<TAccountBorrower extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput, TAccountInstructions extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: DepositCollateralAsyncInput<TAccountBorrower, TAccountConfig, TAccountLoan, TAccountBorrowerCstock, TAccountInstructions>, config?: { programAddress?: TProgramAddress } ): Promise<DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>> {
+export async function getDepositCollateralInstructionAsync<TAccountBorrower extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput, TAccountInstructions extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: DepositCollateralAsyncInput<TAccountBorrower, TAccountConfig, TAccountLoan, TAccountListing, TAccountBorrowerCstock, TAccountInstructions>, config?: { programAddress?: TProgramAddress } ): Promise<DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -50,7 +51,7 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { borrower: { value: input.borrower ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, borrowerCstock: { value: input.borrowerCstock ?? null, isSigner: false, isWritable: false }, instructions: { value: input.instructions ?? null, isSigner: false, isWritable: false } }
+const originalAccounts = { borrower: { value: input.borrower ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, borrowerCstock: { value: input.borrowerCstock ?? null, isSigner: false, isWritable: false }, instructions: { value: input.instructions ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -62,18 +63,19 @@ if (!accounts.instructions.value) {
 accounts.instructions.value = 'Sysvar1nstructions1111111111111111111111111' as Address<'Sysvar1nstructions1111111111111111111111111'>;
 }
 
-return Object.freeze({ accounts: [getAccountMeta("borrower", accounts.borrower), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("borrowerCstock", accounts.borrowerCstock), getAccountMeta("instructions", accounts.instructions)], data: getDepositCollateralInstructionDataEncoder().encode({}), programAddress } as DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>);
+return Object.freeze({ accounts: [getAccountMeta("borrower", accounts.borrower), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("listing", accounts.listing), getAccountMeta("borrowerCstock", accounts.borrowerCstock), getAccountMeta("instructions", accounts.instructions)], data: getDepositCollateralInstructionDataEncoder().encode({}), programAddress } as DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>);
 }
 
-export type DepositCollateralInput<TAccountBorrower extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput = InstructionAccountInput, TAccountInstructions extends InstructionAccountInput = InstructionAccountInput> =  {
+export type DepositCollateralInput<TAccountBorrower extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput = InstructionAccountInput, TAccountInstructions extends InstructionAccountInput = InstructionAccountInput> =  {
   borrower: TAccountBorrower;
 config: TAccountConfig;
 loan: TAccountLoan;
+listing: TAccountListing;
 borrowerCstock: TAccountBorrowerCstock;
 instructions?: TAccountInstructions;
 }
 
-export function getDepositCollateralInstruction<TAccountBorrower extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput, TAccountInstructions extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: DepositCollateralInput<TAccountBorrower, TAccountConfig, TAccountLoan, TAccountBorrowerCstock, TAccountInstructions>, config?: { programAddress?: TProgramAddress } ): DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>> {
+export function getDepositCollateralInstruction<TAccountBorrower extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountBorrowerCstock extends InstructionAccountInput, TAccountInstructions extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: DepositCollateralInput<TAccountBorrower, TAccountConfig, TAccountLoan, TAccountListing, TAccountBorrowerCstock, TAccountInstructions>, config?: { programAddress?: TProgramAddress } ): DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -81,7 +83,7 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { borrower: { value: input.borrower ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, borrowerCstock: { value: input.borrowerCstock ?? null, isSigner: false, isWritable: false }, instructions: { value: input.instructions ?? null, isSigner: false, isWritable: false } }
+const originalAccounts = { borrower: { value: input.borrower ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, borrowerCstock: { value: input.borrowerCstock ?? null, isSigner: false, isWritable: false }, instructions: { value: input.instructions ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -90,7 +92,7 @@ if (!accounts.instructions.value) {
 accounts.instructions.value = 'Sysvar1nstructions1111111111111111111111111' as Address<'Sysvar1nstructions1111111111111111111111111'>;
 }
 
-return Object.freeze({ accounts: [getAccountMeta("borrower", accounts.borrower), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("borrowerCstock", accounts.borrowerCstock), getAccountMeta("instructions", accounts.instructions)], data: getDepositCollateralInstructionDataEncoder().encode({}), programAddress } as DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>);
+return Object.freeze({ accounts: [getAccountMeta("borrower", accounts.borrower), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("listing", accounts.listing), getAccountMeta("borrowerCstock", accounts.borrowerCstock), getAccountMeta("instructions", accounts.instructions)], data: getDepositCollateralInstructionDataEncoder().encode({}), programAddress } as DepositCollateralInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountBorrower, InstructionAccountInputAddress<TAccountBorrower>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountBorrowerCstock, InstructionAccountInputAddress<TAccountBorrowerCstock>>, ResolvedInstructionAccountMeta<TAccountInstructions, InstructionAccountInputAddress<TAccountInstructions>>>);
 }
 
 export type ParsedDepositCollateralInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[]> = { programAddress: Address<TProgram>;
@@ -98,14 +100,15 @@ accounts: {
 borrower: TAccountMetas[0];
 config: TAccountMetas[1];
 loan: TAccountMetas[2];
-borrowerCstock: TAccountMetas[3];
-instructions: TAccountMetas[4];
+listing: TAccountMetas[3];
+borrowerCstock: TAccountMetas[4];
+instructions: TAccountMetas[5];
 };
 data: DepositCollateralInstructionData; };
 
 export function parseDepositCollateralInstruction<TProgram extends string, TAccountMetas extends readonly AccountMeta[]>(instruction: Instruction<TProgram> & InstructionWithAccounts<TAccountMetas> & InstructionWithData<ReadonlyUint8Array>): ParsedDepositCollateralInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 5) {
-  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 5 });
+  if (instruction.accounts.length < 6) {
+  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 6 });
 }
 let accountIndex = 0;
 const getNextAccount = () => {
@@ -113,5 +116,5 @@ const getNextAccount = () => {
   accountIndex += 1;
   return accountMeta;
 }
-  return { programAddress: instruction.programAddress, accounts: { borrower: getNextAccount(), config: getNextAccount(), loan: getNextAccount(), borrowerCstock: getNextAccount(), instructions: getNextAccount() }, data: getDepositCollateralInstructionDataDecoder().decode(instruction.data) };
+  return { programAddress: instruction.programAddress, accounts: { borrower: getNextAccount(), config: getNextAccount(), loan: getNextAccount(), listing: getNextAccount(), borrowerCstock: getNextAccount(), instructions: getNextAccount() }, data: getDepositCollateralInstructionDataDecoder().decode(instruction.data) };
 }

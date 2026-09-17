@@ -8,27 +8,29 @@
 
 import { assertIsInstructionWithAccounts, containsBytes, extendClient, fixEncoderSize, getBytesEncoder, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, SolanaError, type Address, type ClientWithRpc, type ClientWithTransactionPlanning, type ClientWithTransactionSending, type ExtendedClient, type GetAccountInfoApi, type GetMultipleAccountsApi, type Instruction, type InstructionWithData, type ReadonlyUint8Array } from '@solana/kit';
 import { addSelfFetchFunctions, addSelfPlanAndSendFunctions, type SelfFetchFunctions, type SelfPlanAndSendFunctions } from '@solana/program-client-core';
-import { getLoanCodec, getPriceCacheCodec, getWindowCreditStateConfigCodec, type Loan, type LoanArgs, type PriceCache, type PriceCacheArgs, type WindowCreditStateConfig, type WindowCreditStateConfigArgs } from '../accounts';
-import { getConfirmFundingInstructionAsync, getConfirmLockInstructionAsync, getDepositCollateralInstructionAsync, getInitializeInstructionAsync, getLockCollateralInstructionAsync, getPostMatchInstructionAsync, getPostPriceInstructionAsync, getReleaseCollateralInstructionAsync, getRepayInstructionAsync, getSeizeInstructionAsync, parseConfirmFundingInstruction, parseConfirmLockInstruction, parseDepositCollateralInstruction, parseInitializeInstruction, parseLockCollateralInstruction, parsePostMatchInstruction, parsePostPriceInstruction, parseReleaseCollateralInstruction, parseRepayInstruction, parseSeizeInstruction, type ConfirmFundingAsyncInput, type ConfirmLockAsyncInput, type DepositCollateralAsyncInput, type InitializeAsyncInput, type LockCollateralAsyncInput, type ParsedConfirmFundingInstruction, type ParsedConfirmLockInstruction, type ParsedDepositCollateralInstruction, type ParsedInitializeInstruction, type ParsedLockCollateralInstruction, type ParsedPostMatchInstruction, type ParsedPostPriceInstruction, type ParsedReleaseCollateralInstruction, type ParsedRepayInstruction, type ParsedSeizeInstruction, type PostMatchAsyncInput, type PostPriceAsyncInput, type ReleaseCollateralAsyncInput, type RepayAsyncInput, type SeizeAsyncInput } from '../instructions';
-import { findConfigPda } from '../pdas';
+import { getListingCodec, getLoanCodec, getPriceCacheCodec, getWindowCreditStateConfigCodec, type Listing, type ListingArgs, type Loan, type LoanArgs, type PriceCache, type PriceCacheArgs, type WindowCreditStateConfig, type WindowCreditStateConfigArgs } from '../accounts';
+import { getAddListingInstructionAsync, getConfirmFundingInstructionAsync, getConfirmLockInstructionAsync, getDepositCollateralInstructionAsync, getInitializeInstructionAsync, getLockCollateralInstructionAsync, getMigrateLoanInstructionAsync, getPostMatchInstructionAsync, getPostPriceInstructionAsync, getReleaseCollateralInstructionAsync, getRepayInstructionAsync, getSeizeInstructionAsync, getUpdateListingInstructionAsync, parseAddListingInstruction, parseConfirmFundingInstruction, parseConfirmLockInstruction, parseDepositCollateralInstruction, parseInitializeInstruction, parseLockCollateralInstruction, parseMigrateLoanInstruction, parsePostMatchInstruction, parsePostPriceInstruction, parseReleaseCollateralInstruction, parseRepayInstruction, parseSeizeInstruction, parseUpdateListingInstruction, type AddListingAsyncInput, type ConfirmFundingAsyncInput, type ConfirmLockAsyncInput, type DepositCollateralAsyncInput, type InitializeAsyncInput, type LockCollateralAsyncInput, type MigrateLoanAsyncInput, type ParsedAddListingInstruction, type ParsedConfirmFundingInstruction, type ParsedConfirmLockInstruction, type ParsedDepositCollateralInstruction, type ParsedInitializeInstruction, type ParsedLockCollateralInstruction, type ParsedMigrateLoanInstruction, type ParsedPostMatchInstruction, type ParsedPostPriceInstruction, type ParsedReleaseCollateralInstruction, type ParsedRepayInstruction, type ParsedSeizeInstruction, type ParsedUpdateListingInstruction, type PostMatchAsyncInput, type PostPriceAsyncInput, type ReleaseCollateralAsyncInput, type RepayAsyncInput, type SeizeAsyncInput, type UpdateListingAsyncInput } from '../instructions';
+import { findConfigPda, findListingPda } from '../pdas';
 
 export const WINDOW_CREDIT_PROGRAM_ADDRESS = '3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr' as Address<'3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr'>;
 
-export enum WindowCreditAccount { Loan, PriceCache, WindowCreditStateConfig }
+export enum WindowCreditAccount { Listing, Loan, PriceCache, WindowCreditStateConfig }
 
 export function identifyWindowCreditAccount(account: { data: ReadonlyUint8Array } | ReadonlyUint8Array): WindowCreditAccount {
     const data = 'data' in account ? account.data : account;
-    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([20, 195, 70, 117, 165, 227, 182, 1])), 0)) { return WindowCreditAccount.Loan; }
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([218, 32, 50, 73, 43, 134, 26, 58])), 0)) { return WindowCreditAccount.Listing; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([20, 195, 70, 117, 165, 227, 182, 1])), 0)) { return WindowCreditAccount.Loan; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([198, 211, 186, 101, 228, 22, 101, 190])), 0)) { return WindowCreditAccount.PriceCache; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([155, 12, 170, 224, 30, 250, 204, 130])), 0)) { return WindowCreditAccount.WindowCreditStateConfig; }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_ACCOUNT, { accountData: data, programName: "windowCredit" });
 }
 
-export enum WindowCreditEvent { CollateralReleased, LoanStatusChanged, LockRequested, MatchPosted, PricePosted }
+export enum WindowCreditEvent { CollateralReleased, ListingAdded, LoanStatusChanged, LockRequested, MatchPosted, PricePosted }
 
 export function identifyWindowCreditEvent(event: { data: ReadonlyUint8Array } | ReadonlyUint8Array): WindowCreditEvent {
     const data = 'data' in event ? event.data : event;
     if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([126, 144, 66, 166, 31, 103, 26, 113])), 0)) { return WindowCreditEvent.CollateralReleased; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([167, 155, 75, 46, 60, 169, 157, 55])), 0)) { return WindowCreditEvent.ListingAdded; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([13, 92, 117, 131, 204, 91, 229, 234])), 0)) { return WindowCreditEvent.LoanStatusChanged; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([87, 121, 227, 177, 107, 236, 246, 245])), 0)) { return WindowCreditEvent.LockRequested; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([210, 29, 203, 170, 195, 77, 179, 81])), 0)) { return WindowCreditEvent.MatchPosted; }
@@ -36,34 +38,40 @@ if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Arr
     throw new Error('The provided event could not be identified as a windowCredit event.');
 }
 
-export enum WindowCreditInstruction { ConfirmFunding, ConfirmLock, DepositCollateral, Initialize, LockCollateral, PostMatch, PostPrice, ReleaseCollateral, Repay, Seize }
+export enum WindowCreditInstruction { AddListing, ConfirmFunding, ConfirmLock, DepositCollateral, Initialize, LockCollateral, MigrateLoan, PostMatch, PostPrice, ReleaseCollateral, Repay, Seize, UpdateListing }
 
 export function identifyWindowCreditInstruction(instruction: { data: ReadonlyUint8Array } | ReadonlyUint8Array): WindowCreditInstruction {
     const data = 'data' in instruction ? instruction.data : instruction;
-    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([30, 31, 203, 65, 164, 189, 67, 48])), 0)) { return WindowCreditInstruction.ConfirmFunding; }
+    if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([165, 124, 143, 190, 249, 53, 128, 195])), 0)) { return WindowCreditInstruction.AddListing; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([30, 31, 203, 65, 164, 189, 67, 48])), 0)) { return WindowCreditInstruction.ConfirmFunding; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([3, 194, 178, 182, 176, 225, 165, 1])), 0)) { return WindowCreditInstruction.ConfirmLock; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([156, 131, 142, 116, 146, 247, 162, 120])), 0)) { return WindowCreditInstruction.DepositCollateral; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([175, 175, 109, 31, 13, 152, 155, 237])), 0)) { return WindowCreditInstruction.Initialize; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([161, 216, 135, 122, 12, 104, 211, 101])), 0)) { return WindowCreditInstruction.LockCollateral; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([224, 72, 250, 198, 11, 161, 150, 81])), 0)) { return WindowCreditInstruction.MigrateLoan; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([27, 166, 94, 251, 189, 252, 55, 166])), 0)) { return WindowCreditInstruction.PostMatch; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([130, 245, 138, 141, 114, 50, 13, 48])), 0)) { return WindowCreditInstruction.PostPrice; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([40, 255, 12, 218, 249, 197, 179, 160])), 0)) { return WindowCreditInstruction.ReleaseCollateral; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([234, 103, 67, 82, 208, 234, 219, 166])), 0)) { return WindowCreditInstruction.Repay; }
 if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([129, 159, 143, 31, 161, 224, 241, 84])), 0)) { return WindowCreditInstruction.Seize; }
+if (containsBytes(data, fixEncoderSize(getBytesEncoder(), 8).encode(new Uint8Array([192, 174, 210, 68, 116, 40, 242, 253])), 0)) { return WindowCreditInstruction.UpdateListing; }
     throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__FAILED_TO_IDENTIFY_INSTRUCTION, { instructionData: data, programName: "windowCredit" });
 }
 
 export type ParsedWindowCreditInstruction<TProgram extends string = '3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr'> =
+| { instructionType: WindowCreditInstruction.AddListing } & ParsedAddListingInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.ConfirmFunding } & ParsedConfirmFundingInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.ConfirmLock } & ParsedConfirmLockInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.DepositCollateral } & ParsedDepositCollateralInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.Initialize } & ParsedInitializeInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.LockCollateral } & ParsedLockCollateralInstruction<TProgram>
+| { instructionType: WindowCreditInstruction.MigrateLoan } & ParsedMigrateLoanInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.PostMatch } & ParsedPostMatchInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.PostPrice } & ParsedPostPriceInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.ReleaseCollateral } & ParsedReleaseCollateralInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.Repay } & ParsedRepayInstruction<TProgram>
 | { instructionType: WindowCreditInstruction.Seize } & ParsedSeizeInstruction<TProgram>
+| { instructionType: WindowCreditInstruction.UpdateListing } & ParsedUpdateListingInstruction<TProgram>
 
 
         export function parseWindowCreditInstruction<TProgram extends string>(
@@ -72,7 +80,9 @@ export type ParsedWindowCreditInstruction<TProgram extends string = '3C6zwULWtL7
         ): ParsedWindowCreditInstruction<TProgram> {
             const instructionType = identifyWindowCreditInstruction(instruction);
             switch (instructionType) {
-                case WindowCreditInstruction.ConfirmFunding: { assertIsInstructionWithAccounts(instruction);
+                case WindowCreditInstruction.AddListing: { assertIsInstructionWithAccounts(instruction);
+return { instructionType: WindowCreditInstruction.AddListing, ...parseAddListingInstruction(instruction) }; }
+case WindowCreditInstruction.ConfirmFunding: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: WindowCreditInstruction.ConfirmFunding, ...parseConfirmFundingInstruction(instruction) }; }
 case WindowCreditInstruction.ConfirmLock: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: WindowCreditInstruction.ConfirmLock, ...parseConfirmLockInstruction(instruction) }; }
@@ -82,6 +92,8 @@ case WindowCreditInstruction.Initialize: { assertIsInstructionWithAccounts(instr
 return { instructionType: WindowCreditInstruction.Initialize, ...parseInitializeInstruction(instruction) }; }
 case WindowCreditInstruction.LockCollateral: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: WindowCreditInstruction.LockCollateral, ...parseLockCollateralInstruction(instruction) }; }
+case WindowCreditInstruction.MigrateLoan: { assertIsInstructionWithAccounts(instruction);
+return { instructionType: WindowCreditInstruction.MigrateLoan, ...parseMigrateLoanInstruction(instruction) }; }
 case WindowCreditInstruction.PostMatch: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: WindowCreditInstruction.PostMatch, ...parsePostMatchInstruction(instruction) }; }
 case WindowCreditInstruction.PostPrice: { assertIsInstructionWithAccounts(instruction);
@@ -92,22 +104,24 @@ case WindowCreditInstruction.Repay: { assertIsInstructionWithAccounts(instructio
 return { instructionType: WindowCreditInstruction.Repay, ...parseRepayInstruction(instruction) }; }
 case WindowCreditInstruction.Seize: { assertIsInstructionWithAccounts(instruction);
 return { instructionType: WindowCreditInstruction.Seize, ...parseSeizeInstruction(instruction) }; }
+case WindowCreditInstruction.UpdateListing: { assertIsInstructionWithAccounts(instruction);
+return { instructionType: WindowCreditInstruction.UpdateListing, ...parseUpdateListingInstruction(instruction) }; }
                 default: throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__UNRECOGNIZED_INSTRUCTION_TYPE, { instructionType: instructionType as string, programName: "windowCredit" });
             }
         }
 
 export type WindowCreditPlugin = { accounts: WindowCreditPluginAccounts; instructions: WindowCreditPluginInstructions; pdas: WindowCreditPluginPdas; identifyAccount: typeof identifyWindowCreditAccount; identifyInstruction: typeof identifyWindowCreditInstruction; parseInstruction: typeof parseWindowCreditInstruction; }
 
-export type WindowCreditPluginAccounts = { loan: ReturnType<typeof getLoanCodec> & SelfFetchFunctions<LoanArgs, Loan>; priceCache: ReturnType<typeof getPriceCacheCodec> & SelfFetchFunctions<PriceCacheArgs, PriceCache>; windowCreditStateConfig: ReturnType<typeof getWindowCreditStateConfigCodec> & SelfFetchFunctions<WindowCreditStateConfigArgs, WindowCreditStateConfig>; }
+export type WindowCreditPluginAccounts = { listing: ReturnType<typeof getListingCodec> & SelfFetchFunctions<ListingArgs, Listing>; loan: ReturnType<typeof getLoanCodec> & SelfFetchFunctions<LoanArgs, Loan>; priceCache: ReturnType<typeof getPriceCacheCodec> & SelfFetchFunctions<PriceCacheArgs, PriceCache>; windowCreditStateConfig: ReturnType<typeof getWindowCreditStateConfigCodec> & SelfFetchFunctions<WindowCreditStateConfigArgs, WindowCreditStateConfig>; }
 
-export type WindowCreditPluginInstructions = { confirmFunding: (input: ConfirmFundingAsyncInput) => ReturnType<typeof getConfirmFundingInstructionAsync> & SelfPlanAndSendFunctions; confirmLock: (input: ConfirmLockAsyncInput) => ReturnType<typeof getConfirmLockInstructionAsync> & SelfPlanAndSendFunctions; depositCollateral: (input: DepositCollateralAsyncInput) => ReturnType<typeof getDepositCollateralInstructionAsync> & SelfPlanAndSendFunctions; initialize: (input: InitializeAsyncInput) => ReturnType<typeof getInitializeInstructionAsync> & SelfPlanAndSendFunctions; lockCollateral: (input: LockCollateralAsyncInput) => ReturnType<typeof getLockCollateralInstructionAsync> & SelfPlanAndSendFunctions; postMatch: (input: PostMatchAsyncInput) => ReturnType<typeof getPostMatchInstructionAsync> & SelfPlanAndSendFunctions; postPrice: (input: PostPriceAsyncInput) => ReturnType<typeof getPostPriceInstructionAsync> & SelfPlanAndSendFunctions; releaseCollateral: (input: ReleaseCollateralAsyncInput) => ReturnType<typeof getReleaseCollateralInstructionAsync> & SelfPlanAndSendFunctions; repay: (input: RepayAsyncInput) => ReturnType<typeof getRepayInstructionAsync> & SelfPlanAndSendFunctions; seize: (input: SeizeAsyncInput) => ReturnType<typeof getSeizeInstructionAsync> & SelfPlanAndSendFunctions; }
+export type WindowCreditPluginInstructions = { addListing: (input: AddListingAsyncInput) => ReturnType<typeof getAddListingInstructionAsync> & SelfPlanAndSendFunctions; confirmFunding: (input: ConfirmFundingAsyncInput) => ReturnType<typeof getConfirmFundingInstructionAsync> & SelfPlanAndSendFunctions; confirmLock: (input: ConfirmLockAsyncInput) => ReturnType<typeof getConfirmLockInstructionAsync> & SelfPlanAndSendFunctions; depositCollateral: (input: DepositCollateralAsyncInput) => ReturnType<typeof getDepositCollateralInstructionAsync> & SelfPlanAndSendFunctions; initialize: (input: InitializeAsyncInput) => ReturnType<typeof getInitializeInstructionAsync> & SelfPlanAndSendFunctions; lockCollateral: (input: LockCollateralAsyncInput) => ReturnType<typeof getLockCollateralInstructionAsync> & SelfPlanAndSendFunctions; migrateLoan: (input: MigrateLoanAsyncInput) => ReturnType<typeof getMigrateLoanInstructionAsync> & SelfPlanAndSendFunctions; postMatch: (input: PostMatchAsyncInput) => ReturnType<typeof getPostMatchInstructionAsync> & SelfPlanAndSendFunctions; postPrice: (input: PostPriceAsyncInput) => ReturnType<typeof getPostPriceInstructionAsync> & SelfPlanAndSendFunctions; releaseCollateral: (input: ReleaseCollateralAsyncInput) => ReturnType<typeof getReleaseCollateralInstructionAsync> & SelfPlanAndSendFunctions; repay: (input: RepayAsyncInput) => ReturnType<typeof getRepayInstructionAsync> & SelfPlanAndSendFunctions; seize: (input: SeizeAsyncInput) => ReturnType<typeof getSeizeInstructionAsync> & SelfPlanAndSendFunctions; updateListing: (input: UpdateListingAsyncInput) => ReturnType<typeof getUpdateListingInstructionAsync> & SelfPlanAndSendFunctions; }
 
-export type WindowCreditPluginPdas = { config: typeof findConfigPda; }
+export type WindowCreditPluginPdas = { config: typeof findConfigPda; listing: typeof findListingPda; }
 
 export type WindowCreditPluginRequirements = ClientWithRpc<GetAccountInfoApi & GetMultipleAccountsApi> & ClientWithTransactionPlanning & ClientWithTransactionSending
 
 export function windowCreditProgram() {
     return <T extends WindowCreditPluginRequirements>(client: T): ExtendedClient<T, { windowCredit: WindowCreditPlugin }> => {
-        return extendClient(client, { windowCredit: <WindowCreditPlugin>{ accounts: { loan: addSelfFetchFunctions(client, getLoanCodec()), priceCache: addSelfFetchFunctions(client, getPriceCacheCodec()), windowCreditStateConfig: addSelfFetchFunctions(client, getWindowCreditStateConfigCodec()) }, instructions: { confirmFunding: input => addSelfPlanAndSendFunctions(client, getConfirmFundingInstructionAsync(input)), confirmLock: input => addSelfPlanAndSendFunctions(client, getConfirmLockInstructionAsync(input)), depositCollateral: input => addSelfPlanAndSendFunctions(client, getDepositCollateralInstructionAsync(input)), initialize: input => addSelfPlanAndSendFunctions(client, getInitializeInstructionAsync(input)), lockCollateral: input => addSelfPlanAndSendFunctions(client, getLockCollateralInstructionAsync(input)), postMatch: input => addSelfPlanAndSendFunctions(client, getPostMatchInstructionAsync(input)), postPrice: input => addSelfPlanAndSendFunctions(client, getPostPriceInstructionAsync(input)), releaseCollateral: input => addSelfPlanAndSendFunctions(client, getReleaseCollateralInstructionAsync(input)), repay: input => addSelfPlanAndSendFunctions(client, getRepayInstructionAsync(input)), seize: input => addSelfPlanAndSendFunctions(client, getSeizeInstructionAsync(input)) }, pdas: { config: findConfigPda }, identifyAccount: identifyWindowCreditAccount, identifyInstruction: identifyWindowCreditInstruction, parseInstruction: parseWindowCreditInstruction } });
+        return extendClient(client, { windowCredit: <WindowCreditPlugin>{ accounts: { listing: addSelfFetchFunctions(client, getListingCodec()), loan: addSelfFetchFunctions(client, getLoanCodec()), priceCache: addSelfFetchFunctions(client, getPriceCacheCodec()), windowCreditStateConfig: addSelfFetchFunctions(client, getWindowCreditStateConfigCodec()) }, instructions: { addListing: input => addSelfPlanAndSendFunctions(client, getAddListingInstructionAsync(input)), confirmFunding: input => addSelfPlanAndSendFunctions(client, getConfirmFundingInstructionAsync(input)), confirmLock: input => addSelfPlanAndSendFunctions(client, getConfirmLockInstructionAsync(input)), depositCollateral: input => addSelfPlanAndSendFunctions(client, getDepositCollateralInstructionAsync(input)), initialize: input => addSelfPlanAndSendFunctions(client, getInitializeInstructionAsync(input)), lockCollateral: input => addSelfPlanAndSendFunctions(client, getLockCollateralInstructionAsync(input)), migrateLoan: input => addSelfPlanAndSendFunctions(client, getMigrateLoanInstructionAsync(input)), postMatch: input => addSelfPlanAndSendFunctions(client, getPostMatchInstructionAsync(input)), postPrice: input => addSelfPlanAndSendFunctions(client, getPostPriceInstructionAsync(input)), releaseCollateral: input => addSelfPlanAndSendFunctions(client, getReleaseCollateralInstructionAsync(input)), repay: input => addSelfPlanAndSendFunctions(client, getRepayInstructionAsync(input)), seize: input => addSelfPlanAndSendFunctions(client, getSeizeInstructionAsync(input)), updateListing: input => addSelfPlanAndSendFunctions(client, getUpdateListingInstructionAsync(input)) }, pdas: { config: findConfigPda, listing: findListingPda }, identifyAccount: identifyWindowCreditAccount, identifyInstruction: identifyWindowCreditInstruction, parseInstruction: parseWindowCreditInstruction } });
     };
 }

@@ -18,6 +18,7 @@ import { asCode } from "../../lib/asCode";
 import { saveBid } from "../../lib/bidBook";
 import { bytesToHex, joinDesk, rentFor, retry, rpc } from "../../lib/chain";
 import { devConsole } from "../../lib/console";
+import { useSelectedListing } from "../../lib/listings";
 import { useAuctionConfig, useDeployment, useMember, useTokenAccounts } from "../../lib/queries";
 import { type OnStep, type StepReport, sendPlan } from "../../lib/send";
 import { useAccountSigners, useSession } from "../../lib/wallet";
@@ -43,7 +44,8 @@ export function useDesk(account: UiWalletAccount) {
   const dep = useDeployment();
   const cfg = useAuctionConfig();
   const member = useMember(wallet);
-  const accounts = useTokenAccounts(wallet, dep.data?.mockMint, dep.data?.cstockMint);
+  const { listings, selected: listing, select: selectListing } = useSelectedListing();
+  const accounts = useTokenAccounts(wallet, listing?.mockMint, listing?.cstockMint);
   const steps = useSteps();
 
   const invalidate = () => qc.invalidateQueries();
@@ -65,6 +67,7 @@ export function useDesk(account: UiWalletAccount) {
     queryKey: [
       "balances",
       wallet,
+      listing?.key,
       accounts.data?.cstock.view?.pendingBalanceCreditCounter.toString(),
       accounts.dataUpdatedAt,
     ],
@@ -89,9 +92,10 @@ export function useDesk(account: UiWalletAccount) {
   const deriveKeys = useMutation({
     mutationFn: async () => {
       if (!accounts.data) throw new Error("token accounts not loaded");
-      const m = await signMember();
+      if (!listing) throw new Error("no listing selected");
+      const m = session.memberSignature ?? (await signMember());
       const t = await signToken(new Uint8Array(getAddressEncoder().encode(accounts.data.cstockAta)));
-      session.setSignatures({ member: m, token: t });
+      session.setSignatures({ member: m, token: t, tokenFor: listing.cstockMint });
       devConsole.push({
         kind: "call",
         title: "signMessage ×2 → ElGamal keys (in this tab)",
@@ -144,12 +148,12 @@ export function useDesk(account: UiWalletAccount) {
 
   const onboard = useMutation({
     mutationFn: async () => {
-      if (!dep.data || !accounts.data || !session.tokenSignature) throw new Error("derive keys first");
+      if (!listing || !accounts.data || !session.tokenSignature) throw new Error("derive keys first");
       steps.reset();
       const args = {
         member: txSigner,
-        mockMint: dep.data.mockMint,
-        cstockMint: dep.data.cstockMint,
+        mockMint: listing.mockMint,
+        cstockMint: listing.cstockMint,
         tokenSignature: session.tokenSignature,
         mockAtaExists: accounts.data.mockAmount !== null,
         cstockAtaExists: accounts.data.cstock.exists,
@@ -167,15 +171,15 @@ export function useDesk(account: UiWalletAccount) {
   const wrap = useMutation({
     mutationFn: async (amountMilli: bigint) => {
       const v = accounts.data?.cstock.view;
-      if (!dep.data || !accounts.data || !v || !session.tokenSignature || !balances.data)
+      if (!listing || !accounts.data || !v || !session.tokenSignature || !balances.data)
         throw new Error("set up the account first");
       steps.reset();
       const w = await proofs();
       const newBalance = balances.data.available + balances.data.pending + amountMilli;
       const args = {
         member: txSigner,
-        mockMint: dep.data.mockMint,
-        cstockMint: dep.data.cstockMint,
+        mockMint: listing.mockMint,
+        cstockMint: listing.cstockMint,
         memberMock: accounts.data.mockAta,
         memberCstock: accounts.data.cstockAta,
         amount: amountMilli,
@@ -328,6 +332,9 @@ export function useDesk(account: UiWalletAccount) {
     dep,
     cfg,
     member,
+    listing,
+    listings,
+    selectListing,
     accounts,
     memberKey,
     balances,

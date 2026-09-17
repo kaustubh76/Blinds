@@ -15,8 +15,8 @@ export const POST_PRICE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([130,
 
 export function getPostPriceDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(POST_PRICE_DISCRIMINATOR); }
 
-export type PostPriceInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountKeeper extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountPriceCache extends string | AccountMeta<string> = string, TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111", TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
-Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountKeeper extends string ? WritableSignerAccount<TAccountKeeper> & AccountSignerMeta<TAccountKeeper> : TAccountKeeper, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountPriceCache extends string ? WritableAccount<TAccountPriceCache> : TAccountPriceCache, TAccountSystemProgram extends string ? ReadonlyAccount<TAccountSystemProgram> : TAccountSystemProgram, ...TRemainingAccounts]>;
+export type PostPriceInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountKeeper extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountListing extends string | AccountMeta<string> = string, TAccountPriceCache extends string | AccountMeta<string> = string, TAccountSystemProgram extends string | AccountMeta<string> = "11111111111111111111111111111111", TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
+Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountKeeper extends string ? WritableSignerAccount<TAccountKeeper> & AccountSignerMeta<TAccountKeeper> : TAccountKeeper, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountListing extends string ? ReadonlyAccount<TAccountListing> : TAccountListing, TAccountPriceCache extends string ? WritableAccount<TAccountPriceCache> : TAccountPriceCache, TAccountSystemProgram extends string ? ReadonlyAccount<TAccountSystemProgram> : TAccountSystemProgram, ...TRemainingAccounts]>;
 
 export type PostPriceInstructionData = { discriminator: ReadonlyUint8Array; price: bigint; expo: number; publishTime: bigint;  };
 
@@ -34,9 +34,10 @@ export function getPostPriceInstructionDataCodec(): FixedSizeCodec<PostPriceInst
     return combineCodec(getPostPriceInstructionDataEncoder(), getPostPriceInstructionDataDecoder());
 }
 
-export type PostPriceAsyncInput<TAccountKeeper extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput> =  {
+export type PostPriceAsyncInput<TAccountKeeper extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput> =  {
   keeper: TAccountKeeper;
 config?: TAccountConfig;
+listing: TAccountListing;
 priceCache: TAccountPriceCache;
 systemProgram?: TAccountSystemProgram;
 price: PostPriceInstructionDataArgs["price"];
@@ -44,7 +45,7 @@ expo: PostPriceInstructionDataArgs["expo"];
 publishTime: PostPriceInstructionDataArgs["publishTime"];
 }
 
-export async function getPostPriceInstructionAsync<TAccountKeeper extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: PostPriceAsyncInput<TAccountKeeper, TAccountConfig, TAccountPriceCache, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress } ): Promise<PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>> {
+export async function getPostPriceInstructionAsync<TAccountKeeper extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: PostPriceAsyncInput<TAccountKeeper, TAccountConfig, TAccountListing, TAccountPriceCache, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress } ): Promise<PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -52,7 +53,7 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { keeper: { value: input.keeper ?? null, isSigner: true, isWritable: true }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: true }, systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false } }
+const originalAccounts = { keeper: { value: input.keeper ?? null, isSigner: true, isWritable: true }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: true }, systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -68,12 +69,13 @@ if (!accounts.systemProgram.value) {
 accounts.systemProgram.value = '11111111111111111111111111111111' as Address<'11111111111111111111111111111111'>;
 }
 
-return Object.freeze({ accounts: [getAccountMeta("keeper", accounts.keeper), getAccountMeta("config", accounts.config), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("systemProgram", accounts.systemProgram)], data: getPostPriceInstructionDataEncoder().encode(args as PostPriceInstructionDataArgs), programAddress } as PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>);
+return Object.freeze({ accounts: [getAccountMeta("keeper", accounts.keeper), getAccountMeta("config", accounts.config), getAccountMeta("listing", accounts.listing), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("systemProgram", accounts.systemProgram)], data: getPostPriceInstructionDataEncoder().encode(args as PostPriceInstructionDataArgs), programAddress } as PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>);
 }
 
-export type PostPriceInput<TAccountKeeper extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput> =  {
+export type PostPriceInput<TAccountKeeper extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput = InstructionAccountInput> =  {
   keeper: TAccountKeeper;
 config: TAccountConfig;
+listing: TAccountListing;
 priceCache: TAccountPriceCache;
 systemProgram?: TAccountSystemProgram;
 price: PostPriceInstructionDataArgs["price"];
@@ -81,7 +83,7 @@ expo: PostPriceInstructionDataArgs["expo"];
 publishTime: PostPriceInstructionDataArgs["publishTime"];
 }
 
-export function getPostPriceInstruction<TAccountKeeper extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: PostPriceInput<TAccountKeeper, TAccountConfig, TAccountPriceCache, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress } ): PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>> {
+export function getPostPriceInstruction<TAccountKeeper extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountSystemProgram extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: PostPriceInput<TAccountKeeper, TAccountConfig, TAccountListing, TAccountPriceCache, TAccountSystemProgram>, config?: { programAddress?: TProgramAddress } ): PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -89,7 +91,7 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { keeper: { value: input.keeper ?? null, isSigner: true, isWritable: true }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: true }, systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false } }
+const originalAccounts = { keeper: { value: input.keeper ?? null, isSigner: true, isWritable: true }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: true }, systemProgram: { value: input.systemProgram ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -102,21 +104,22 @@ if (!accounts.systemProgram.value) {
 accounts.systemProgram.value = '11111111111111111111111111111111' as Address<'11111111111111111111111111111111'>;
 }
 
-return Object.freeze({ accounts: [getAccountMeta("keeper", accounts.keeper), getAccountMeta("config", accounts.config), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("systemProgram", accounts.systemProgram)], data: getPostPriceInstructionDataEncoder().encode(args as PostPriceInstructionDataArgs), programAddress } as PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>);
+return Object.freeze({ accounts: [getAccountMeta("keeper", accounts.keeper), getAccountMeta("config", accounts.config), getAccountMeta("listing", accounts.listing), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("systemProgram", accounts.systemProgram)], data: getPostPriceInstructionDataEncoder().encode(args as PostPriceInstructionDataArgs), programAddress } as PostPriceInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountKeeper, InstructionAccountInputAddress<TAccountKeeper>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountSystemProgram, InstructionAccountInputAddress<TAccountSystemProgram>>>);
 }
 
 export type ParsedPostPriceInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[]> = { programAddress: Address<TProgram>;
 accounts: {
 keeper: TAccountMetas[0];
 config: TAccountMetas[1];
-priceCache: TAccountMetas[2];
-systemProgram: TAccountMetas[3];
+listing: TAccountMetas[2];
+priceCache: TAccountMetas[3];
+systemProgram: TAccountMetas[4];
 };
 data: PostPriceInstructionData; };
 
 export function parsePostPriceInstruction<TProgram extends string, TAccountMetas extends readonly AccountMeta[]>(instruction: Instruction<TProgram> & InstructionWithAccounts<TAccountMetas> & InstructionWithData<ReadonlyUint8Array>): ParsedPostPriceInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
-  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 4 });
+  if (instruction.accounts.length < 5) {
+  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 5 });
 }
 let accountIndex = 0;
 const getNextAccount = () => {
@@ -124,5 +127,5 @@ const getNextAccount = () => {
   accountIndex += 1;
   return accountMeta;
 }
-  return { programAddress: instruction.programAddress, accounts: { keeper: getNextAccount(), config: getNextAccount(), priceCache: getNextAccount(), systemProgram: getNextAccount() }, data: getPostPriceInstructionDataDecoder().decode(instruction.data) };
+  return { programAddress: instruction.programAddress, accounts: { keeper: getNextAccount(), config: getNextAccount(), listing: getNextAccount(), priceCache: getNextAccount(), systemProgram: getNextAccount() }, data: getPostPriceInstructionDataDecoder().decode(instruction.data) };
 }

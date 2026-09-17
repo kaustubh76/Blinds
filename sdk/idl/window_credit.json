@@ -8,6 +8,100 @@
   },
   "instructions": [
     {
+      "name": "add_listing",
+      "docs": [
+        "Admin lists a collateral: its mints, escrow, price source, haircut and freshness limits."
+      ],
+      "discriminator": [
+        165,
+        124,
+        143,
+        190,
+        249,
+        53,
+        128,
+        195
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mock_mint"
+        },
+        {
+          "name": "cstock_mint"
+        },
+        {
+          "name": "escrow_account",
+          "docs": [
+            "The operator's confidential account for this listing's escrow."
+          ]
+        },
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "cstock_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "ListingParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "confirm_funding",
       "discriminator": [
         30,
@@ -143,6 +237,9 @@
           "writable": true
         },
         {
+          "name": "listing"
+        },
+        {
           "name": "borrower_cstock"
         },
         {
@@ -208,7 +305,7 @@
     {
       "name": "lock_collateral",
       "docs": [
-        "Borrower proves collateral value ≥ 150 % of the loan against the fresh public price."
+        "Borrower proves collateral value ≥ haircut × loan against the listing's fresh public price."
       ],
       "discriminator": [
         161,
@@ -258,6 +355,33 @@
           "writable": true
         },
         {
+          "name": "listing",
+          "docs": [
+            "The collateral the borrower locks under; bound to the loan here."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.cstock_mint",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
           "name": "price_cache",
           "pda": {
             "seeds": [
@@ -273,8 +397,8 @@
               },
               {
                 "kind": "account",
-                "path": "config.feed_id",
-                "account": "Config"
+                "path": "listing.feed_id",
+                "account": "Listing"
               }
             ]
           }
@@ -301,6 +425,87 @@
         {
           "name": "zk_program",
           "address": "ZkE1Gama1Proof11111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_loan",
+      "docs": [
+        "Admin brings a pre-listing `Loan` (32 bytes shorter) to the current layout, binding it to",
+        "the listing that mirrors the original collateral."
+      ],
+      "discriminator": [
+        224,
+        72,
+        250,
+        198,
+        11,
+        161,
+        150,
+        81
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "listing",
+          "docs": [
+            "The listing that mirrors the original collateral: its cSTOCK mint is `config.cstock_mint`."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.cstock_mint",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -405,7 +610,7 @@
     {
       "name": "post_price",
       "docs": [
-        "Keeper posts the named Pyth feed's price."
+        "Keeper posts a listing's price under the listing's feed id."
       ],
       "discriminator": [
         130,
@@ -445,6 +650,30 @@
           }
         },
         {
+          "name": "listing",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.cstock_mint",
+                "account": "Listing"
+              }
+            ]
+          }
+        },
+        {
           "name": "price_cache",
           "writable": true,
           "pda": {
@@ -461,8 +690,8 @@
               },
               {
                 "kind": "account",
-                "path": "config.feed_id",
-                "account": "Config"
+                "path": "listing.feed_id",
+                "account": "Listing"
               }
             ]
           }
@@ -532,6 +761,9 @@
         {
           "name": "loan",
           "writable": true
+        },
+        {
+          "name": "listing"
         },
         {
           "name": "destination"
@@ -627,6 +859,13 @@
           }
         },
         {
+          "name": "loan",
+          "writable": true
+        },
+        {
+          "name": "listing"
+        },
+        {
           "name": "price_cache",
           "pda": {
             "seeds": [
@@ -642,21 +881,109 @@
               },
               {
                 "kind": "account",
-                "path": "config.feed_id",
-                "account": "Config"
+                "path": "listing.feed_id",
+                "account": "Listing"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_listing",
+      "docs": [
+        "Admin retunes a listing's source tag, haircut, limits or label — never its mints, escrow or",
+        "feed id, which open loans and the price cache depend on."
+      ],
+      "discriminator": [
+        192,
+        174,
+        210,
+        68,
+        116,
+        40,
+        242,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
               }
             ]
           }
         },
         {
-          "name": "loan",
-          "writable": true
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "listing.cstock_mint",
+                "account": "Listing"
+              }
+            ]
+          }
         }
       ],
-      "args": []
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "ListingParams"
+            }
+          }
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "Listing",
+      "discriminator": [
+        218,
+        32,
+        50,
+        73,
+        43,
+        134,
+        26,
+        58
+      ]
+    },
     {
       "name": "Loan",
       "discriminator": [
@@ -709,6 +1036,19 @@
         103,
         26,
         113
+      ]
+    },
+    {
+      "name": "ListingAdded",
+      "discriminator": [
+        167,
+        155,
+        75,
+        46,
+        60,
+        169,
+        157,
+        55
       ]
     },
     {
@@ -919,6 +1259,21 @@
       "code": 6030,
       "name": "WrongDestination",
       "msg": "wrong destination for the collateral release"
+    },
+    {
+      "code": 6031,
+      "name": "QuoteStale",
+      "msg": "the quote's own publish_time is older than the listing allows"
+    },
+    {
+      "code": 6032,
+      "name": "PublishTimeAhead",
+      "msg": "publish_time is in the future"
+    },
+    {
+      "code": 6033,
+      "name": "WrongListing",
+      "msg": "account is not the loan's listing"
     }
   ],
   "types": [
@@ -1046,6 +1401,161 @@
           {
             "name": "multiplier_override",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Listing",
+      "docs": [
+        "One eligible collateral. `[\"listing\", cstock_mint]`. The rate is one benchmark; each listing",
+        "carries its own price source, haircut and freshness limits, and its own `PriceCache`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_account",
+            "docs": [
+              "The operator's confidential cSTOCK account holding this listing's escrowed collateral."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "docs": [
+              "A Pyth feed id for a Pyth-marked listing; `sha256(\"<source>:<symbol>\")` for an attested",
+              "mark — a label, never a Pyth id; all-zero for the documented local mock walk."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price_source",
+            "docs": [
+              "0 = Pyth · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "haircut_bps",
+            "docs": [
+              "Collateral value must cover this many bps of the loan."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age",
+            "docs": [
+              "Keeper liveness: `slot − price_cache.posted_slot` must not exceed this."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_publish_age_secs",
+            "docs": [
+              "Quote liveness: `now − price_cache.publish_time` must not exceed this."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "symbol",
+            "docs": [
+              "UTF-8 label, zero padded."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ListingAdded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "listing",
+            "type": "pubkey"
+          },
+          {
+            "name": "cstock_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ListingParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "price_source",
+            "type": "u8"
+          },
+          {
+            "name": "haircut_bps",
+            "type": "u64"
+          },
+          {
+            "name": "max_price_age",
+            "type": "u64"
+          },
+          {
+            "name": "max_publish_age_secs",
+            "type": "i64"
+          },
+          {
+            "name": "symbol",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
           }
         ]
       }
@@ -1186,6 +1696,15 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "listing",
+            "docs": [
+              "The `Listing` the collateral was locked under (default until `lock_collateral`). Appended",
+              "after `bump` so every earlier offset is unchanged; pre-listing loans are 32 bytes shorter",
+              "and are brought to this layout by `migrate_loan`."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -1222,6 +1741,10 @@
           {
             "name": "mult_at_lock",
             "type": "u64"
+          },
+          {
+            "name": "listing",
+            "type": "pubkey"
           }
         ]
       }
@@ -1622,6 +2145,12 @@
     },
     {
       "name": "window_credit::state::Config",
+      "docs": [
+        "The frozen deployment-wide configuration. Written once at `initialize`. The collateral fields",
+        "(`cstock_mint`, `mock_mint`, `escrow_account`, `feed_id`, `haircut_bps`, `max_price_age`) describe",
+        "the desk's original collateral; since the collateral schedule they are mirrored by listing #0 and",
+        "no instruction reads them for pricing any more."
+      ],
       "type": {
         "kind": "struct",
         "fields": [

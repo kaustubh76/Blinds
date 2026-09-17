@@ -9,8 +9,8 @@ pub mod pda;
 
 pub use window_auction::state::{Bid, Config as AuctionConfig, Epoch, EpochStatus};
 pub use window_credit::state::{
-    Config as CreditConfig, InitializeParams as CreditInitializeParams, Loan, LoanStatus,
-    MatchKind, PriceCache,
+    Config as CreditConfig, InitializeParams as CreditInitializeParams, Listing, ListingParams,
+    Loan, LoanStatus, MatchKind, PriceCache, LEGACY_LOAN_LEN, PRICE_SOURCE_MOCK, PRICE_SOURCE_PYTH,
 };
 /// Bitmap helpers for `Print.{nonzero,proven}_bitmap`.
 pub mod print_bits {

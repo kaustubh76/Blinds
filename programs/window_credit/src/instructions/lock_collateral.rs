@@ -22,7 +22,7 @@ use crate::{
     errors::CreditError,
     events::LockRequested,
     seeds,
-    state::{Config, Loan, LoanStatus, PriceCache},
+    state::{Config, Listing, Loan, LoanStatus, PriceCache},
     zk,
 };
 
@@ -42,10 +42,13 @@ pub struct LockCollateral<'info> {
     pub borrower_record: Box<Account<'info, Member>>,
     #[account(mut, has_one = borrower @ CreditError::Unauthorized)]
     pub loan: Box<Account<'info, Loan>>,
-    #[account(seeds = [seeds::PRICE, config.feed_id.as_ref()], bump = price_cache.bump)]
+    /// The collateral the borrower locks under; bound to the loan here.
+    #[account(seeds = [seeds::LISTING, listing.cstock_mint.as_ref()], bump = listing.bump)]
+    pub listing: Box<Account<'info, Listing>>,
+    #[account(seeds = [seeds::PRICE, listing.feed_id.as_ref()], bump = price_cache.bump)]
     pub price_cache: Box<Account<'info, PriceCache>>,
-    /// CHECK: the mock-xStock mint; must equal `config.mock_mint`; its `ScaledUiAmount` extension is read.
-    #[account(address = config.mock_mint)]
+    /// CHECK: the listing's mock mint; its `ScaledUiAmount` extension is read.
+    #[account(address = listing.mock_mint)]
     pub mock_mint: UncheckedAccount<'info>,
     /// CHECK: proof contexts, checked in the handler.
     #[account(mut)]
@@ -79,12 +82,17 @@ pub(crate) fn handler(ctx: Context<LockCollateral>) -> Result<()> {
     require!(loan.status() == Some(LoanStatus::Pending), CreditError::NotPending);
     let clock = Clock::get()?;
     let config = &ctx.accounts.config;
+    let listing = &ctx.accounts.listing;
 
-    // Freshness.
+    // Freshness: the keeper posted recently, and the quote itself is recent.
     let price = &ctx.accounts.price_cache;
     require!(
-        clock.slot.saturating_sub(price.posted_slot) <= config.max_price_age,
+        clock.slot.saturating_sub(price.posted_slot) <= listing.max_price_age,
         CreditError::PriceStale
+    );
+    require!(
+        clock.unix_timestamp.saturating_sub(price.publish_time) <= listing.max_publish_age_secs,
+        CreditError::QuoteStale
     );
 
     // Public scalars: price in cents, multiplier in thousandths, haircut → (k_c, k_l).
@@ -98,7 +106,7 @@ pub(crate) fn handler(ctx: Context<LockCollateral>) -> Result<()> {
         )?)
         .ok_or(CreditError::MultiplierInvalid)?
     };
-    let scalars = scalar::solvency_scalars(price_cents, mult_scaled, config.haircut_bps)
+    let scalars = scalar::solvency_scalars(price_cents, mult_scaled, listing.haircut_bps)
         .ok_or(CreditError::BadParams)?;
     require!(scalar::scalar_bound_ok(&scalars), CreditError::ScalarBound);
 
@@ -183,6 +191,7 @@ pub(crate) fn handler(ctx: Context<LockCollateral>) -> Result<()> {
     loan.price_at_lock = price_cents;
     loan.mult_at_lock = mult_scaled;
     loan.lock_slot = clock.slot;
+    loan.listing = listing.key();
     loan.status = LoanStatus::Requested as u8;
     let loan_key = loan.key();
     let borrower_info = ctx.accounts.borrower.to_account_info();
@@ -194,6 +203,11 @@ pub(crate) fn handler(ctx: Context<LockCollateral>) -> Result<()> {
     ] {
         zk::close_context(&c.to_account_info(), &borrower_info)?;
     }
-    emit!(LockRequested { loan: loan_key, price_at_lock: price_cents, mult_at_lock: mult_scaled });
+    emit!(LockRequested {
+        loan: loan_key,
+        price_at_lock: price_cents,
+        mult_at_lock: mult_scaled,
+        listing: listing.key()
+    });
     Ok(())
 }

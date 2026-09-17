@@ -34,6 +34,8 @@ export const oracleAuthority = () => pda(PROGRAMS.oracle, [enc.encode("authority
 export const wrapVault = (mockMint: Address) => pda(PROGRAMS.wrap, [enc.encode("vault"), addr.encode(mockMint)]);
 export const wrapMintAuthority = () => pda(PROGRAMS.wrap, [enc.encode("mint_authority")]);
 export const creditConfig = () => pda(PROGRAMS.credit, [enc.encode("config")]);
+/** `["listing", cstock_mint]` — one eligible collateral of the schedule. */
+export const listing = (cstockMint: Address) => pda(PROGRAMS.credit, [enc.encode("listing"), addr.encode(cstockMint)]);
 export const priceCache = (feedId: Uint8Array) => pda(PROGRAMS.credit, [enc.encode("price"), feedId]);
 export const loan = (epochIndex: bigint, borrower: Address, bidTick: number, k: number) =>
   pda(PROGRAMS.credit, [

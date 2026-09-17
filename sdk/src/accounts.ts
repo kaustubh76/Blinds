@@ -4,6 +4,7 @@ import {
   getAddressEncoder,
   getBase58Decoder,
   getBase64Encoder,
+  type ReadonlyUint8Array,
   type Rpc,
   type SolanaRpcApi,
 } from "@solana/kit";
@@ -18,9 +19,13 @@ import {
 } from "./generated/window_auction/index.js";
 import {
   fetchMaybeWindowCreditStateConfig as fetchMaybeCreditConfig,
+  fetchMaybeListing,
   fetchMaybeLoan,
   fetchMaybePriceCache,
+  getListingDecoder,
   getLoanDecoder,
+  LISTING_DISCRIMINATOR,
+  type Listing,
   LOAN_DISCRIMINATOR,
   type Loan,
 } from "./generated/window_credit/index.js";
@@ -103,6 +108,26 @@ export async function fetchPrice(rpc: RpcClient, feedId: Uint8Array) {
   return a.exists ? a.data : null;
 }
 
+/** One listing of the collateral schedule, by its cSTOCK mint. */
+export async function fetchListing(rpc: RpcClient, cstockMint: Address): Promise<Listing | null> {
+  const a = await fetchMaybeListing(rpc, await pda.listing(cstockMint));
+  return a.exists ? a.data : null;
+}
+
+/** The whole collateral schedule, in a stable order (by symbol). */
+export async function fetchListings(rpc: RpcClient): Promise<Array<{ address: Address; data: Listing }>> {
+  const decoder = getListingDecoder();
+  const rows = await programAccounts(rpc, PROGRAMS.credit, LISTING_DISCRIMINATOR, (b) => decoder.decode(b), []);
+  return rows.sort((a, b) => symbolOf(a.data).localeCompare(symbolOf(b.data)));
+}
+
+/** The listing's zero-padded UTF-8 label as a string. */
+export function symbolOf(listing: { symbol: ReadonlyUint8Array | Uint8Array }): string {
+  const bytes = Array.from(listing.symbol);
+  const end = bytes.indexOf(0);
+  return new TextDecoder().decode(new Uint8Array(end < 0 ? bytes : bytes.slice(0, end)));
+}
+
 const b58 = getBase58Decoder();
 const b64 = getBase64Encoder();
 
@@ -117,7 +142,17 @@ async function programAccounts<T>(
     memcmp: { offset: BigInt(f.offset), bytes: b58.decode(f.bytes) as never, encoding: "base58" as const },
   }));
   const res = await rpc.getProgramAccounts(program, { encoding: "base64", filters: memcmp }).send();
-  return res.map((a) => ({ address: a.pubkey, data: decode(new Uint8Array(b64.encode(a.account.data[0]))) }));
+  const out: Array<{ address: Address; data: T }> = [];
+  for (const a of res) {
+    // An account of an older layout (a pre-listing Loan awaiting migration) must not take the
+    // whole list down with it.
+    try {
+      out.push({ address: a.pubkey, data: decode(new Uint8Array(b64.encode(a.account.data[0]))) });
+    } catch {
+      // skip
+    }
+  }
+  return out;
 }
 
 const addrBytes = (a: Address) => new Uint8Array(getAddressEncoder().encode(a));

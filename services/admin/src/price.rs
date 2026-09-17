@@ -47,9 +47,26 @@ pub enum Source {
     /// Pyth `PriceUpdateV2` accounts, read over RPC from `rpc_url` (may be a different cluster);
     /// the freshest of `candidates` wins.
     OnChainPyth { rpc_url: String, candidates: Vec<String>, feed_id: [u8; 32] },
+    /// A public API's USD mark (Tessera `token-details`, PreStocks `/api/prestocks`): the element
+    /// whose `match_field` equals `match_value`, read at `price_field`. An attested copy — the keeper
+    /// stamps it with the fetch time — never a signed feed. The last good value is kept for the
+    /// `keep_last` window so a transient 5xx does not halt the desk.
+    Mark {
+        name: &'static str,
+        url: String,
+        match_field: &'static str,
+        match_value: String,
+        price_field: String,
+        last_ok: Option<(Price, i64)>,
+    },
     /// Deterministic walk for localnet/CI. Never used with a real feed id.
     Mock { value: u64, step: u64 },
 }
+
+/// How long a mark that stops answering is re-posted with its *old* fetch time before the keeper
+/// gives up: the on-chain `max_publish_age_secs` is what finally halts locks.
+const MARK_KEEP_LAST_SECS: i64 = 6 * 3600;
+const MARK_RETRIES: usize = 3;
 
 pub struct PriceSource {
     source: Source,
@@ -89,6 +106,36 @@ impl PriceSource {
         }
     }
 
+    /// Tessera's public `token-details`: the element with `mint == source_mint`.
+    pub fn tessera(url: String, mint: String, price_field: String) -> Self {
+        Self {
+            source: Source::Mark {
+                name: "tessera",
+                url,
+                match_field: "mint",
+                match_value: mint,
+                price_field,
+                last_ok: None,
+            },
+            last: None,
+        }
+    }
+
+    /// PreStocks' public `/api/prestocks`: the element with `contract_address == source_mint`.
+    pub fn prestocks(url: String, contract_address: String, price_field: String) -> Self {
+        Self {
+            source: Source::Mark {
+                name: "prestocks",
+                url,
+                match_field: "contract_address",
+                match_value: contract_address,
+                price_field,
+                last_ok: None,
+            },
+            last: None,
+        }
+    }
+
     pub fn mock(start_cents: u64) -> Self {
         Self { source: Source::Mock { value: start_cents * 1_000_000, step: 0 }, last: None }
     }
@@ -123,6 +170,9 @@ fn describe(source: &Source) -> String {
                 candidates.join(", ")
             )
         }
+        Source::Mark { name, url, match_value, price_field, .. } => {
+            format!("{name} mark {price_field} for {match_value} via {url} (attested, publish_time = fetch time)")
+        }
         Source::Mock { .. } => "deterministic mock walk (no Pyth; localnet/CI only)".into(),
     }
 }
@@ -149,6 +199,27 @@ fn fetch(source: &mut Source, now: i64) -> Result<Price> {
                 }
             }
             best.ok_or_else(|| anyhow!("no readable Pyth account: {}", errors.join("; ")))
+        }
+        Source::Mark { name, url, match_field, match_value, price_field, last_ok } => {
+            let mut last_err = None;
+            for _ in 0..MARK_RETRIES {
+                match fetch_mark(url, match_field, match_value, price_field) {
+                    Ok(usd) => {
+                        let p = Price { price: usd, expo: -8, publish_time: now };
+                        *last_ok = Some((p, now));
+                        return Ok(p);
+                    }
+                    Err(e) => last_err = Some(e),
+                }
+            }
+            let err = last_err.unwrap_or_else(|| anyhow!("{name}: no attempt"));
+            match last_ok {
+                Some((p, at)) if now - *at <= MARK_KEEP_LAST_SECS => {
+                    tracing::warn!("{name} mark: {err:#}; re-posting the last good mark from {at}");
+                    Ok(*p)
+                }
+                _ => Err(err.context(format!("{name} mark"))),
+            }
         }
         Source::Mock { value, step } => {
             // ±0.25% deterministic wobble (in hundredths of a bp) so a local demo shows a
@@ -205,6 +276,43 @@ pub fn parse_hermes(body: &str, expected_feed_id: &[u8; 32]) -> Result<Price> {
         bail!("Pyth published a non-positive price ({price})");
     }
     Ok(Price { price: price as u64, expo: p.price.expo, publish_time: p.price.publish_time })
+}
+
+// ───────────────────────────── attested marks ─────────────────────────────
+
+fn fetch_mark(url: &str, match_field: &str, match_value: &str, price_field: &str) -> Result<u64> {
+    let body = ureq::get(url)
+        .set("Accept", "application/json")
+        .timeout(std::time::Duration::from_secs(15))
+        .call()
+        .with_context(|| format!("mark {url}"))?
+        .into_string()
+        .context("mark response")?;
+    parse_mark(&body, match_field, match_value, price_field)
+}
+
+/// A JSON array of tokens → the USD mark of the one whose `match_field` is `match_value`,
+/// as an integer with `expo = −8`.
+pub fn parse_mark(
+    body: &str,
+    match_field: &str,
+    match_value: &str,
+    price_field: &str,
+) -> Result<u64> {
+    let v: serde_json::Value = serde_json::from_str(body).context("mark json")?;
+    let arr = v.as_array().ok_or_else(|| anyhow!("mark response is not an array"))?;
+    let el = arr
+        .iter()
+        .find(|e| e.get(match_field).and_then(|m| m.as_str()) == Some(match_value))
+        .ok_or_else(|| anyhow!("no element with {match_field} == {match_value}"))?;
+    let usd = el
+        .get(price_field)
+        .and_then(|p| p.as_f64().or_else(|| p.as_str().and_then(|s| s.parse().ok())))
+        .ok_or_else(|| anyhow!("{price_field} missing or not a number"))?;
+    if !(usd.is_finite() && usd > 0.0 && usd < 1e9) {
+        bail!("{price_field} out of range: {usd}");
+    }
+    Ok((usd * 1e8).round() as u64)
 }
 
 // ───────────────────────────── on-chain accounts ─────────────────────────────
@@ -385,6 +493,52 @@ mod tests {
         assert!(h.describe().starts_with(
             "Pyth Hermes https://h (API key), falling back to Pyth price-update accounts"
         ));
+    }
+
+    const TESSERA: &str = include_str!("../tests/fixtures/tessera.json");
+    const PRESTOCKS: &str = include_str!("../tests/fixtures/prestocks.json");
+
+    #[test]
+    fn parses_tessera_and_prestocks_marks_by_mint() {
+        let t =
+            parse_mark(TESSERA, "mint", "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ", "markPrice")
+                .unwrap();
+        assert_eq!(t, 81_279_000_000); // $812.79
+        assert_eq!(window_proofs::scalar::price_scaled(t, -8), Some(81_279));
+        let a = parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "markPrice",
+        )
+        .unwrap();
+        assert_eq!(a, 100826612685); // $1008.26612685
+        let implied = parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "tokenPrice",
+        )
+        .unwrap();
+        assert_ne!(implied, a, "tokenPrice (implied) and markPrice differ — the PreStocks basis");
+        assert!(parse_mark(TESSERA, "mint", "nope", "markPrice").is_err());
+        assert!(
+            parse_mark(TESSERA, "mint", "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ", "holders")
+                .is_ok(),
+            "any positive number parses; the field name is the profile's responsibility"
+        );
+        assert!(parse_mark("{\"statusCode\":500}", "mint", "x", "markPrice").is_err());
+        assert!(
+            parse_mark("[{\"mint\":\"x\",\"markPrice\":-1}]", "mint", "x", "markPrice").is_err()
+        );
+    }
+
+    #[test]
+    fn a_mark_source_is_described_as_attested() {
+        let s = PriceSource::tessera("https://t/x".into(), "m".into(), "markPrice".into());
+        assert!(s.describe().contains("attested"));
+        let s = PriceSource::prestocks("https://p/x".into(), "c".into(), "markPrice".into());
+        assert!(s.describe().starts_with("prestocks mark markPrice for c"));
     }
 
     #[test]

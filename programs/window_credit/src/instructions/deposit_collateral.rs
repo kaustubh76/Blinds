@@ -5,7 +5,7 @@ use crate::{
     errors::CreditError,
     events::LoanStatusChanged,
     seeds,
-    state::{Config, Loan, LoanStatus},
+    state::{Config, Listing, Loan, LoanStatus},
     zk,
 };
 
@@ -17,7 +17,9 @@ pub struct DepositCollateral<'info> {
     pub config: Box<Account<'info, Config>>,
     #[account(mut, has_one = borrower @ CreditError::Unauthorized)]
     pub loan: Box<Account<'info, Loan>>,
-    #[account(token::mint = config.cstock_mint, token::authority = borrower)]
+    #[account(address = loan.listing @ CreditError::WrongListing)]
+    pub listing: Box<Account<'info, Listing>>,
+    #[account(token::mint = listing.cstock_mint, token::authority = borrower)]
     pub borrower_cstock: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: Instructions sysvar, address-checked.
     #[account(address = solana_instructions_sysvar::ID)]
@@ -30,7 +32,7 @@ pub(crate) fn handler(ctx: Context<DepositCollateral>) -> Result<()> {
     zk::require_previous_is_ct_transfer(
         &ctx.accounts.instructions.to_account_info(),
         &ctx.accounts.borrower_cstock.key(),
-        &ctx.accounts.config.escrow_account,
+        &ctx.accounts.listing.escrow_account,
     )?;
     loan.status = LoanStatus::Deposited as u8;
     emit!(LoanStatusChanged { loan: loan.key(), status: loan.status });

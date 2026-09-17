@@ -4,7 +4,7 @@ SHELL := /bin/bash
 PROFILE ?= demo
 # Program bytes are paid for once, forever, at the first devnet deploy (5,080.9 lamports/byte).
 # The budget is the measured size at opt-level="z" plus ~2% headroom; raising it costs real SOL.
-SIZE_BUDGET ?= 1280000
+SIZE_BUDGET ?= 1320000
 
 .PHONY: help build test lint fmt size check-localnet test-integration demo deploy-devnet freeze clean
 

@@ -12,18 +12,18 @@ export const LOCK_REQUESTED_EVENT_DISCRIMINATOR: ReadonlyUint8Array = new Uint8A
 
 export function getLockRequestedEventDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(LOCK_REQUESTED_EVENT_DISCRIMINATOR); }
 
-export type LockRequestedEvent = { loan: Address; priceAtLock: bigint; multAtLock: bigint;  };
+export type LockRequestedEvent = { loan: Address; priceAtLock: bigint; multAtLock: bigint; listing: Address;  };
 
-export type LockRequestedEventArgs = { loan: Address; priceAtLock: number | bigint; multAtLock: number | bigint;  };
+export type LockRequestedEventArgs = { loan: Address; priceAtLock: number | bigint; multAtLock: number | bigint; listing: Address;  };
 
 /** Gets the encoder for {@link LockRequestedEventArgs} event data. */
 export function getLockRequestedEventEncoder(): FixedSizeEncoder<LockRequestedEventArgs> {
-    return getHiddenPrefixEncoder(getStructEncoder([['loan', getAddressEncoder()], ['priceAtLock', getU64Encoder()], ['multAtLock', getU64Encoder()]]), [getConstantEncoder(LOCK_REQUESTED_EVENT_DISCRIMINATOR)]);
+    return getHiddenPrefixEncoder(getStructEncoder([['loan', getAddressEncoder()], ['priceAtLock', getU64Encoder()], ['multAtLock', getU64Encoder()], ['listing', getAddressEncoder()]]), [getConstantEncoder(LOCK_REQUESTED_EVENT_DISCRIMINATOR)]);
 }
 
 /** Gets the decoder for {@link LockRequestedEvent} event data. */
 export function getLockRequestedEventDecoder(): FixedSizeDecoder<LockRequestedEvent> {
-    return getHiddenPrefixDecoder(getStructDecoder([['loan', getAddressDecoder()], ['priceAtLock', getU64Decoder()], ['multAtLock', getU64Decoder()]]), [getConstantDecoder(LOCK_REQUESTED_EVENT_DISCRIMINATOR)]);
+    return getHiddenPrefixDecoder(getStructDecoder([['loan', getAddressDecoder()], ['priceAtLock', getU64Decoder()], ['multAtLock', getU64Decoder()], ['listing', getAddressDecoder()]]), [getConstantDecoder(LOCK_REQUESTED_EVENT_DISCRIMINATOR)]);
 }
 
 /** Gets the codec for {@link LockRequestedEvent} event data. */

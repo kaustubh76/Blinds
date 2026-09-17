@@ -6,13 +6,16 @@
  * @see https://github.com/codama-idl/codama
  */
 
+export * from './addListing';
 export * from './confirmFunding';
 export * from './confirmLock';
 export * from './depositCollateral';
 export * from './initialize';
 export * from './lockCollateral';
+export * from './migrateLoan';
 export * from './postMatch';
 export * from './postPrice';
 export * from './releaseCollateral';
 export * from './repay';
 export * from './seize';
+export * from './updateListing';

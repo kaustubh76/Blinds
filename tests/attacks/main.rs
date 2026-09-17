@@ -7,6 +7,8 @@ mod attack_05_malformed_bid;
 mod attack_06_undercollateralized;
 mod attack_07_stale_price;
 mod attack_08_rebase_replay;
+mod attack_09_wrong_listing;
+mod attack_10_listing_admin;
 mod credit_fixture;
 
 use window_clearing::Side;

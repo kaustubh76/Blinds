@@ -15,8 +15,8 @@ export const SEIZE_DISCRIMINATOR: ReadonlyUint8Array = new Uint8Array([129, 159,
 
 export function getSeizeDiscriminatorBytes(): ReadonlyUint8Array { return fixEncoderSize(getBytesEncoder(), 8).encode(SEIZE_DISCRIMINATOR); }
 
-export type SeizeInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountAnyone extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountPriceCache extends string | AccountMeta<string> = string, TAccountLoan extends string | AccountMeta<string> = string, TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
-Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountAnyone extends string ? ReadonlySignerAccount<TAccountAnyone> & AccountSignerMeta<TAccountAnyone> : TAccountAnyone, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountPriceCache extends string ? ReadonlyAccount<TAccountPriceCache> : TAccountPriceCache, TAccountLoan extends string ? WritableAccount<TAccountLoan> : TAccountLoan, ...TRemainingAccounts]>;
+export type SeizeInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountAnyone extends string | AccountMeta<string> = string, TAccountConfig extends string | AccountMeta<string> = string, TAccountLoan extends string | AccountMeta<string> = string, TAccountListing extends string | AccountMeta<string> = string, TAccountPriceCache extends string | AccountMeta<string> = string, TRemainingAccounts extends readonly AccountMeta<string>[] = []> =
+Instruction<TProgram> & InstructionWithData<ReadonlyUint8Array> & InstructionWithAccounts<[TAccountAnyone extends string ? ReadonlySignerAccount<TAccountAnyone> & AccountSignerMeta<TAccountAnyone> : TAccountAnyone, TAccountConfig extends string ? ReadonlyAccount<TAccountConfig> : TAccountConfig, TAccountLoan extends string ? WritableAccount<TAccountLoan> : TAccountLoan, TAccountListing extends string ? ReadonlyAccount<TAccountListing> : TAccountListing, TAccountPriceCache extends string ? ReadonlyAccount<TAccountPriceCache> : TAccountPriceCache, ...TRemainingAccounts]>;
 
 export type SeizeInstructionData = { discriminator: ReadonlyUint8Array;  };
 
@@ -34,14 +34,15 @@ export function getSeizeInstructionDataCodec(): FixedSizeCodec<SeizeInstructionD
     return combineCodec(getSeizeInstructionDataEncoder(), getSeizeInstructionDataDecoder());
 }
 
-export type SeizeAsyncInput<TAccountAnyone extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput> =  {
+export type SeizeAsyncInput<TAccountAnyone extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput> =  {
   anyone: TAccountAnyone;
 config?: TAccountConfig;
-priceCache: TAccountPriceCache;
 loan: TAccountLoan;
+listing: TAccountListing;
+priceCache: TAccountPriceCache;
 }
 
-export async function getSeizeInstructionAsync<TAccountAnyone extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: SeizeAsyncInput<TAccountAnyone, TAccountConfig, TAccountPriceCache, TAccountLoan>, config?: { programAddress?: TProgramAddress } ): Promise<SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>>> {
+export async function getSeizeInstructionAsync<TAccountAnyone extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: SeizeAsyncInput<TAccountAnyone, TAccountConfig, TAccountLoan, TAccountListing, TAccountPriceCache>, config?: { programAddress?: TProgramAddress } ): Promise<SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -49,7 +50,7 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { anyone: { value: input.anyone ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true } }
+const originalAccounts = { anyone: { value: input.anyone ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
@@ -58,17 +59,18 @@ if (!accounts.config.value) {
 accounts.config.value = await findConfigPda({ programAddress });
 }
 
-return Object.freeze({ accounts: [getAccountMeta("anyone", accounts.anyone), getAccountMeta("config", accounts.config), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("loan", accounts.loan)], data: getSeizeInstructionDataEncoder().encode({}), programAddress } as SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>>);
+return Object.freeze({ accounts: [getAccountMeta("anyone", accounts.anyone), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("listing", accounts.listing), getAccountMeta("priceCache", accounts.priceCache)], data: getSeizeInstructionDataEncoder().encode({}), programAddress } as SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>>);
 }
 
-export type SeizeInput<TAccountAnyone extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput> =  {
+export type SeizeInput<TAccountAnyone extends InstructionSignerInput = InstructionSignerInput, TAccountConfig extends InstructionAccountInput = InstructionAccountInput, TAccountLoan extends InstructionAccountInput = InstructionAccountInput, TAccountListing extends InstructionAccountInput = InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput = InstructionAccountInput> =  {
   anyone: TAccountAnyone;
 config: TAccountConfig;
-priceCache: TAccountPriceCache;
 loan: TAccountLoan;
+listing: TAccountListing;
+priceCache: TAccountPriceCache;
 }
 
-export function getSeizeInstruction<TAccountAnyone extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: SeizeInput<TAccountAnyone, TAccountConfig, TAccountPriceCache, TAccountLoan>, config?: { programAddress?: TProgramAddress } ): SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>> {
+export function getSeizeInstruction<TAccountAnyone extends InstructionSignerInput, TAccountConfig extends InstructionAccountInput, TAccountLoan extends InstructionAccountInput, TAccountListing extends InstructionAccountInput, TAccountPriceCache extends InstructionAccountInput, TProgramAddress extends Address = typeof WINDOW_CREDIT_PROGRAM_ADDRESS>(input: SeizeInput<TAccountAnyone, TAccountConfig, TAccountLoan, TAccountListing, TAccountPriceCache>, config?: { programAddress?: TProgramAddress } ): SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>> {
   // Program address.
 const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 
@@ -76,27 +78,28 @@ const programAddress = config?.programAddress ?? WINDOW_CREDIT_PROGRAM_ADDRESS;
 const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
 
  // Original accounts.
-const originalAccounts = { anyone: { value: input.anyone ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true } }
+const originalAccounts = { anyone: { value: input.anyone ?? null, isSigner: true, isWritable: false }, config: { value: input.config ?? null, isSigner: false, isWritable: false }, loan: { value: input.loan ?? null, isSigner: false, isWritable: true }, listing: { value: input.listing ?? null, isSigner: false, isWritable: false }, priceCache: { value: input.priceCache ?? null, isSigner: false, isWritable: false } }
 const accounts = originalAccounts as Record<keyof typeof originalAccounts, ResolvedInstructionAccount>;
 
 
 
 
-return Object.freeze({ accounts: [getAccountMeta("anyone", accounts.anyone), getAccountMeta("config", accounts.config), getAccountMeta("priceCache", accounts.priceCache), getAccountMeta("loan", accounts.loan)], data: getSeizeInstructionDataEncoder().encode({}), programAddress } as SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>>);
+return Object.freeze({ accounts: [getAccountMeta("anyone", accounts.anyone), getAccountMeta("config", accounts.config), getAccountMeta("loan", accounts.loan), getAccountMeta("listing", accounts.listing), getAccountMeta("priceCache", accounts.priceCache)], data: getSeizeInstructionDataEncoder().encode({}), programAddress } as SeizeInstruction<TProgramAddress, ResolvedInstructionAccountMeta<TAccountAnyone, InstructionAccountInputAddress<TAccountAnyone>>, ResolvedInstructionAccountMeta<TAccountConfig, InstructionAccountInputAddress<TAccountConfig>>, ResolvedInstructionAccountMeta<TAccountLoan, InstructionAccountInputAddress<TAccountLoan>>, ResolvedInstructionAccountMeta<TAccountListing, InstructionAccountInputAddress<TAccountListing>>, ResolvedInstructionAccountMeta<TAccountPriceCache, InstructionAccountInputAddress<TAccountPriceCache>>>);
 }
 
 export type ParsedSeizeInstruction<TProgram extends string = typeof WINDOW_CREDIT_PROGRAM_ADDRESS, TAccountMetas extends readonly AccountMeta[] = readonly AccountMeta[]> = { programAddress: Address<TProgram>;
 accounts: {
 anyone: TAccountMetas[0];
 config: TAccountMetas[1];
-priceCache: TAccountMetas[2];
-loan: TAccountMetas[3];
+loan: TAccountMetas[2];
+listing: TAccountMetas[3];
+priceCache: TAccountMetas[4];
 };
 data: SeizeInstructionData; };
 
 export function parseSeizeInstruction<TProgram extends string, TAccountMetas extends readonly AccountMeta[]>(instruction: Instruction<TProgram> & InstructionWithAccounts<TAccountMetas> & InstructionWithData<ReadonlyUint8Array>): ParsedSeizeInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 4) {
-  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 4 });
+  if (instruction.accounts.length < 5) {
+  throw new SolanaError(SOLANA_ERROR__PROGRAM_CLIENTS__INSUFFICIENT_ACCOUNT_METAS, { actualAccountMetas: instruction.accounts.length, expectedAccountMetas: 5 });
 }
 let accountIndex = 0;
 const getNextAccount = () => {
@@ -104,5 +107,5 @@ const getNextAccount = () => {
   accountIndex += 1;
   return accountMeta;
 }
-  return { programAddress: instruction.programAddress, accounts: { anyone: getNextAccount(), config: getNextAccount(), priceCache: getNextAccount(), loan: getNextAccount() }, data: getSeizeInstructionDataDecoder().decode(instruction.data) };
+  return { programAddress: instruction.programAddress, accounts: { anyone: getNextAccount(), config: getNextAccount(), loan: getNextAccount(), listing: getNextAccount(), priceCache: getNextAccount() }, data: getSeizeInstructionDataDecoder().decode(instruction.data) };
 }

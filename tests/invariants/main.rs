@@ -133,14 +133,14 @@ fn deadline_safety_and_terminal_states_are_final() {
     // Deadline safety: at every slot ≤ deadline, seize fails (sampled).
     let deadline = h.loan(&loan).deadline_slot;
     for slot in [deadline - 10, deadline - 1, deadline] {
-        h.svm.warp_to_slot(slot);
+        h.warp_to_slot(slot);
         h.post_price(&setup, 40_012_000_000, -8).unwrap();
         assert!(h.seize(&setup, &loan, &anyone).unwrap_err().has_code("NotMatured"));
     }
     // Repay, then nothing else can change the status.
     h.repay(&setup, &loan).unwrap();
     assert!(h.repay(&setup, &loan).is_err());
-    h.svm.warp_to_slot(deadline + 1);
+    h.warp_to_slot(deadline + 1);
     h.post_price(&setup, 40_012_000_000, -8).unwrap();
     assert!(
         h.seize(&setup, &loan, &anyone).unwrap_err().has_code("NotActive"),

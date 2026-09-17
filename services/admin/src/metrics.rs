@@ -17,8 +17,10 @@ pub struct Metrics {
     pub releases: AtomicU64,
     pub seizes: AtomicU64,
     pub prices_posted: AtomicU64,
-    /// Age of the last posted quote by the feed's own `publish_time`, seconds.
+    /// Age of the last posted quote by its own `publish_time`, seconds — the worst listing.
     pub price_publish_age_secs: AtomicU64,
+    /// The same, per listing symbol.
+    pub price_publish_age_by_listing: std::sync::Mutex<std::collections::BTreeMap<String, u64>>,
     pub bids_closed: AtomicU64,
     pub keeper_lamports: AtomicU64,
     pub last_print_ms: AtomicU64,
@@ -26,8 +28,27 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    pub fn set_publish_age(&self, listing: &str, age: u64) {
+        if let Ok(mut m) = self.price_publish_age_by_listing.lock() {
+            m.insert(listing.to_string(), age);
+            let worst = m.values().copied().max().unwrap_or(age);
+            self.price_publish_age_secs.store(worst, Ordering::Relaxed);
+        }
+    }
+
     pub fn render(&self) -> String {
         let f = |n: &str, v: &AtomicU64| format!("window_{n} {}\n", v.load(Ordering::Relaxed));
+        let per_listing: String = self
+            .price_publish_age_by_listing
+            .lock()
+            .map(|m| {
+                m.iter()
+                    .map(|(k, v)| {
+                        format!("window_price_publish_age_seconds{{listing=\"{k}\"}} {v}\n")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         [
             f("epochs_opened_total", &self.epochs_opened),
             f("epochs_closed_total", &self.epochs_closed),
@@ -41,6 +62,7 @@ impl Metrics {
             f("seizes_total", &self.seizes),
             f("prices_posted_total", &self.prices_posted),
             f("price_publish_age_seconds", &self.price_publish_age_secs),
+            per_listing,
             f("keeper_lamports", &self.keeper_lamports),
             f("last_print_wallclock_ms", &self.last_print_ms),
             f("last_r_star_bps", &self.last_r_star_bps),

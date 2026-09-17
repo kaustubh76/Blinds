@@ -5,6 +5,11 @@
 //! syscalls, where `k_c = price · multiplier` (public) and `k_l = 150`, and consumes an
 //! equality proof plus a 64-bit range proof that `E_Δ` encrypts a non-negative value — i.e.
 //! collateral value ≥ 150 % of the loan — without learning either amount (spec v2 §7.3).
+//!
+//! One rate, a collateral schedule: every eligible collateral is a `Listing` with its own price
+//! source, haircut and freshness limits. `lock_collateral` and `seize` enforce both that the keeper
+//! posted recently (`max_price_age` slots) and that the quote itself is recent
+//! (`now − publish_time ≤ max_publish_age_secs`).
 
 #![allow(unexpected_cfgs)]
 
@@ -17,7 +22,7 @@ pub mod state;
 pub mod zk;
 
 use instructions::*;
-use state::{InitializeParams, MatchKind};
+use state::{InitializeParams, ListingParams, MatchKind};
 
 declare_id!("3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr");
 
@@ -27,6 +32,8 @@ pub mod seeds {
     pub const PRICE: &[u8] = b"price";
     /// `["loan", epoch_le, borrower, bid_tick, k]`
     pub const LOAN: &[u8] = b"loan";
+    /// `["listing", cstock_mint]`
+    pub const LISTING: &[u8] = b"listing";
 }
 
 #[program]
@@ -37,7 +44,24 @@ pub mod window_credit {
         instructions::initialize::handler(ctx, params)
     }
 
-    /// Keeper posts the named Pyth feed's price.
+    /// Admin lists a collateral: its mints, escrow, price source, haircut and freshness limits.
+    pub fn add_listing(ctx: Context<AddListing>, params: ListingParams) -> Result<()> {
+        instructions::add_listing::add(ctx, params)
+    }
+
+    /// Admin retunes a listing's source tag, haircut, limits or label — never its mints, escrow or
+    /// feed id, which open loans and the price cache depend on.
+    pub fn update_listing(ctx: Context<UpdateListing>, params: ListingParams) -> Result<()> {
+        instructions::add_listing::update(ctx, params)
+    }
+
+    /// Admin brings a pre-listing `Loan` (32 bytes shorter) to the current layout, binding it to
+    /// the listing that mirrors the original collateral.
+    pub fn migrate_loan(ctx: Context<MigrateLoan>) -> Result<()> {
+        instructions::migrate_loan::handler(ctx)
+    }
+
+    /// Keeper posts a listing's price under the listing's feed id.
     pub fn post_price(
         ctx: Context<PostPrice>,
         price: u64,
@@ -52,7 +76,7 @@ pub mod window_credit {
         instructions::post_match::handler(ctx, epoch, k, kind)
     }
 
-    /// Borrower proves collateral value ≥ 150 % of the loan against the fresh public price.
+    /// Borrower proves collateral value ≥ haircut × loan against the listing's fresh public price.
     pub fn lock_collateral(ctx: Context<LockCollateral>) -> Result<()> {
         instructions::lock_collateral::handler(ctx)
     }

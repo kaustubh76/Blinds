@@ -28,7 +28,13 @@ collateralCt: ReadonlyUint8Array;
 /** Pedersen commitment to Δ recorded at lock. */
 deltaCommitment: ReadonlyUint8Array; 
 /** For partial fills: the size ciphertext's opening, sealed to the borrower. Zero for full fills. */
-openingNote: ReadonlyUint8Array; kC: bigint; kL: bigint; priceAtLock: bigint; multAtLock: bigint; lockSlot: bigint; fundedSlot: bigint; deadlineSlot: bigint; bump: number;  };
+openingNote: ReadonlyUint8Array; kC: bigint; kL: bigint; priceAtLock: bigint; multAtLock: bigint; lockSlot: bigint; fundedSlot: bigint; deadlineSlot: bigint; bump: number; 
+/**
+ * The `Listing` the collateral was locked under (default until `lock_collateral`). Appended
+ * after `bump` so every earlier offset is unchanged; pre-listing loans are 32 bytes shorter
+ * and are brought to this layout by `migrate_loan`.
+ */
+listing: Address;  };
 
 export type LoanArgs = { lender: Address; borrower: Address; epoch: number | bigint; 
 /** The clearing rate tick. */
@@ -46,16 +52,22 @@ collateralCt: ReadonlyUint8Array;
 /** Pedersen commitment to Δ recorded at lock. */
 deltaCommitment: ReadonlyUint8Array; 
 /** For partial fills: the size ciphertext's opening, sealed to the borrower. Zero for full fills. */
-openingNote: ReadonlyUint8Array; kC: number | bigint; kL: number | bigint; priceAtLock: number | bigint; multAtLock: number | bigint; lockSlot: number | bigint; fundedSlot: number | bigint; deadlineSlot: number | bigint; bump: number;  };
+openingNote: ReadonlyUint8Array; kC: number | bigint; kL: number | bigint; priceAtLock: number | bigint; multAtLock: number | bigint; lockSlot: number | bigint; fundedSlot: number | bigint; deadlineSlot: number | bigint; bump: number; 
+/**
+ * The `Listing` the collateral was locked under (default until `lock_collateral`). Appended
+ * after `bump` so every earlier offset is unchanged; pre-listing loans are 32 bytes shorter
+ * and are brought to this layout by `migrate_loan`.
+ */
+listing: Address;  };
 
 /** Gets the encoder for {@link LoanArgs} account data. */
 export function getLoanEncoder(): FixedSizeEncoder<LoanArgs> {
-    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['lender', getAddressEncoder()], ['borrower', getAddressEncoder()], ['epoch', getU64Encoder()], ['tick', getU8Encoder()], ['bidTick', getU8Encoder()], ['k', getU8Encoder()], ['status', getU8Encoder()], ['collateralReleased', getBooleanEncoder()], ['fillNum', getU64Encoder()], ['fillDen', getU64Encoder()], ['sizeCt', fixEncoderSize(getBytesEncoder(), 96)], ['collateralCt', fixEncoderSize(getBytesEncoder(), 96)], ['deltaCommitment', fixEncoderSize(getBytesEncoder(), 32)], ['openingNote', fixEncoderSize(getBytesEncoder(), 32)], ['kC', getU64Encoder()], ['kL', getU64Encoder()], ['priceAtLock', getU64Encoder()], ['multAtLock', getU64Encoder()], ['lockSlot', getU64Encoder()], ['fundedSlot', getU64Encoder()], ['deadlineSlot', getU64Encoder()], ['bump', getU8Encoder()]]), (value) => ({ ...value, discriminator: LOAN_DISCRIMINATOR }));
+    return transformEncoder(getStructEncoder([['discriminator', fixEncoderSize(getBytesEncoder(), 8)], ['lender', getAddressEncoder()], ['borrower', getAddressEncoder()], ['epoch', getU64Encoder()], ['tick', getU8Encoder()], ['bidTick', getU8Encoder()], ['k', getU8Encoder()], ['status', getU8Encoder()], ['collateralReleased', getBooleanEncoder()], ['fillNum', getU64Encoder()], ['fillDen', getU64Encoder()], ['sizeCt', fixEncoderSize(getBytesEncoder(), 96)], ['collateralCt', fixEncoderSize(getBytesEncoder(), 96)], ['deltaCommitment', fixEncoderSize(getBytesEncoder(), 32)], ['openingNote', fixEncoderSize(getBytesEncoder(), 32)], ['kC', getU64Encoder()], ['kL', getU64Encoder()], ['priceAtLock', getU64Encoder()], ['multAtLock', getU64Encoder()], ['lockSlot', getU64Encoder()], ['fundedSlot', getU64Encoder()], ['deadlineSlot', getU64Encoder()], ['bump', getU8Encoder()], ['listing', getAddressEncoder()]]), (value) => ({ ...value, discriminator: LOAN_DISCRIMINATOR }));
 }
 
 /** Gets the decoder for {@link Loan} account data. */
 export function getLoanDecoder(): FixedSizeDecoder<Loan> {
-    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['lender', getAddressDecoder()], ['borrower', getAddressDecoder()], ['epoch', getU64Decoder()], ['tick', getU8Decoder()], ['bidTick', getU8Decoder()], ['k', getU8Decoder()], ['status', getU8Decoder()], ['collateralReleased', getBooleanDecoder()], ['fillNum', getU64Decoder()], ['fillDen', getU64Decoder()], ['sizeCt', fixDecoderSize(getBytesDecoder(), 96)], ['collateralCt', fixDecoderSize(getBytesDecoder(), 96)], ['deltaCommitment', fixDecoderSize(getBytesDecoder(), 32)], ['openingNote', fixDecoderSize(getBytesDecoder(), 32)], ['kC', getU64Decoder()], ['kL', getU64Decoder()], ['priceAtLock', getU64Decoder()], ['multAtLock', getU64Decoder()], ['lockSlot', getU64Decoder()], ['fundedSlot', getU64Decoder()], ['deadlineSlot', getU64Decoder()], ['bump', getU8Decoder()]]);
+    return getStructDecoder([['discriminator', fixDecoderSize(getBytesDecoder(), 8)], ['lender', getAddressDecoder()], ['borrower', getAddressDecoder()], ['epoch', getU64Decoder()], ['tick', getU8Decoder()], ['bidTick', getU8Decoder()], ['k', getU8Decoder()], ['status', getU8Decoder()], ['collateralReleased', getBooleanDecoder()], ['fillNum', getU64Decoder()], ['fillDen', getU64Decoder()], ['sizeCt', fixDecoderSize(getBytesDecoder(), 96)], ['collateralCt', fixDecoderSize(getBytesDecoder(), 96)], ['deltaCommitment', fixDecoderSize(getBytesDecoder(), 32)], ['openingNote', fixDecoderSize(getBytesDecoder(), 32)], ['kC', getU64Decoder()], ['kL', getU64Decoder()], ['priceAtLock', getU64Decoder()], ['multAtLock', getU64Decoder()], ['lockSlot', getU64Decoder()], ['fundedSlot', getU64Decoder()], ['deadlineSlot', getU64Decoder()], ['bump', getU8Decoder()], ['listing', getAddressDecoder()]]);
 }
 
 /** Gets the codec for {@link Loan} account data. */
@@ -108,5 +120,5 @@ export async function fetchAllMaybeLoan(
 }
 
 export function getLoanSize(): number {
-  return 414;
+  return 446;
 }

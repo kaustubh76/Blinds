@@ -8,7 +8,7 @@ use solana_pubkey::Pubkey;
 use window_clearing::Side;
 use window_proofs::ix as zk;
 
-use crate::{pda, programs, MatchKind, TickClaim};
+use crate::{pda, programs, ListingParams, MatchKind, TickClaim};
 
 fn system() -> Pubkey {
     solana_system_interface::program::ID
@@ -354,8 +354,63 @@ pub fn credit_initialize(
     }
 }
 
+/// Admin lists a collateral. `escrow` is the operator's confidential account for `cstock_mint`.
+pub fn add_listing(
+    admin: &Pubkey,
+    mock_mint: &Pubkey,
+    cstock_mint: &Pubkey,
+    escrow: &Pubkey,
+    params: ListingParams,
+) -> Instruction {
+    Instruction {
+        program_id: programs::CREDIT,
+        accounts: window_credit::accounts::AddListing {
+            admin: *admin,
+            config: pda::credit_config(),
+            mock_mint: *mock_mint,
+            cstock_mint: *cstock_mint,
+            escrow_account: *escrow,
+            listing: pda::listing(cstock_mint),
+            system_program: system(),
+        }
+        .to_account_metas(None),
+        data: window_credit::instruction::AddListing { params }.data(),
+    }
+}
+
+pub fn update_listing(admin: &Pubkey, listing: &Pubkey, params: ListingParams) -> Instruction {
+    Instruction {
+        program_id: programs::CREDIT,
+        accounts: window_credit::accounts::UpdateListing {
+            admin: *admin,
+            config: pda::credit_config(),
+            listing: *listing,
+        }
+        .to_account_metas(None),
+        data: window_credit::instruction::UpdateListing { params }.data(),
+    }
+}
+
+/// Admin resizes a pre-listing loan (414 B) to the current layout, bound to `listing`.
+pub fn migrate_loan(admin: &Pubkey, loan: &Pubkey, listing: &Pubkey) -> Instruction {
+    Instruction {
+        program_id: programs::CREDIT,
+        accounts: window_credit::accounts::MigrateLoan {
+            admin: *admin,
+            config: pda::credit_config(),
+            listing: *listing,
+            loan: *loan,
+            system_program: system(),
+        }
+        .to_account_metas(None),
+        data: window_credit::instruction::MigrateLoan {}.data(),
+    }
+}
+
+/// Keeper posts `listing`'s price; `feed_id` is the listing's (it seeds the cache).
 pub fn post_price(
     keeper: &Pubkey,
+    listing: &Pubkey,
     feed_id: &[u8; 32],
     price: u64,
     expo: i32,
@@ -366,6 +421,7 @@ pub fn post_price(
         accounts: window_credit::accounts::PostPrice {
             keeper: *keeper,
             config: pda::credit_config(),
+            listing: *listing,
             price_cache: pda::price_cache(feed_id),
             system_program: system(),
         }
@@ -416,6 +472,7 @@ pub struct LockContexts {
 pub fn lock_collateral(
     borrower: &Pubkey,
     loan: &Pubkey,
+    listing: &Pubkey,
     feed_id: &[u8; 32],
     mock_mint: &Pubkey,
     ctxs: &LockContexts,
@@ -428,6 +485,7 @@ pub fn lock_collateral(
             auction_config: pda::auction_config(),
             borrower_record: pda::member(borrower),
             loan: *loan,
+            listing: *listing,
             price_cache: pda::price_cache(feed_id),
             mock_mint: *mock_mint,
             validity_ctx: ctxs.validity,
@@ -445,6 +503,7 @@ pub fn lock_collateral(
 pub fn deposit_collateral(
     borrower: &Pubkey,
     loan: &Pubkey,
+    listing: &Pubkey,
     borrower_cstock: &Pubkey,
 ) -> Instruction {
     Instruction {
@@ -453,6 +512,7 @@ pub fn deposit_collateral(
             borrower: *borrower,
             config: pda::credit_config(),
             loan: *loan,
+            listing: *listing,
             borrower_cstock: *borrower_cstock,
             instructions: sysvar_instructions(),
         }
@@ -500,14 +560,15 @@ pub fn repay(admin: &Pubkey, loan: &Pubkey) -> Instruction {
     }
 }
 
-pub fn seize(anyone: &Pubkey, loan: &Pubkey, feed_id: &[u8; 32]) -> Instruction {
+pub fn seize(anyone: &Pubkey, loan: &Pubkey, listing: &Pubkey, feed_id: &[u8; 32]) -> Instruction {
     Instruction {
         program_id: programs::CREDIT,
         accounts: window_credit::accounts::Seize {
             anyone: *anyone,
             config: pda::credit_config(),
-            price_cache: pda::price_cache(feed_id),
             loan: *loan,
+            listing: *listing,
+            price_cache: pda::price_cache(feed_id),
         }
         .to_account_metas(None),
         data: window_credit::instruction::Seize {}.data(),
@@ -515,13 +576,19 @@ pub fn seize(anyone: &Pubkey, loan: &Pubkey, feed_id: &[u8; 32]) -> Instruction 
 }
 
 /// Place the operator's confidential `Transfer` escrow → destination immediately before this.
-pub fn release_collateral(operator: &Pubkey, loan: &Pubkey, destination: &Pubkey) -> Instruction {
+pub fn release_collateral(
+    operator: &Pubkey,
+    loan: &Pubkey,
+    listing: &Pubkey,
+    destination: &Pubkey,
+) -> Instruction {
     Instruction {
         program_id: programs::CREDIT,
         accounts: window_credit::accounts::ReleaseCollateral {
             operator: *operator,
             config: pda::credit_config(),
             loan: *loan,
+            listing: *listing,
             destination: *destination,
             instructions: sysvar_instructions(),
         }

@@ -64,4 +64,10 @@ pub enum CreditError {
     CurveError,
     #[msg("wrong destination for the collateral release")]
     WrongDestination,
+    #[msg("the quote's own publish_time is older than the listing allows")]
+    QuoteStale,
+    #[msg("publish_time is in the future")]
+    PublishTimeAhead,
+    #[msg("account is not the loan's listing")]
+    WrongListing,
 }

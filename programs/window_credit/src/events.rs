@@ -23,6 +23,14 @@ pub struct LockRequested {
     pub loan: Pubkey,
     pub price_at_lock: u64,
     pub mult_at_lock: u64,
+    pub listing: Pubkey,
+}
+
+#[event]
+pub struct ListingAdded {
+    pub listing: Pubkey,
+    pub cstock_mint: Pubkey,
+    pub feed_id: [u8; 32],
 }
 
 #[event]

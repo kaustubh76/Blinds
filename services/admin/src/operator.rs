@@ -35,8 +35,13 @@ pub fn tick(ctx: &Ctx, solver: &Solver) -> Result<()> {
 fn release(ctx: &Ctx, solver: &Solver, key: &Pubkey, loan: &Loan) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let admin = &ctx.keys.admin;
-    let escrow: Pubkey = ctx.deployment.escrow_account.parse()?;
-    let cstock: Pubkey = ctx.deployment.cstock_mint.parse()?;
+    let rec = ctx
+        .deployment
+        .listing_by_pda(&loan.listing)
+        .ok_or_else(|| anyhow!("loan bound to unknown listing {}", loan.listing))?;
+    let listing = rec.listing_pda()?;
+    let escrow: Pubkey = rec.escrow()?;
+    let cstock: Pubkey = rec.cstock_mint()?;
     let ekeys = ctx.keys.escrow();
     let auditor = ctx.keys.auditor();
     // The operator learns the pledged amount from the auditor handle of the collateral claim.
@@ -100,7 +105,7 @@ fn release(ctx: &Ctx, solver: &Solver, key: &Pubkey, loan: &Loan) -> Result<()> 
     }
     chain.send(
         admin,
-        &[plan.transfer, ix::release_collateral(&admin.pubkey(), key, &dest)],
+        &[plan.transfer, ix::release_collateral(&admin.pubkey(), key, &listing, &dest)],
         &[],
     )?;
     chain.send(admin, &plan.close, &[])?;

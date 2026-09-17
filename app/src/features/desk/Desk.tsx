@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { EncryptedValue } from "../../components/EncryptedValue";
+import { ListingPicker } from "../../components/ListingPicker";
 import { type Step, Stepper } from "../../components/Stepper";
 import { TxTimeline } from "../../components/TxTimeline";
 import { Badge, Button, ExplorerLink, Field, inputCls, Note } from "../../components/ui";
@@ -154,9 +155,10 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
       title: "Set up your confidential account",
       state: configured ? "done" : !isMember ? "todo" : "active",
       detail: d.accounts.data ? (
-        <span className="grid gap-1">
+        <span className="grid gap-2">
+          <ListingPicker listings={d.listings} selected={d.listing} onSelect={d.selectListing} disabled={busy} />
           <span>
-            mock xStock <ExplorerLink address={d.accounts.data.mockAta} cluster={cluster} /> ·{" "}
+            {d.listing?.symbol ?? "mock xStock"} <ExplorerLink address={d.accounts.data.mockAta} cluster={cluster} /> ·{" "}
             {d.accounts.data.mockAmount === null
               ? "not created yet"
               : `${formatShares(d.accounts.data.mockAmount, decimals)} shares, public balance`}

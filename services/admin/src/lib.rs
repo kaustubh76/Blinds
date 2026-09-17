@@ -14,6 +14,7 @@ pub mod keeper;
 pub mod keys;
 pub mod matching;
 pub mod metrics;
+pub mod migrate;
 pub mod operator;
 pub mod price;
 pub mod secret;

@@ -101,6 +101,9 @@ pub(crate) fn deploy_dir() -> PathBuf {
         .join("target/deploy")
 }
 
+/// The harness clock's unix time at slot 0 (2023-11-14T22:13:20Z): any real-looking epoch works.
+pub const GENESIS_UNIX_TIME: i64 = 1_700_000_000;
+
 impl Harness {
     /// Loads the programs, funds the admin, initialises registry, auction and oracle from
     /// `config/<profile>.toml`.
@@ -124,6 +127,12 @@ impl Harness {
             panic!("{}: {e} — run ./scripts/fetch_external_programs.sh", t22.display())
         });
         svm.add_program(addr(&spl_token_2022_interface::id()), &t22_bytes).expect("token-2022");
+        // LiteSVM's clock starts at unix time 0 and `warp_to_slot` moves only the slot; the desk's
+        // quote-age rule reads `unix_timestamp`, so give it a real epoch and advance it with the
+        // slot (1 s per slot, see `warp`).
+        let mut clock = svm.get_sysvar::<solana_clock::Clock>();
+        clock.unix_timestamp = GENESIS_UNIX_TIME;
+        svm.set_sysvar(&clock);
         let admin = Keypair::new();
         svm.airdrop(&addr(&admin.pubkey()), 1_000_000_000_000).unwrap();
         let auditor = keys::Keypair::random();
@@ -236,14 +245,35 @@ impl Harness {
         }
     }
 
-    /// Advances the clock by `slots`.
+    /// Advances the clock by `slots` — and the unix time by one second per slot.
     pub fn warp(&mut self, slots: u64) {
         let now = self.slot();
-        self.svm.warp_to_slot(now + slots);
+        self.warp_to_slot(now + slots);
+    }
+
+    /// Moves the clock to `slot` (never backwards), advancing the unix time one second per slot.
+    pub fn warp_to_slot(&mut self, slot: u64) {
+        let mut clock = self.svm.get_sysvar::<solana_clock::Clock>();
+        if slot > clock.slot {
+            clock.unix_timestamp += (slot - clock.slot) as i64;
+            clock.slot = slot;
+            self.svm.set_sysvar(&clock);
+        }
+    }
+
+    /// Sets the unix time without touching the slot — for quote-age tests.
+    pub fn set_unix_timestamp(&mut self, unix_timestamp: i64) {
+        let mut clock = self.svm.get_sysvar::<solana_clock::Clock>();
+        clock.unix_timestamp = unix_timestamp;
+        self.svm.set_sysvar(&clock);
     }
 
     pub fn slot(&self) -> u64 {
         self.svm.get_sysvar::<solana_clock::Clock>().slot
+    }
+
+    pub fn unix_timestamp(&self) -> i64 {
+        self.svm.get_sysvar::<solana_clock::Clock>().unix_timestamp
     }
 
     /// Registers a new funded member with a fresh ElGamal key; returns its index.
@@ -354,7 +384,7 @@ impl Harness {
         let e = self.epoch(index);
         let target = e.start_slot + self.profile.market.epoch_slots;
         if self.slot() < target {
-            self.svm.warp_to_slot(target);
+            self.warp_to_slot(target);
         }
         let admin = self.admin.insecure_clone();
         self.close_epoch_as(index, &admin).expect("close_epoch");

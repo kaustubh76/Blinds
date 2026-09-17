@@ -10,7 +10,7 @@ import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
 import { useCreditConfig, useDeployment, useMultiplier, usePrice, useSlot } from "../../lib/queries";
 
-/** The desk's own quote is stale for display once its `publish_time` is older than this (Stage 3 puts the rule on chain). */
+/** Fallback quote-age limit for a descriptor without listings; otherwise listing #0's on-chain `max_publish_age_secs`. */
 export const QUOTE_STALE_AFTER_SECS = 3_600;
 
 const PYTH_SHARD0_TSLAX = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY";
@@ -24,8 +24,9 @@ export function CollateralMark() {
   const underlying = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
   const session = nyseSession();
 
+  const staleAfter = dep.data?.listings[0]?.maxPublishAgeSecs ?? QUOTE_STALE_AFTER_SECS;
   const quoteAge = price.data ? Math.max(0, Math.round(Date.now() / 1000 - Number(price.data.publishTime))) : null;
-  const quoteStale = quoteAge !== null && quoteAge > QUOTE_STALE_AFTER_SECS;
+  const quoteStale = quoteAge !== null && quoteAge > staleAfter;
   const basis = price.data && underlying.data ? basisBps(price.data, underlying.data) : null;
 
   return (
@@ -36,7 +37,7 @@ export function CollateralMark() {
         <span className="flex flex-wrap items-center gap-2">
           {quoteStale && (
             <Badge tone="warn" icon="alert">
-              quote older than {formatSlotAge(QUOTE_STALE_AFTER_SECS / 0.45)}
+              quote older than {formatSlotAge(staleAfter / 0.45)}
             </Badge>
           )}
           <ExplorerLink address={PYTH_SHARD0_TSLAX} cluster="mainnet-beta">

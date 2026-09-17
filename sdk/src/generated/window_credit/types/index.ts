@@ -7,6 +7,7 @@
  */
 
 export * from './bid';
+export * from './listingParams';
 export * from './matchKind';
 export * from './member';
 export * from './print';

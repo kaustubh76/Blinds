@@ -5,7 +5,7 @@ use crate::{
     errors::CreditError,
     events::CollateralReleased,
     seeds,
-    state::{Config, Loan, LoanStatus},
+    state::{Config, Listing, Loan, LoanStatus},
     zk,
 };
 
@@ -18,7 +18,9 @@ pub struct ReleaseCollateral<'info> {
     pub config: Box<Account<'info, Config>>,
     #[account(mut)]
     pub loan: Box<Account<'info, Loan>>,
-    #[account(token::mint = config.cstock_mint)]
+    #[account(address = loan.listing @ CreditError::WrongListing)]
+    pub listing: Box<Account<'info, Listing>>,
+    #[account(token::mint = listing.cstock_mint)]
     pub destination: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: Instructions sysvar, address-checked.
     #[account(address = solana_instructions_sysvar::ID)]
@@ -36,7 +38,7 @@ pub(crate) fn handler(ctx: Context<ReleaseCollateral>) -> Result<()> {
     require_keys_eq!(ctx.accounts.destination.owner, expected_owner, CreditError::WrongDestination);
     zk::require_previous_is_ct_transfer(
         &ctx.accounts.instructions.to_account_info(),
-        &ctx.accounts.config.escrow_account,
+        &ctx.accounts.listing.escrow_account,
         &ctx.accounts.destination.key(),
     )
     .map_err(|_| error!(CreditError::NoReleaseTransfer))?;

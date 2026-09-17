@@ -23,7 +23,8 @@ use crate::{
     Harness, TxError, TxStats,
 };
 
-/// Everything the collateral leg needs, created by [`Harness::with_credit`].
+/// One listing of the collateral schedule plus the shared credit config, created by
+/// [`Harness::with_credit`] (listing #0) and [`Harness::add_listing`] (further listings).
 pub struct CreditSetup {
     pub mock_mint: Pubkey,
     pub cstock_mint: Pubkey,
@@ -31,10 +32,30 @@ pub struct CreditSetup {
     pub vault: Pubkey,
     pub custody: Pubkey,
     pub credit_config: Pubkey,
+    pub listing: Pubkey,
     pub price_cache: Pubkey,
     pub operator: Keypair,
     pub escrow: ConfidentialAccount,
     pub feed_id: [u8; 32],
+    pub haircut_bps: u64,
+    pub max_publish_age_secs: i64,
+}
+
+impl CreditSetup {
+    pub fn listing_params(&self) -> window_credit::state::ListingParams {
+        window_credit::state::ListingParams {
+            feed_id: self.feed_id,
+            price_source: window_credit::state::PRICE_SOURCE_MOCK,
+            haircut_bps: self.haircut_bps,
+            max_price_age: 0, // filled by the caller
+            max_publish_age_secs: self.max_publish_age_secs,
+            symbol: *b"MOCK\0\0\0\0\0\0\0\0\0\0\0\0",
+        }
+    }
+}
+
+fn escrow_key(setup: &CreditSetup) -> Pubkey {
+    setup.escrow.address
 }
 
 /// A member's token-side state.
@@ -51,16 +72,8 @@ impl Harness {
         window_credit::ID
     }
 
-    /// Loads wrap + credit, creates the mints, initialises the vault and the credit config
-    /// (operator = a fresh key with a confidential escrow account).
-    pub fn with_credit(&mut self) -> CreditSetup {
-        for (id, name) in [(window_wrap::ID, "window_wrap"), (window_credit::ID, "window_credit")] {
-            let path = crate::deploy_dir().join(format!("{name}.so"));
-            let bytes = std::fs::read(&path)
-                .unwrap_or_else(|e| panic!("{}: {e} — run `anchor build`", path.display()));
-            self.svm.add_program(crate::addr(&id), &bytes).expect("add_program");
-        }
-        let decimals = 3u8; // milli-shares
+    /// A mock mint, its confidential twin and the wrap vault — the token side of one listing.
+    fn create_listing_mints(&mut self, decimals: u8) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
         let mock_mint = self.create_mock_xstock_mint(decimals, 1.0);
         let mint_authority = pda::wrap_mint_authority();
         let cstock_mint = self.create_confidential_mint(&mint_authority, decimals);
@@ -85,6 +98,45 @@ impl Harness {
             data: window_wrap::instruction::Initialize {}.data(),
         };
         self.send(&admin, &[ix_init], &[]).expect("wrap initialize");
+        (mock_mint, cstock_mint, vault, custody)
+    }
+
+    fn add_listing_ix(
+        &self,
+        mock_mint: &Pubkey,
+        cstock_mint: &Pubkey,
+        escrow: &Pubkey,
+        params: window_credit::state::ListingParams,
+    ) -> Instruction {
+        Instruction {
+            program_id: window_credit::ID,
+            accounts: window_credit::accounts::AddListing {
+                admin: self.admin.pubkey(),
+                config: pda::credit_config(),
+                mock_mint: *mock_mint,
+                cstock_mint: *cstock_mint,
+                escrow_account: *escrow,
+                listing: pda::listing(cstock_mint),
+                system_program: solana_system_interface::program::ID,
+            }
+            .to_account_metas(None),
+            data: window_credit::instruction::AddListing { params }.data(),
+        }
+    }
+
+    /// Loads wrap + credit, creates the mints, initialises the vault and the credit config
+    /// (operator = a fresh key with a confidential escrow account), and lists that collateral
+    /// as listing #0 — the same shape as the devnet deployment after the listing upgrade.
+    pub fn with_credit(&mut self) -> CreditSetup {
+        for (id, name) in [(window_wrap::ID, "window_wrap"), (window_credit::ID, "window_credit")] {
+            let path = crate::deploy_dir().join(format!("{name}.so"));
+            let bytes = std::fs::read(&path)
+                .unwrap_or_else(|e| panic!("{}: {e} — run `anchor build`", path.display()));
+            self.svm.add_program(crate::addr(&id), &bytes).expect("add_program");
+        }
+        let decimals = 3u8; // milli-shares
+        let (mock_mint, cstock_mint, vault, custody) = self.create_listing_mints(decimals);
+        let admin = self.admin.insecure_clone();
 
         let operator = Keypair::new();
         self.svm.airdrop(&crate::addr(&operator.pubkey()), 100_000_000_000).unwrap();
@@ -119,18 +171,122 @@ impl Harness {
             .data(),
         };
         self.send(&admin, &[ix_init], &[]).expect("credit initialize");
-        CreditSetup {
+        let setup = CreditSetup {
             mock_mint,
             cstock_mint,
             decimals,
             vault,
             custody,
             credit_config,
+            listing: pda::listing(&cstock_mint),
             price_cache: pda::price_cache(&feed_id),
             operator,
             escrow,
             feed_id,
-        }
+            haircut_bps: self.profile.credit.haircut_bps,
+            max_publish_age_secs: self.profile.primary().max_publish_age_secs,
+        };
+        let mut params = setup.listing_params();
+        params.max_price_age = self.profile.market.max_price_age_slots;
+        params.symbol = self.profile.primary().symbol_bytes();
+        let ix = self.add_listing_ix(&mock_mint, &cstock_mint, &escrow_key(&setup), params);
+        self.send(&admin, &[ix], &[]).expect("add_listing #0");
+        setup
+    }
+
+    /// Lists a second collateral: fresh mints and vault, an escrow under the same operator, its
+    /// own feed id, haircut and quote-age limit. Shares `credit_config` with `base`.
+    pub fn add_listing(
+        &mut self,
+        base: &CreditSetup,
+        feed_id: [u8; 32],
+        haircut_bps: u64,
+        max_publish_age_secs: i64,
+    ) -> CreditSetup {
+        let decimals = base.decimals;
+        let (mock_mint, cstock_mint, vault, custody) = self.create_listing_mints(decimals);
+        let operator = base.operator.insecure_clone();
+        let escrow = self.create_confidential_account(&cstock_mint, &operator);
+        let setup = CreditSetup {
+            mock_mint,
+            cstock_mint,
+            decimals,
+            vault,
+            custody,
+            credit_config: base.credit_config,
+            listing: pda::listing(&cstock_mint),
+            price_cache: pda::price_cache(&feed_id),
+            operator,
+            escrow,
+            feed_id,
+            haircut_bps,
+            max_publish_age_secs,
+        };
+        let mut params = setup.listing_params();
+        params.max_price_age = self.profile.market.max_price_age_slots;
+        params.symbol = *b"SECOND-mock\0\0\0\0\0";
+        let ix = self.add_listing_ix(&mock_mint, &cstock_mint, &setup.escrow.address, params);
+        let admin = self.admin.insecure_clone();
+        self.send(&admin, &[ix], &[]).expect("add_listing");
+        setup
+    }
+
+    /// `add_listing` as `signer` with arbitrary params — for the admin-gate attack cases.
+    pub fn try_add_listing(
+        &mut self,
+        signer: &Keypair,
+        mock_mint: &Pubkey,
+        cstock_mint: &Pubkey,
+        escrow: &Pubkey,
+        params: window_credit::state::ListingParams,
+    ) -> Result<TxStats, TxError> {
+        let mut ix = self.add_listing_ix(mock_mint, cstock_mint, escrow, params);
+        ix.accounts[0].pubkey = signer.pubkey();
+        self.send(signer, &[ix], &[])
+    }
+
+    pub fn update_listing(
+        &mut self,
+        signer: &Keypair,
+        setup: &CreditSetup,
+        params: window_credit::state::ListingParams,
+    ) -> Result<TxStats, TxError> {
+        let ix = Instruction {
+            program_id: window_credit::ID,
+            accounts: window_credit::accounts::UpdateListing {
+                admin: signer.pubkey(),
+                config: setup.credit_config,
+                listing: setup.listing,
+            }
+            .to_account_metas(None),
+            data: window_credit::instruction::UpdateListing { params }.data(),
+        };
+        self.send(signer, &[ix], &[])
+    }
+
+    pub fn migrate_loan(
+        &mut self,
+        signer: &Keypair,
+        setup: &CreditSetup,
+        loan: &Pubkey,
+    ) -> Result<TxStats, TxError> {
+        let ix = Instruction {
+            program_id: window_credit::ID,
+            accounts: window_credit::accounts::MigrateLoan {
+                admin: signer.pubkey(),
+                config: setup.credit_config,
+                listing: setup.listing,
+                loan: *loan,
+                system_program: solana_system_interface::program::ID,
+            }
+            .to_account_metas(None),
+            data: window_credit::instruction::MigrateLoan {}.data(),
+        };
+        self.send(signer, &[ix], &[])
+    }
+
+    pub fn listing(&self, key: &Pubkey) -> window_credit::state::Listing {
+        self.account(key)
     }
 
     /// Gives member `m` `mock_amount` mock-xStock and a configured cSTOCK-W confidential account.
@@ -204,12 +360,25 @@ impl Harness {
         self.send(&wallet, &[ix], &[])
     }
 
-    /// Keeper posts a price: `price` with `expo` (Pyth style), e.g. `40_012_000_000, -8` = $400.12.
+    /// Keeper posts a price: `price` with `expo` (Pyth style), e.g. `40_012_000_000, -8` = $400.12,
+    /// published "now" (the harness clock's unix time).
     pub fn post_price(
         &mut self,
         setup: &CreditSetup,
         price: u64,
         expo: i32,
+    ) -> Result<TxStats, TxError> {
+        let now = self.unix_timestamp();
+        self.post_price_at(setup, price, expo, now)
+    }
+
+    /// Keeper posts a price with an explicit `publish_time`.
+    pub fn post_price_at(
+        &mut self,
+        setup: &CreditSetup,
+        price: u64,
+        expo: i32,
+        publish_time: i64,
     ) -> Result<TxStats, TxError> {
         let admin = self.admin.insecure_clone();
         let ix = Instruction {
@@ -217,16 +386,12 @@ impl Harness {
             accounts: window_credit::accounts::PostPrice {
                 keeper: admin.pubkey(),
                 config: setup.credit_config,
+                listing: setup.listing,
                 price_cache: setup.price_cache,
                 system_program: solana_system_interface::program::ID,
             }
             .to_account_metas(None),
-            data: window_credit::instruction::PostPrice {
-                price,
-                expo,
-                publish_time: self.slot() as i64,
-            }
-            .data(),
+            data: window_credit::instruction::PostPrice { price, expo, publish_time }.data(),
         };
         self.send(&admin, &[ix], &[])
     }
@@ -309,7 +474,7 @@ impl Harness {
         let cache: window_credit::state::PriceCache = self.account(&setup.price_cache);
         let p = scalar::price_scaled(cache.price, cache.expo).unwrap();
         let a = scalar::multiplier_scaled(multiplier).unwrap();
-        scalar::solvency_scalars(p, a, self.profile.credit.haircut_bps).unwrap()
+        scalar::solvency_scalars(p, a, setup.haircut_bps).unwrap()
     }
 
     /// Verifies the four proofs into context accounts (4 transactions) and calls `lock_collateral`.
@@ -354,6 +519,7 @@ impl Harness {
                 auction_config: pda::auction_config(),
                 borrower_record: pda::member(&owner),
                 loan: *loan_key,
+                listing: setup.listing,
                 price_cache: setup.price_cache,
                 mock_mint: setup.mock_mint,
                 validity_ctx: ctxs[0].pubkey(),
@@ -391,6 +557,7 @@ impl Harness {
                 borrower: wallet.pubkey(),
                 config: setup.credit_config,
                 loan: *loan_key,
+                listing: setup.listing,
                 borrower_cstock: tokens.cstock.address,
                 instructions: crate::solana_instructions_sysvar_id(),
             }
@@ -441,8 +608,9 @@ impl Harness {
                 window_credit::accounts::Seize {
                     anyone: *signer,
                     config: setup.credit_config,
-                    price_cache: setup.price_cache,
                     loan: *loan,
+                    listing: setup.listing,
+                    price_cache: setup.price_cache,
                 }
                 .to_account_metas(None),
                 window_credit::instruction::Seize {}.data(),
@@ -503,6 +671,7 @@ impl Harness {
                 operator: op.pubkey(),
                 config: setup.credit_config,
                 loan: *loan_key,
+                listing: setup.listing,
                 destination: *destination,
                 instructions: crate::solana_instructions_sysvar_id(),
             }

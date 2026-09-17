@@ -64,6 +64,14 @@ pub fn wrap_mint_authority() -> Pubkey {
 pub fn credit_config() -> Pubkey {
     Pubkey::find_program_address(&[window_credit::seeds::CONFIG], &window_credit::ID).0
 }
+/// `["listing", cstock_mint]`
+pub fn listing(cstock_mint: &Pubkey) -> Pubkey {
+    Pubkey::find_program_address(
+        &[window_credit::seeds::LISTING, cstock_mint.as_ref()],
+        &window_credit::ID,
+    )
+    .0
+}
 pub fn price_cache(feed_id: &[u8; 32]) -> Pubkey {
     Pubkey::find_program_address(&[window_credit::seeds::PRICE, feed_id], &window_credit::ID).0
 }

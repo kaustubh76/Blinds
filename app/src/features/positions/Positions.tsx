@@ -8,6 +8,7 @@ import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { EncryptedValue } from "../../components/EncryptedValue";
 import { LifecycleTrack } from "../../components/LifecycleTrack";
+import { ListingPicker } from "../../components/ListingPicker";
 import { Skeleton } from "../../components/Skeleton";
 import { TxTimeline } from "../../components/TxTimeline";
 import { Badge, Button, ExplorerLink, Note } from "../../components/ui";
@@ -15,6 +16,7 @@ import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
 import { describeError } from "../../lib/chain";
 import { formatPrice, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
+import { listingByPda } from "../../lib/listings";
 import { useBids, useSlot } from "../../lib/queries";
 import { useSession } from "../../lib/wallet";
 import { usePositions } from "./usePositions";
@@ -50,16 +52,25 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
       slot.data !== undefined &&
       loan.deadlineSlot > 0n &&
       Number(loan.deadlineSlot) < slot.data;
+    const bound = listingByPda(p.listings, loan.listing);
     const action =
       role === "borrower" && loan.status === LoanStatus.Pending ? (
-        <Button
-          onClick={() => p.lock.mutate({ address, loan })}
-          loading={p.lock.isPending}
-          disabled={!p.keysReady}
-          icon="shield"
-        >
-          Prove solvency & lock
-        </Button>
+        <span className="flex flex-wrap items-center gap-3">
+          <ListingPicker
+            listings={p.listings}
+            selected={p.selectedListing}
+            onSelect={p.selectListing}
+            disabled={p.lock.isPending}
+          />
+          <Button
+            onClick={() => p.lock.mutate({ address, loan, listing: p.selectedListing })}
+            loading={p.lock.isPending}
+            disabled={!p.keysReady || !p.selectedListing}
+            icon="shield"
+          >
+            Prove solvency & lock{p.selectedListing ? ` · ${p.selectedListing.symbol}` : ""}
+          </Button>
+        </span>
       ) : role === "borrower" && loan.status === LoanStatus.Requested ? (
         <Button
           onClick={() => p.deposit.mutate({ address, loan })}
@@ -78,6 +89,11 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
       <li key={address} className="rounded-[var(--radius-lg)] border border-line bg-surface-1 px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={role === "borrower" ? "borrow" : "lend"}>{role}</Badge>
+          {bound && (
+            <Badge tone="mute" icon="shield">
+              {bound.symbol} · {Number(bound.haircutBps) / 100}%
+            </Badge>
+          )}
           <span className="text-sm font-medium text-ink-1">{formatRate(loan.tick)}</span>
           <span className="mono text-xs text-ink-3">
             epoch {loan.epoch.toString()} · #{loan.k}

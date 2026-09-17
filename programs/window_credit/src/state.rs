@@ -40,6 +40,10 @@ pub enum MatchKind {
     Partial { size_ct: [u8; 96], opening_note: [u8; 32] },
 }
 
+/// The frozen deployment-wide configuration. Written once at `initialize`. The collateral fields
+/// (`cstock_mint`, `mock_mint`, `escrow_account`, `feed_id`, `haircut_bps`, `max_price_age`) describe
+/// the desk's original collateral; since the collateral schedule they are mirrored by listing #0 and
+/// no instruction reads them for pricing any more.
 #[account]
 #[derive(InitSpace)]
 pub struct Config {
@@ -61,6 +65,46 @@ pub struct Config {
     pub multiplier_override: u64,
     pub bump: u8,
 }
+
+/// One eligible collateral. `["listing", cstock_mint]`. The rate is one benchmark; each listing
+/// carries its own price source, haircut and freshness limits, and its own `PriceCache`.
+#[account]
+#[derive(InitSpace)]
+pub struct Listing {
+    pub mock_mint: Pubkey,
+    pub cstock_mint: Pubkey,
+    /// The operator's confidential cSTOCK account holding this listing's escrowed collateral.
+    pub escrow_account: Pubkey,
+    /// A Pyth feed id for a Pyth-marked listing; `sha256("<source>:<symbol>")` for an attested
+    /// mark — a label, never a Pyth id; all-zero for the documented local mock walk.
+    pub feed_id: [u8; 32],
+    /// 0 = Pyth · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk.
+    pub price_source: u8,
+    /// Collateral value must cover this many bps of the loan.
+    pub haircut_bps: u64,
+    /// Keeper liveness: `slot − price_cache.posted_slot` must not exceed this.
+    pub max_price_age: u64,
+    /// Quote liveness: `now − price_cache.publish_time` must not exceed this.
+    pub max_publish_age_secs: i64,
+    /// UTF-8 label, zero padded.
+    pub symbol: [u8; 16],
+    pub decimals: u8,
+    pub bump: u8,
+}
+
+#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
+pub struct ListingParams {
+    pub feed_id: [u8; 32],
+    pub price_source: u8,
+    pub haircut_bps: u64,
+    pub max_price_age: u64,
+    pub max_publish_age_secs: i64,
+    pub symbol: [u8; 16],
+}
+
+pub const PRICE_SOURCE_PYTH: u8 = 0;
+pub const PRICE_SOURCE_MOCK: u8 = 3;
+pub const PRICE_SOURCE_MAX: u8 = 3;
 
 #[account]
 #[derive(InitSpace)]
@@ -107,7 +151,14 @@ pub struct Loan {
     pub funded_slot: u64,
     pub deadline_slot: u64,
     pub bump: u8,
+    /// The `Listing` the collateral was locked under (default until `lock_collateral`). Appended
+    /// after `bump` so every earlier offset is unchanged; pre-listing loans are 32 bytes shorter
+    /// and are brought to this layout by `migrate_loan`.
+    pub listing: Pubkey,
 }
+
+/// Size of a `Loan` account written before the collateral schedule (no `listing` field).
+pub const LEGACY_LOAN_LEN: usize = 8 + Loan::INIT_SPACE - 32;
 
 impl Loan {
     pub fn status(&self) -> Option<LoanStatus> {

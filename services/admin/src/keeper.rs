@@ -11,9 +11,12 @@ use window_client::{
     accounts, ix, pda, AuctionConfig, Bid, EpochStatus, Loan, LoanStatus, PriceCache,
 };
 
-use crate::{chain::read, price::PriceSource, Ctx};
+use crate::{chain::read, deployment::ListingRecord, price::PriceSource, Ctx};
 
-pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
+/// One price source per listing, in `deployment.listings` order.
+pub type PriceSources = Vec<PriceSource>;
+
+pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let admin = &ctx.keys.admin;
     let slot = chain.slot()?;
@@ -26,8 +29,8 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
         chain.send(admin, &[ix::open_epoch(&admin.pubkey(), index)], &[])?;
         ctx.metrics.epochs_opened.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         info!(epoch = index, slot, "epoch opened");
-        // a fresh price each epoch
-        post_price(ctx, price)?;
+        // a fresh price for every listing each epoch
+        post_prices(ctx, prices, slot, true)?;
     } else {
         let e = chain
             .account_data(&pda::epoch(config.current_epoch))?
@@ -40,15 +43,11 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
             }
         }
     }
-    // Refresh the price at half the freshness window so credit never sees a stale cache. This is a
-    // staleness check, not `slot % period == 0`: the loop samples one slot per tick, and on devnet
-    // ~13 slots pass per tick, so a modulo test is usually missed and every lock fails PriceStale.
-    let half = (ctx.profile.market.max_price_age_slots / 2).max(1);
-    let posted = read::<PriceCache>(chain, &pda::price_cache(&ctx.deployment.feed_id()))?
-        .map(|c| c.posted_slot);
-    if posted.is_none_or(|p| slot.saturating_sub(p) >= half) {
-        post_price(ctx, price)?;
-    }
+    // Refresh each listing's price at half its freshness window so credit never sees a stale
+    // cache. This is a staleness check, not `slot % period == 0`: the loop samples one slot per
+    // tick, and on devnet ~13 slots pass per tick, so a modulo test is usually missed and every
+    // lock fails PriceStale.
+    post_prices(ctx, prices, slot, false)?;
     let loans = load_loans(ctx)?;
     seize_matured(ctx, &loans)?;
     close_settled_bids(ctx, &config, slot, &loans)?;
@@ -58,23 +57,43 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
     Ok(())
 }
 
-pub fn post_price(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
+/// Posts every listing whose cache is missing or older than half its `max_price_age`
+/// (`force` posts all). One listing's failure never stops the others.
+fn post_prices(ctx: &Ctx, prices: &mut PriceSources, slot: u64, force: bool) -> Result<()> {
+    let chain = ctx.chain.as_ref();
+    let mut first_err = None;
+    for (rec, price) in ctx.deployment.listings.iter().zip(prices.iter_mut()) {
+        let half = (rec.max_price_age_slots / 2).max(1);
+        let posted =
+            read::<PriceCache>(chain, &pda::price_cache(&rec.feed_id()))?.map(|c| c.posted_slot);
+        if force || posted.is_none_or(|p| slot.saturating_sub(p) >= half) {
+            if let Err(e) = post_price(ctx, rec, price) {
+                warn!(listing = %rec.symbol, "price post failed: {e:#}");
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    first_err.map_or(Ok(()), Err)
+}
+
+pub fn post_price(ctx: &Ctx, rec: &ListingRecord, price: &mut PriceSource) -> Result<()> {
     let now = ctx.chain.unix_timestamp()?;
     let p = price.fetch(now)?;
     let age = p.age_secs(now);
-    ctx.metrics.price_publish_age_secs.store(age as u64, std::sync::atomic::Ordering::Relaxed);
-    if age > ctx.profile.market.max_price_age_slots as i64 {
-        // A slot is ~0.4-0.5 s, so this is a loose "older than the on-chain liveness window" flag;
-        // the quote is still posted with its true timestamp so the age stays public.
-        warn!(publish_age_secs = age, "posting a quote older than the keeper liveness window");
+    ctx.metrics.set_publish_age(&rec.symbol, age as u64);
+    if age > rec.max_publish_age_secs {
+        // Posted anyway, with its true timestamp: the chain refuses to lock or seize on it, and the
+        // age stays public. Silently skipping would hide the outage.
+        warn!(listing = %rec.symbol, publish_age_secs = age, limit = rec.max_publish_age_secs, "posting a quote older than the listing's on-chain limit");
     }
-    info!(price = p.price, expo = p.expo, publish_age_secs = age, "price posted");
+    info!(listing = %rec.symbol, price = p.price, expo = p.expo, publish_age_secs = age, "price posted");
     let admin = &ctx.keys.admin;
     ctx.chain.send(
         admin,
         &[ix::post_price(
             &admin.pubkey(),
-            &ctx.deployment.feed_id(),
+            &rec.listing_pda()?,
+            &rec.feed_id(),
             p.price,
             p.expo,
             p.publish_time,
@@ -101,9 +120,13 @@ fn seize_matured(ctx: &Ctx, loans: &[(Pubkey, Loan)]) -> Result<()> {
     let slot = chain.slot()?;
     for (key, loan) in loans.iter().map(|(k, l)| (*k, l)) {
         if loan.status == LoanStatus::Active as u8 && slot > loan.deadline_slot {
+            let Some(rec) = ctx.deployment.listing_by_pda(&loan.listing) else {
+                warn!(loan = %key, listing = %loan.listing, "loan bound to an unknown listing; not seizing");
+                continue;
+            };
             match chain.send(
                 &ctx.keys.admin,
-                &[ix::seize(&ctx.keys.admin.pubkey(), &key, &ctx.deployment.feed_id())],
+                &[ix::seize(&ctx.keys.admin.pubkey(), &key, &rec.listing_pda()?, &rec.feed_id())],
                 &[],
             ) {
                 Ok(_) => {

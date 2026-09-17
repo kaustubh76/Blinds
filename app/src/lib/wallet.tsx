@@ -21,9 +21,14 @@ export interface Session {
   disconnect: () => Promise<void>;
   /** 64-byte signature over the member derivation message (bids, loans). */
   memberSignature: Uint8Array | null;
-  /** 64-byte signature over the token-account derivation message (cSTOCK-W balances). */
+  /** The selected listing's cSTOCK mint (set by the desk); token signatures are kept per mint. */
+  listing: Address | null;
+  setListing: (cstockMint: Address | null) => void;
+  /** 64-byte signature over the token-account derivation message for the selected listing's cSTOCK-W account. */
   tokenSignature: Uint8Array | null;
-  setSignatures: (s: { member?: Uint8Array; token?: Uint8Array }) => void;
+  /** The same, for any listing's cSTOCK mint (a loan may be bound to a listing other than the selected one). */
+  tokenSignatureFor: (cstockMint: Address) => Uint8Array | null;
+  setSignatures: (s: { member?: Uint8Array; token?: Uint8Array; tokenFor?: Address }) => void;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -33,7 +38,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<UiWalletAccount | null>(null);
   const [wallet, setWallet] = useState<UiWallet | null>(null);
   const [memberSignature, setMember] = useState<Uint8Array | null>(null);
-  const [tokenSignature, setToken] = useState<Uint8Array | null>(null);
+  const [tokenSignatures, setTokens] = useState<Record<string, Uint8Array>>({});
+  const [listing, setListingState] = useState<Address | null>(null);
 
   const connect = useCallback(async (w: UiWallet) => {
     // useConnect is a hook; connect through the wallet's feature directly to keep this callback generic.
@@ -42,19 +48,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setWallet(w);
     setAccount(preferred);
     setMember(null);
-    setToken(null);
+    setTokens({});
   }, []);
   const disconnect = useCallback(async () => {
     if (wallet) await disconnectWallet(wallet);
     setWallet(null);
     setAccount(null);
     setMember(null);
-    setToken(null);
+    setTokens({});
   }, [wallet]);
-  const setSignatures = useCallback((s: { member?: Uint8Array; token?: Uint8Array }) => {
-    if (s.member) setMember(s.member);
-    if (s.token) setToken(s.token);
-  }, []);
+  const setSignatures = useCallback(
+    (s: { member?: Uint8Array; token?: Uint8Array; tokenFor?: Address }) => {
+      if (s.member) setMember(s.member);
+      if (s.token) {
+        const key = s.tokenFor ?? listing ?? "";
+        setTokens((prev) => ({ ...prev, [key]: s.token as Uint8Array }));
+      }
+    },
+    [listing],
+  );
+  const setListing = useCallback((m: Address | null) => setListingState(m), []);
+  const tokenSignatureFor = useCallback((m: Address) => tokenSignatures[m] ?? null, [tokenSignatures]);
 
   const value = useMemo<Session>(
     () => ({
@@ -65,10 +79,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       memberSignature,
-      tokenSignature,
+      listing,
+      setListing,
+      tokenSignature: listing ? (tokenSignatures[listing] ?? null) : null,
+      tokenSignatureFor,
       setSignatures,
     }),
-    [wallets, wallet, account, connect, disconnect, memberSignature, tokenSignature, setSignatures],
+    [
+      wallets,
+      wallet,
+      account,
+      connect,
+      disconnect,
+      memberSignature,
+      listing,
+      setListing,
+      tokenSignatures,
+      tokenSignatureFor,
+      setSignatures,
+    ],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
