@@ -384,5 +384,28 @@ pub fn sync_listings(
         dep.mirror_primary();
         dep.save(root)?;
     }
+    // Spread the existing borrowers across the schedule the way `setup` does (agent 1 → listing 0,
+    // agent 3 → listing 1, …): a borrower moved to a new listing gets fresh token accounts there
+    // and its wrap/balance memory is reset so it wraps that collateral on its next tick.
+    let n = dep.listings.len();
+    let mut moved = Vec::new();
+    for a in dep.agents.iter_mut() {
+        let target = if a.role == "borrower" { (a.index / 2) % n } else { 0 };
+        if target == a.listing {
+            continue;
+        }
+        let l = dep.listings[target].clone();
+        let wallet = keys.agent_wallet(a.index);
+        let (mock_acc, cstock_acc) = create_agent_accounts(chain, keys, a.index, &wallet, &l)?;
+        a.mock_account = mock_acc.to_string();
+        a.cstock_account = cstock_acc.to_string();
+        a.listing = target;
+        moved.push(a.index);
+        info!(agent = a.index, listing = %l.symbol, "borrower moved to a new listing");
+    }
+    if !moved.is_empty() {
+        dep.save(root)?;
+        crate::agents::forget_wrap(root, &dep.cluster, &moved);
+    }
     Ok(())
 }

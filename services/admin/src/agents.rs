@@ -40,6 +40,25 @@ pub struct Agents {
     solver: window_elgamal::bsgs::Solver,
 }
 
+/// Drops the wrap/balance memory of `agents` (after `listings-sync` moved them to another listing)
+/// so they wrap the new collateral on their next tick. Bid openings are kept.
+pub fn forget_wrap(root: &std::path::Path, cluster: &str, agents: &[usize]) {
+    let path = root.join("services/admin/data").join(format!("agents-{cluster}.json"));
+    let Some(mut memory) = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<AgentMemory>(&s).ok())
+    else {
+        return;
+    };
+    for i in agents {
+        memory.wrapped_once.remove(i);
+        memory.available.remove(i);
+    }
+    if let Ok(s) = serde_json::to_string_pretty(&memory) {
+        let _ = std::fs::write(&path, s);
+    }
+}
+
 impl Agents {
     pub fn load(root: &std::path::Path, cluster: &str) -> Self {
         let dir = root.join("services/admin/data");
