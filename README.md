@@ -42,6 +42,25 @@ make demo               # one full epoch on localnet with the DEMO profile
 cd app && pnpm dev      # dashboard against localnet (docs/DEMO.md)
 ```
 
+## Hosting the dashboard
+
+The app is a static Vite build; the repo is ready for Vercel as-is (`app/vercel.json`; the browser
+proof engine `sdk/wasm` is committed so no Rust toolchain is needed to build). Rehearsed from a clean
+clone with `NODE_ENV=production`.
+
+1. In Vercel, **Add New → Project → Import** `kaustubh76/Blinds` (the repo is private: grant the Vercel
+   GitHub app access to it, or make the repo public).
+2. **Root Directory:** `app`. Framework and commands are read from `app/vercel.json` — leave them.
+3. **Environment variables** (Production):
+   - `VITE_CLUSTER` = `devnet`
+   - `VITE_RPC_URL` = a devnet RPC endpoint you control (Helius, QuickNode, Triton… free tiers are fine).
+     `https://api.devnet.solana.com` works but rate-limits browsers hard; don't ship it to judges.
+   - `VITE_ADMIN_URL` = *only* if the Desk's demo faucet should be live: the public URL of the admin
+     service (`./scripts/market.sh start`, port 9090, exposed through a tunnel). Leave unset otherwise —
+     Market, Explorer and Positions read the chain directly and never need it.
+4. **Deploy.** Put the resulting URL on the first line of `deployments/app-url.txt` and run
+   `python3 scripts/render_devnet_docs.py` so `docs/DEMO.md` points judges at it.
+
 ## Privacy, enforced
 
 "The position never was" is a tested property, not a slogan. No instruction of the five programs

@@ -11,14 +11,13 @@ pnpm dev                 # http://localhost:5173
 
 ## Deploying it
 
-The app is a static SPA; `vercel.json` has the build for a monorepo checkout. Two prerequisites:
+The app is a static SPA; `vercel.json` carries the monorepo build (root directory `app`; the SDK is
+built first with `pnpm --filter`; `--prod=false` keeps the dev dependencies the build needs under
+Vercel's `NODE_ENV=production`). `sdk/wasm` — the browser proof engine — is committed, so no Rust
+toolchain is needed. The exact Vercel steps are in the root `README.md` under "Hosting".
 
-1. **`sdk/wasm` must exist in the checkout.** It is produced by `./scripts/build_wasm.sh` (needs the
-   Rust toolchain and `wasm-pack`) and is git-ignored by default, so either run that in the build or
-   commit the four files under `sdk/wasm/` before pushing.
-2. **Set the environment variables** in the hosting project: `VITE_CLUSTER=devnet`,
-   `VITE_RPC_URL=<an RPC that tolerates browser traffic>` and, if the demo faucet should work,
-   `VITE_ADMIN_URL=<public URL of the admin service>`.
+Environment variables: `VITE_CLUSTER=devnet`, `VITE_RPC_URL=<an RPC that tolerates browser traffic>`
+and, only if the demo faucet should work, `VITE_ADMIN_URL=<public URL of the admin service>`.
 
 `api.devnet.solana.com` rate-limits browsers hard; a free dedicated RPC endpoint is worth it for a
 public deployment.

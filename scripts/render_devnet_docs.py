@@ -11,7 +11,10 @@ if not d.get("mock_mint"):
 ex = lambda a: f"https://explorer.solana.com/address/{a}?cluster=devnet"
 progs = d["programs"]
 app_url = (root / "deployments" / "app-url.txt")
-hosted = app_url.read_text().strip() if app_url.exists() else ""
+hosted = ""
+if app_url.exists():
+    lines = [l.strip() for l in app_url.read_text().splitlines() if l.strip() and not l.startswith("#")]
+    hosted = lines[0] if lines else ""
 
 section = f"""## C. Devnet — the deployment that is judged
 

@@ -1,0 +1,2 @@
+# The hosted dashboard's URL, one line, once it is deployed (see README "Hosting").
+# scripts/render_devnet_docs.py prints it into docs/DEMO.md §C.
