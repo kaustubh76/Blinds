@@ -396,6 +396,18 @@ pub fn sync_listings(
         }
         let l = dep.listings[target].clone();
         let wallet = keys.agent_wallet(a.index);
+        // The agent pays for its own accounts (~0.006 SOL); on devnet its runway may be spent.
+        if chain.balance(&wallet.pubkey())? < 10_000_000 {
+            chain.send(
+                &keys.admin,
+                &[solana_system_interface::instruction::transfer(
+                    &keys.admin.pubkey(),
+                    &wallet.pubkey(),
+                    20_000_000,
+                )],
+                &[],
+            )?;
+        }
         let (mock_acc, cstock_acc) = create_agent_accounts(chain, keys, a.index, &wallet, &l)?;
         a.mock_account = mock_acc.to_string();
         a.cstock_account = cstock_acc.to_string();

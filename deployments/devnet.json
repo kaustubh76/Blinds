@@ -14,48 +14,98 @@
   "escrow_account": "BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ",
   "feed_id_hex": "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
   "auditor_elgamal_pubkey_hex": "f829061ce55de73698f3ac6e5b143f5f9a2c5b78d6b62544d7fb550823a63777",
+  "listings": [
+    {
+      "key": "mock_tsla",
+      "symbol": "TSLAx-mock",
+      "source": "pyth",
+      "listing": "5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG",
+      "mock_mint": "HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn",
+      "cstock_mint": "4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr",
+      "escrow_account": "BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ",
+      "feed_id_hex": "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+      "decimals": 3,
+      "haircut_bps": 15000,
+      "max_price_age_slots": 1200,
+      "max_publish_age_secs": 3600
+    },
+    {
+      "key": "tessera_openai",
+      "symbol": "T-OpenAI-mock",
+      "source": "tessera",
+      "listing": "BAUiqwUUWTF2NDJqkSDz9so3BxNTW9hQS8Khf2qxqhYN",
+      "mock_mint": "DVhTynwmhm9hYNi7qAKtxpgPwCem9wEwXQonbf8Go1Fz",
+      "cstock_mint": "GRDt32Vp2BNEJPe1CFzSZaAFhCRw5bymWXH7tJrRZZhs",
+      "escrow_account": "AmL991As2RWBmPojVvpokCYbB4bT1XbPbszPGpkYTPp4",
+      "feed_id_hex": "a217fe4a7ea1f0fcc0c7c5100e749940ab3c0478eefdeefac438b62f4956f13a",
+      "decimals": 3,
+      "haircut_bps": 20000,
+      "max_price_age_slots": 1200,
+      "max_publish_age_secs": 172800
+    },
+    {
+      "key": "prestocks_anthropic",
+      "symbol": "ANTHROPIC-mock",
+      "source": "prestocks",
+      "listing": "4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp",
+      "mock_mint": "BA1wPNWjGfNam7ViKiM6C6tAGsQRjtQfRBjZGEYdie7C",
+      "cstock_mint": "DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo",
+      "escrow_account": "93myeNeYyYzeVrDtW327UtmAiThYKfTxY7orWVvtjkZ9",
+      "feed_id_hex": "8bd733112c944281b9caeefc1728d935b10b95a8809bb70c11214a86fb6a89eb",
+      "decimals": 3,
+      "haircut_bps": 20000,
+      "max_price_age_slots": 1200,
+      "max_publish_age_secs": 172800
+    }
+  ],
   "agents": [
     {
       "index": 0,
       "wallet": "51gsw5oEYXhcUVPQWW4c5Y5c1HWABtgzNMNdWCDLr62z",
       "mock_account": "GVDrkXm2yDyuQP1Nmn14umqPXS2aucWwXzy6MqTZyK58",
       "cstock_account": "FWCYPbJsaxhcfC5g6jiwnX18Us5Qs4QCUtyaQdVWpKh2",
-      "role": "lender"
+      "role": "lender",
+      "listing": 0
     },
     {
       "index": 1,
       "wallet": "FXCVh2Qavdw26hczhGEoAHaXe1pmSdBM7tRXTUQEjvnE",
       "mock_account": "2gxFv8J2Ha6Am7mgTJu8sqyQBGoVS7joLL5GVorajfsq",
       "cstock_account": "GFioPp4N7oXEpvYRSeNr7UfGhQY5oGBR1kJsbqPMEcd9",
-      "role": "borrower"
+      "role": "borrower",
+      "listing": 0
     },
     {
       "index": 2,
       "wallet": "FFfZbJAyCBWBZuM6qwtudN2Xw998LU8b7u4WWfGKg4yf",
       "mock_account": "6KhzTFexSTvHMxw5LgtGALLcnybUrc8SiBdZ45khvnGR",
       "cstock_account": "G5Xr9CkRGgFCKGxC64GRtcLgSrGyuSmbNpjsZZph4CUa",
-      "role": "lender"
+      "role": "lender",
+      "listing": 0
     },
     {
       "index": 3,
       "wallet": "4PikNwJKiWLW1UbCxknMZaBTvEH6zuAF6AcJC2wusaMV",
-      "mock_account": "9hrRqvPDDTF82DYBEALfs5u7ZkXvSh1tqxPD5pEHLdAX",
-      "cstock_account": "838jPCAGUQhsjYRfwSKPuf5MSat2AqpGWv6QwpRwRhAz",
-      "role": "borrower"
+      "mock_account": "AUz8PobDMVRb7GurptgFmdaCmSSAjp67ZDdGxPZCYrtY",
+      "cstock_account": "GXeGffLB2KufjX9yQ1xirUN5iBt5nPaVTQWConRMB3gG",
+      "role": "borrower",
+      "listing": 1
     },
     {
       "index": 4,
       "wallet": "BPQsDKqMhhDFgT5niPuFa8EXcRAAbFGrEovkugZFJXVW",
       "mock_account": "R9vJh3SL57G6BhCPENrEqDVb1E7GKLv4qejwp8G66G1",
       "cstock_account": "8gHsyPuWCEBLoTJsB8n7KrAY94FwNytPe4YDM5UXLSyt",
-      "role": "lender"
+      "role": "lender",
+      "listing": 0
     },
     {
       "index": 5,
       "wallet": "4UgLaC3GS1uxrPpZ4g6FhLk2qiYg3vXZfrDeWP3ZzzA5",
-      "mock_account": "BzWFd4QHVWufBRzJzqhwXiP15Jv8ejnD5VSeB42dumGg",
-      "cstock_account": "G5W8cG5XHsnLwAFuj7kLPQvHfLbZnkDNJMJmMrL3d4pT",
-      "role": "borrower"
+      "mock_account": "4p1JTU5YbZEntpv6o4b1MSa7bByNjUiQ2MTQ6R2J6wb6",
+      "cstock_account": "6Ff94VJid6YdHvv5EjRY37iDWYH4cfZCJu3aAdLVedmY",
+      "role": "borrower",
+      "listing": 2
     }
   ]
 }
