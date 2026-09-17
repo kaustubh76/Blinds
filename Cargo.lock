@@ -6694,6 +6694,7 @@ dependencies = [
  "anchor-lang",
  "anyhow",
  "base64 0.22.1",
+ "bincode",
  "clap",
  "hex",
  "rand 0.8.8",

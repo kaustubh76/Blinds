@@ -40,6 +40,9 @@ pub struct RpcChain {
     priority_fee: u64,
 }
 
+/// The packet limit a serialized transaction must fit in.
+const MAX_TX_BYTES: u64 = 1232;
+
 /// `ComputeBudget111111111111111111111111111111`.
 const COMPUTE_BUDGET: Pubkey =
     solana_pubkey::pubkey!("ComputeBudget111111111111111111111111111111");
@@ -122,14 +125,28 @@ impl Chain for RpcChain {
     }
     fn send(&self, payer: &Keypair, ixs: &[Instruction], extra: &[&Keypair]) -> Result<String> {
         let blockhash = self.client.get_latest_blockhash()?;
-        let with_fee: Vec<Instruction> = match self.priority_fee_ix() {
-            Some(fee) => std::iter::once(fee).chain(ixs.iter().cloned()).collect(),
-            None => ixs.to_vec(),
-        };
-        let msg = Message::new_with_blockhash(&with_fee, Some(&payer.pubkey()), &blockhash);
         let mut signers: Vec<&Keypair> = vec![payer];
         signers.extend_from_slice(extra);
-        let tx = Transaction::new(&signers, msg, blockhash);
+        let build = |ixs: &[Instruction]| {
+            let msg = Message::new_with_blockhash(ixs, Some(&payer.pubkey()), &blockhash);
+            Transaction::new(&signers, msg, blockhash)
+        };
+        let tx = match self.priority_fee_ix() {
+            Some(fee) => {
+                let with_fee: Vec<Instruction> =
+                    std::iter::once(fee).chain(ixs.iter().cloned()).collect();
+                let tx = build(&with_fee);
+                // A priority fee is a nicety; a transaction that only fits without it (the
+                // confidential transfer + deposit_collateral pair is within ~40 B of the packet
+                // limit) goes without.
+                if bincode::serialized_size(&tx).unwrap_or(u64::MAX) > MAX_TX_BYTES {
+                    build(ixs)
+                } else {
+                    tx
+                }
+            }
+            None => build(ixs),
+        };
         let sig = self.client.send_and_confirm_transaction(&tx).context("send_and_confirm")?;
         Ok(sig.to_string())
     }
