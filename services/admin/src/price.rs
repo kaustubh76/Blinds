@@ -1,22 +1,30 @@
 //! The public price.
 //!
-//! On devnet and mainnet the keeper reads Pyth's own **on-chain** price-update account over RPC —
-//! no API key, no off-chain endpoint — verifies that the account is owned by the Pyth receiver
-//! program and that the `feed_id` inside it is the one this deployment is configured for, and posts
-//! `(price, expo, publish_time)` into `PriceCache`. Anyone can read the same account and compare.
+//! On devnet and mainnet the keeper takes Pyth's quote from **Hermes** when an API key is configured
+//! (`PYTH_API_KEY`; Pyth put Hermes behind a key on 2026-08-26), and otherwise — or whenever Hermes
+//! fails — from Pyth's own **on-chain** `PriceUpdateV2` accounts read over RPC: the push-oracle PDAs for
+//! shards 0 and 1 of the feed plus the account named in the profile, owner-checked against the Pyth
+//! receiver program and feed-id-checked, the freshest `publish_time` winning. Either way the keeper posts
+//! `(price, expo, publish_time)` into `PriceCache` unmodified, so the quote's own age is public.
 //!
-//! Pyth's public Hermes HTTP API started returning `401 unauthorized` for price updates
-//! (2026-09-16), which is why the value is taken from chain state instead (amendment A11).
+//! Why both: the mainnet push account this deployment originally read (`GpoWLTd6…`, `Crypto.TSLAX/USD`
+//! shard 0) stopped being updated on 2026-09-12; a keeper that only copies one account would keep
+//! re-posting a days-old quote with a fresh `posted_slot`. `Crypto.TSLAX/USD` itself is a 24/7 feed.
 //!
 //! The deterministic mock walk remains for localnet/CI, where there is no Pyth at all. It is only
 //! ever used by a profile that also carries the documented all-zero mock feed id, so a mock price is
-//! never published under a real Pyth feed id.
+//! never published under a real Pyth feed id (amendment A11).
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Deserialize;
+use solana_pubkey::Pubkey;
 
 /// Owner of every Pyth price-update account (`PriceUpdateV2`).
 pub const PYTH_RECEIVER: &str = "rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ";
+/// Pyth's push oracle: its PDAs `[shard u16 LE, feed_id]` are the canonical price-update accounts.
+pub const PYTH_PUSH_ORACLE: &str = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
+/// Hermes base URL that honours an API key (`Authorization: Bearer`).
+pub const DEFAULT_HERMES_URL: &str = "https://pyth.dourolabs.app/hermes";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Price {
@@ -25,23 +33,60 @@ pub struct Price {
     pub publish_time: i64,
 }
 
-/// Where the price comes from, decided by the profile.
+impl Price {
+    /// Seconds between the feed's own timestamp and `now` (never negative).
+    pub fn age_secs(&self, now: i64) -> i64 {
+        now.saturating_sub(self.publish_time).max(0)
+    }
+}
+
+/// Where the price comes from, decided by the profile and the environment.
 pub enum Source {
-    /// Pyth `PriceUpdateV2` account, read over RPC from `rpc_url` (may be a different cluster).
-    OnChainPyth { rpc_url: String, account: String, feed_id: [u8; 32] },
+    /// Hermes with an API key; `fallback` is consulted whenever the request or the parse fails.
+    Hermes { base: String, key: String, feed_id: [u8; 32], fallback: Box<Source> },
+    /// Pyth `PriceUpdateV2` accounts, read over RPC from `rpc_url` (may be a different cluster);
+    /// the freshest of `candidates` wins.
+    OnChainPyth { rpc_url: String, candidates: Vec<String>, feed_id: [u8; 32] },
     /// Deterministic walk for localnet/CI. Never used with a real feed id.
     Mock { value: u64, step: u64 },
 }
 
 pub struct PriceSource {
     source: Source,
-    /// Last value read, reposted when the feed itself has not moved (equities close overnight).
+    /// Last value read, reposted when the feed itself has not moved.
     last: Option<Price>,
 }
 
+/// The push-oracle PDA holding `feed_id` on `shard`.
+pub fn push_oracle_pda(shard: u16, feed_id: &[u8; 32]) -> Pubkey {
+    let program: Pubkey = PYTH_PUSH_ORACLE.parse().expect("push oracle id");
+    Pubkey::find_program_address(&[&shard.to_le_bytes(), feed_id], &program).0
+}
+
 impl PriceSource {
+    /// Pyth's on-chain accounts: the profile's `account` (if any) plus the push-oracle PDAs for
+    /// shards 0 and 1, de-duplicated. `account` may be empty.
     pub fn on_chain_pyth(rpc_url: String, account: String, feed_id: [u8; 32]) -> Self {
-        Self { source: Source::OnChainPyth { rpc_url, account, feed_id }, last: None }
+        let mut candidates: Vec<String> = Vec::new();
+        for c in [
+            account,
+            push_oracle_pda(0, &feed_id).to_string(),
+            push_oracle_pda(1, &feed_id).to_string(),
+        ] {
+            if !c.is_empty() && !candidates.contains(&c) {
+                candidates.push(c);
+            }
+        }
+        Self { source: Source::OnChainPyth { rpc_url, candidates, feed_id }, last: None }
+    }
+
+    /// Hermes first, `fallback` (normally `on_chain_pyth`) on any failure.
+    pub fn hermes(base: String, key: String, feed_id: [u8; 32], fallback: PriceSource) -> Self {
+        let base = base.trim_end_matches('/').to_string();
+        Self {
+            source: Source::Hermes { base, key, feed_id, fallback: Box::new(fallback.source) },
+            last: None,
+        }
     }
 
     pub fn mock(start_cents: u64) -> Self {
@@ -50,42 +95,119 @@ impl PriceSource {
 
     /// Human-readable description of the active source, for the startup log and `/metrics`.
     pub fn describe(&self) -> String {
-        match &self.source {
-            Source::OnChainPyth { account, rpc_url, .. } => {
-                format!("Pyth price-update account {account} via {rpc_url}")
-            }
-            Source::Mock { .. } => "deterministic mock walk (no Pyth; localnet/CI only)".into(),
-        }
+        describe(&self.source)
     }
 
-    /// The current price. Errors (rather than fabricating a value) when a configured Pyth account
-    /// cannot be read: `PriceCache` then ages out through the on-chain `max_price_age` check, which
-    /// is the honest failure mode.
+    /// The current price. Errors (rather than fabricating a value) when no configured Pyth source
+    /// can be read: `PriceCache` then ages out through the on-chain freshness checks, which is the
+    /// honest failure mode.
     pub fn fetch(&mut self, now: i64) -> Result<Price> {
-        match &mut self.source {
-            Source::OnChainPyth { rpc_url, account, feed_id } => {
-                let data = fetch_account_data(rpc_url, account)?;
-                let p = decode_price_update(&data, feed_id)?;
-                self.last = Some(p);
-                Ok(p)
-            }
-            Source::Mock { value, step } => {
-                // ±0.25% deterministic wobble (in hundredths of a bp) so a local demo shows a
-                // moving price without ever threatening a 150%-collateralised loan.
-                *step += 1;
-                let wobble = ((*step * 7919) % 500) as i64 - 250;
-                let px = (*value as i128 * (100_000 + wobble) as i128 / 100_000) as u64;
-                let p = Price { price: px, expo: -8, publish_time: now };
-                self.last = Some(p);
-                Ok(p)
-            }
-        }
+        let p = fetch(&mut self.source, now)?;
+        self.last = Some(p);
+        Ok(p)
     }
 
     pub fn last(&self) -> Option<Price> {
         self.last
     }
 }
+
+fn describe(source: &Source) -> String {
+    match source {
+        Source::Hermes { base, fallback, .. } => {
+            format!("Pyth Hermes {base} (API key), falling back to {}", describe(fallback))
+        }
+        Source::OnChainPyth { candidates, rpc_url, .. } => {
+            format!(
+                "Pyth price-update accounts [{}] via {rpc_url} (freshest wins)",
+                candidates.join(", ")
+            )
+        }
+        Source::Mock { .. } => "deterministic mock walk (no Pyth; localnet/CI only)".into(),
+    }
+}
+
+fn fetch(source: &mut Source, now: i64) -> Result<Price> {
+    match source {
+        Source::Hermes { base, key, feed_id, fallback } => match fetch_hermes(base, key, feed_id) {
+            Ok(p) => Ok(p),
+            Err(e) => {
+                tracing::warn!("hermes: {e:#}; falling back to on-chain Pyth accounts");
+                fetch(fallback, now)
+            }
+        },
+        Source::OnChainPyth { rpc_url, candidates, feed_id } => {
+            let mut best: Option<Price> = None;
+            let mut errors = Vec::new();
+            for account in candidates.iter() {
+                match fetch_account_data(rpc_url, account)
+                    .and_then(|d| decode_price_update(&d, feed_id))
+                {
+                    Ok(p) if best.is_none_or(|b| p.publish_time > b.publish_time) => best = Some(p),
+                    Ok(_) => {}
+                    Err(e) => errors.push(format!("{account}: {e:#}")),
+                }
+            }
+            best.ok_or_else(|| anyhow!("no readable Pyth account: {}", errors.join("; ")))
+        }
+        Source::Mock { value, step } => {
+            // ±0.25% deterministic wobble (in hundredths of a bp) so a local demo shows a
+            // moving price without ever threatening a 150%-collateralised loan.
+            *step += 1;
+            let wobble = ((*step * 7919) % 500) as i64 - 250;
+            let px = (*value as i128 * (100_000 + wobble) as i128 / 100_000) as u64;
+            Ok(Price { price: px, expo: -8, publish_time: now })
+        }
+    }
+}
+
+// ───────────────────────────── Hermes ─────────────────────────────
+
+#[derive(Deserialize)]
+struct HermesResponse {
+    parsed: Vec<HermesParsed>,
+}
+#[derive(Deserialize)]
+struct HermesParsed {
+    id: String,
+    price: HermesPrice,
+}
+#[derive(Deserialize)]
+struct HermesPrice {
+    price: String,
+    expo: i32,
+    publish_time: i64,
+}
+
+fn fetch_hermes(base: &str, key: &str, feed_id: &[u8; 32]) -> Result<Price> {
+    let url = format!("{base}/v2/updates/price/latest?ids[]={}&parsed=true", hex::encode(feed_id));
+    let body = ureq::get(&url)
+        .set("Authorization", &format!("Bearer {key}"))
+        .timeout(std::time::Duration::from_secs(10))
+        .call()
+        .with_context(|| format!("hermes {base}"))?
+        .into_string()
+        .context("hermes response")?;
+    parse_hermes(&body, feed_id)
+}
+
+/// `GET /v2/updates/price/latest?parsed=true` → the one feed we asked for.
+pub fn parse_hermes(body: &str, expected_feed_id: &[u8; 32]) -> Result<Price> {
+    let resp: HermesResponse = serde_json::from_str(body).context("hermes json")?;
+    let want = hex::encode(expected_feed_id);
+    let p = resp
+        .parsed
+        .iter()
+        .find(|p| p.id.trim_start_matches("0x").eq_ignore_ascii_case(&want))
+        .ok_or_else(|| anyhow!("hermes response carries no update for feed {want}"))?;
+    let price: i64 = p.price.price.parse().context("hermes price is not an integer")?;
+    if price <= 0 {
+        bail!("Pyth published a non-positive price ({price})");
+    }
+    Ok(Price { price: price as u64, expo: p.price.expo, publish_time: p.price.publish_time })
+}
+
+// ───────────────────────────── on-chain accounts ─────────────────────────────
 
 #[derive(Deserialize)]
 struct RpcResponse {
@@ -172,6 +294,8 @@ mod tests {
     /// (Crypto.TSLAX/USD) on 2026-09-16.
     const TSLAX: &[u8] = include_bytes!("../tests/fixtures/pyth_tslax_usd_mainnet.bin");
     const TSLAX_FEED_ID: &str = "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362";
+    /// The shape of `GET /v2/updates/price/latest?ids[]=…&parsed=true` for the same feed.
+    const HERMES: &str = include_str!("../tests/fixtures/hermes_tslax.json");
 
     fn feed(hex_id: &str) -> [u8; 32] {
         hex::decode(hex_id).unwrap().try_into().unwrap()
@@ -197,6 +321,70 @@ mod tests {
     #[test]
     fn rejects_truncated_data() {
         assert!(decode_price_update(&TSLAX[..40], &feed(TSLAX_FEED_ID)).is_err());
+    }
+
+    #[test]
+    fn parses_a_hermes_update_and_checks_its_feed_id() {
+        let p = parse_hermes(HERMES, &feed(TSLAX_FEED_ID)).unwrap();
+        assert_eq!(p.price, 36_523_000_001);
+        assert_eq!(p.expo, -8);
+        assert_eq!(p.publish_time, 1_789_215_534);
+        assert_eq!(p.age_secs(1_789_215_600), 66);
+        assert_eq!(p.age_secs(0), 0);
+        let sol_usd = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+        let err = parse_hermes(HERMES, &feed(sol_usd)).unwrap_err().to_string();
+        assert!(err.contains("no update for feed"), "{err}");
+    }
+
+    #[test]
+    fn rejects_a_non_positive_hermes_price() {
+        let body = HERMES.replace("\"36523000001\"", "\"0\"");
+        assert!(parse_hermes(&body, &feed(TSLAX_FEED_ID)).is_err());
+        assert!(parse_hermes("{}", &feed(TSLAX_FEED_ID)).is_err());
+    }
+
+    #[test]
+    fn push_oracle_pdas_match_the_mainnet_accounts() {
+        // shard 0 is the account the deployment originally read; shard 1 is where fresh equity
+        // updates land on mainnet today.
+        let id = feed(TSLAX_FEED_ID);
+        assert_eq!(
+            push_oracle_pda(0, &id).to_string(),
+            "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY"
+        );
+        assert_eq!(
+            push_oracle_pda(1, &id).to_string(),
+            "Exzs9zruUELRmPAn6SzzLiqx5wpkVJ8cghTQnF8wSCXP"
+        );
+        let tsla = feed("16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1");
+        assert_eq!(
+            push_oracle_pda(1, &tsla).to_string(),
+            "FQB8c4zB8Emrp9W8bmyk6GanCLq4aRytHYPDAnaEpq9z"
+        );
+    }
+
+    #[test]
+    fn on_chain_candidates_are_deduplicated_and_ordered() {
+        let s = PriceSource::on_chain_pyth(
+            "http://rpc".into(),
+            "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY".into(),
+            feed(TSLAX_FEED_ID),
+        );
+        let Source::OnChainPyth { candidates, .. } = &s.source else { panic!("on-chain") };
+        assert_eq!(
+            candidates,
+            &[
+                "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY".to_string(),
+                "Exzs9zruUELRmPAn6SzzLiqx5wpkVJ8cghTQnF8wSCXP".to_string()
+            ]
+        );
+        let s = PriceSource::on_chain_pyth("http://rpc".into(), String::new(), feed(TSLAX_FEED_ID));
+        let Source::OnChainPyth { candidates, .. } = &s.source else { panic!("on-chain") };
+        assert_eq!(candidates.len(), 2);
+        let h = PriceSource::hermes("https://h/".into(), "k".into(), feed(TSLAX_FEED_ID), s);
+        assert!(h.describe().starts_with(
+            "Pyth Hermes https://h (API key), falling back to Pyth price-update accounts"
+        ));
     }
 
     #[test]

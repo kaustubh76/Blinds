@@ -33,11 +33,14 @@ bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in prac
 [assets.mock_tsla]
 symbol = "TSLAx-mock"
 decimals = 3                 # milli-shares
-# Pyth Crypto.TSLAX/USD. The keeper reads Pyth's own on-chain `PriceUpdateV2` account (no API key)
-# and copies price/expo/publish_time into `PriceCache`; anyone can read the same account and
-# compare. Pyth publishes equity feeds on mainnet only, hence the mainnet RPC — the desk itself
-# runs on devnet. It is an equity feed: outside US market hours `publish_time` stops advancing,
-# which is visible on-chain and is the honest presentation (docs/METHODOLOGY.md §6).
+# Pyth Crypto.TSLAX/USD — a 24/7 feed. With `PYTH_API_KEY` set the keeper reads Hermes
+# (`PYTH_HERMES_URL`, default https://pyth.dourolabs.app/hermes); otherwise, and whenever Hermes
+# fails, it reads Pyth's own on-chain `PriceUpdateV2` accounts — `price_account` below plus the
+# push-oracle PDAs for shards 0 and 1 — over the mainnet RPC (Pyth publishes these on mainnet only;
+# the desk itself runs on devnet), and copies price/expo/publish_time into `PriceCache` unmodified,
+# so the quote's own age is public. Recorded honestly: `price_account` (shard 0) stopped being
+# updated on 2026-09-12, which is why the keeper no longer trusts a single account
+# (docs/METHODOLOGY.md §5a, docs/TRACKS.md).
 pyth_feed_id = "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362"
 price_account = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY"
 price_rpc_url = "https://api.mainnet-beta.solana.com"

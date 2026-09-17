@@ -183,10 +183,10 @@ export function Market() {
         }
         footer={
           <>
-            The keeper copies Pyth&apos;s on-chain <span className="mono">Crypto.TSLAX/USD</span> quote — an equity
-            feed, so it stops advancing outside US market hours and its own timestamp is stored unmodified so the age is
-            visible. What is enforced on chain is how recently the keeper <em>posted</em> (
-            {credit.data ? formatSlotAge(Number(credit.data.maxPriceAge)) : "…"} max).
+            The keeper posts Pyth&apos;s <span className="mono">Crypto.TSLAX/USD</span> quote — Hermes when it holds an
+            API key, otherwise the freshest of Pyth&apos;s own on-chain accounts — with the feed&apos;s own timestamp
+            stored unmodified, so the quote&apos;s age is visible here. What is enforced on chain today is how recently
+            the keeper <em>posted</em> ({credit.data ? formatSlotAge(Number(credit.data.maxPriceAge)) : "…"} max).
           </>
         }
       >

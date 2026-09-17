@@ -42,21 +42,30 @@ late finalize is still accepted. Five consecutive band-edge prints raise `band_e
 
 ## 5a. The public price
 
-The keeper reads Pyth's own **on-chain** `PriceUpdateV2` account over RPC — no API key and no
-off-chain endpoint — checks that it is owned by the Pyth receiver program
-`rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ` and that the `feed_id` inside it is the one this
-deployment was initialised with, and copies `price`, `expo` and `publish_time` into `PriceCache`
-unmodified. Anyone can read the same account and compare. The demo asset is Pyth
-**Crypto.TSLAX/USD** (`0x47a15647…a362`), published at mainnet account
-`GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY`; the desk runs on devnet, where Pyth publishes no
-equity feed, so that one account is read cross-cluster.
+The keeper takes the quote from Pyth **Hermes** when an API key is configured (`PYTH_API_KEY`;
+Hermes has required one since 2026-08-26, and the key never leaves the keeper), and otherwise — or
+whenever Hermes fails — from Pyth's own **on-chain** `PriceUpdateV2` accounts read over RPC: the
+push-oracle PDAs `[shard, feed_id]` for shards 0 and 1 plus the account named in the profile, each
+checked to be owned by the Pyth receiver program `rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ` and to
+carry the `feed_id` this deployment was initialised with, the freshest `publish_time` winning. Either
+way `price`, `expo` and `publish_time` are copied into `PriceCache` unmodified, so anyone can compare.
+The demo asset is Pyth **Crypto.TSLAX/USD** (`0x47a15647…a362`), a 24/7 feed; its mainnet accounts
+are read cross-cluster because Pyth publishes them on mainnet only, while the desk runs on devnet.
+
+Recorded honestly: the shard-0 account `GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY` that this
+deployment originally copied from stopped being updated on 2026-09-12 12:18 UTC. Until the keeper
+learned to consult Hermes and every candidate account (2026-09-17), it re-posted that quote with a
+fresh `posted_slot`, and the on-chain rule below could not tell. `window-admin price-check` prints the
+active source and the quote's age without sending a transaction; `/metrics` exposes it as
+`window_price_publish_age_seconds`.
 
 Two honest limits. First, the on-chain freshness rule (`slot − posted_slot ≤ max_price_age`) bounds
 how recently *the keeper posted*, not how recently Pyth published; the feed's own `publish_time` is
-stored as-is, so the age of the quote is public and checkable. Second, TSLAx is an equity feed: it
-stops advancing outside US market hours, and the desk keeps quoting the last published value with
-its true timestamp rather than inventing movement. On a local validator there is no Pyth at all, so
-those profiles carry the documented all-zero feed id and a deterministic mock walk — the
+stored as-is, so the age of the quote is public and checkable — a per-listing on-chain rule on
+`publish_time` is the next step (docs/TRACKS.md, Stage 3). Second, a Pyth quote is only as fresh as
+its publishers make it: when a feed or account stalls, the desk keeps quoting the last published value
+with its true timestamp rather than inventing movement. On a local validator there is no Pyth at all,
+so those profiles carry the documented all-zero feed id and a deterministic mock walk — the
 configuration is rejected if a real feed id is ever paired with a mock price (amendment A11).
 
 ## 5b. Proof of correct decryption

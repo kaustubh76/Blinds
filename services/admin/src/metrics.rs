@@ -17,6 +17,8 @@ pub struct Metrics {
     pub releases: AtomicU64,
     pub seizes: AtomicU64,
     pub prices_posted: AtomicU64,
+    /// Age of the last posted quote by the feed's own `publish_time`, seconds.
+    pub price_publish_age_secs: AtomicU64,
     pub bids_closed: AtomicU64,
     pub keeper_lamports: AtomicU64,
     pub last_print_ms: AtomicU64,
@@ -38,6 +40,7 @@ impl Metrics {
             f("releases_total", &self.releases),
             f("seizes_total", &self.seizes),
             f("prices_posted_total", &self.prices_posted),
+            f("price_publish_age_seconds", &self.price_publish_age_secs),
             f("keeper_lamports", &self.keeper_lamports),
             f("last_print_wallclock_ms", &self.last_print_ms),
             f("last_r_star_bps", &self.last_r_star_bps),

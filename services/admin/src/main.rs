@@ -58,6 +58,9 @@ enum Cmd {
         #[arg(long, default_value_t = 4)]
         default_every: usize,
     },
+    /// Fetch the price from the configured source and print it — no transaction. Use it to verify
+    /// `PYTH_API_KEY` before starting the market.
+    PriceCheck,
     /// Run the simulated members
     Agents {
         /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
@@ -76,9 +79,10 @@ fn join_funding_lamports() -> u64 {
         .unwrap_or(100_000_000)
 }
 
-/// The price source this profile asks for: Pyth's on-chain price-update account when the asset
-/// names one, otherwise the documented mock walk (localnet/CI). `Profile::validate` guarantees the
-/// two never mix, so a mock price can never be published under a real Pyth feed id (A11).
+/// The price source this profile asks for: Pyth via Hermes when `PYTH_API_KEY` is set, with Pyth's
+/// on-chain price-update accounts as the fallback (and as the only source without a key); otherwise
+/// the documented mock walk (localnet/CI). `Profile::validate` guarantees the two never mix, so a mock
+/// price can never be published under a real Pyth feed id (A11).
 fn price_source(profile: &Profile) -> Result<PriceSource> {
     let asset = profile
         .assets
@@ -89,7 +93,15 @@ fn price_source(profile: &Profile) -> Result<PriceSource> {
     }
     let feed = asset.feed_id_bytes().ok_or_else(|| anyhow::anyhow!("bad pyth_feed_id"))?;
     let rpc = std::env::var("WINDOW_PRICE_RPC_URL").unwrap_or_else(|_| asset.price_rpc_url.clone());
-    Ok(PriceSource::on_chain_pyth(rpc, asset.price_account.clone(), feed))
+    let on_chain = PriceSource::on_chain_pyth(rpc, asset.price_account.clone(), feed);
+    match std::env::var("PYTH_API_KEY").ok().filter(|k| !k.trim().is_empty()) {
+        Some(key) => {
+            let base = std::env::var("PYTH_HERMES_URL")
+                .unwrap_or_else(|_| window_admin::price::DEFAULT_HERMES_URL.to_string());
+            Ok(PriceSource::hermes(base, key.trim().to_string(), feed, on_chain))
+        }
+        None => Ok(on_chain),
+    }
 }
 
 fn main() -> Result<()> {
@@ -218,6 +230,24 @@ fn main() -> Result<()> {
                 }
                 std::thread::sleep(Duration::from_millis(tick_ms));
             }
+        }
+        Cmd::PriceCheck => {
+            let mut price = price_source(&profile)?;
+            println!("source: {}", price.describe());
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs()
+                as i64;
+            let p = price.fetch(now)?;
+            let cents = window_proofs::scalar::price_scaled(p.price, p.expo);
+            println!(
+                "price {} expo {} ({}) publish_time {} age {} s",
+                p.price,
+                p.expo,
+                cents
+                    .map(|c| format!("{}.{:02} USD", c / 100, c % 100))
+                    .unwrap_or_else(|| "out of range".into()),
+                p.publish_time,
+                p.age_secs(now)
+            );
         }
         Cmd::Agents { tick_ms } => {
             let tick_ms = tick_ms.unwrap_or(if cli.cluster == "devnet" { 8_000 } else { 3_000 });

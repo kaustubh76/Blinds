@@ -59,7 +59,16 @@ pub fn tick(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
 }
 
 pub fn post_price(ctx: &Ctx, price: &mut PriceSource) -> Result<()> {
-    let p = price.fetch(ctx.chain.unix_timestamp()?)?;
+    let now = ctx.chain.unix_timestamp()?;
+    let p = price.fetch(now)?;
+    let age = p.age_secs(now);
+    ctx.metrics.price_publish_age_secs.store(age as u64, std::sync::atomic::Ordering::Relaxed);
+    if age > ctx.profile.market.max_price_age_slots as i64 {
+        // A slot is ~0.4-0.5 s, so this is a loose "older than the on-chain liveness window" flag;
+        // the quote is still posted with its true timestamp so the age stays public.
+        warn!(publish_age_secs = age, "posting a quote older than the keeper liveness window");
+    }
+    info!(price = p.price, expo = p.expo, publish_age_secs = age, "price posted");
     let admin = &ctx.keys.admin;
     ctx.chain.send(
         admin,
