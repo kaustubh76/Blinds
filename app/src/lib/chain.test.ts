@@ -36,3 +36,39 @@ describe("deployment descriptor", () => {
     expect(d.auditorPubkey.length).toBe(32);
   });
 });
+
+describe("join", () => {
+  it("understands the service's JSON answer, including 'already a member'", async () => {
+    const { joinDesk } = await import("./chain");
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        calls.push(url);
+        return { ok: true, text: async () => JSON.stringify({ ok: true, signature: null, already_member: true }) };
+      }),
+    );
+    const r = await joinDesk({
+      wallet: "11111111111111111111111111111111" as never,
+      elgamalPubkey: new Uint8Array(32),
+      mockAccount: "11111111111111111111111111111111" as never,
+    });
+    expect(r).toEqual({ signature: null, alreadyMember: true });
+    expect(calls[0]).toMatch(/\/join$/);
+  });
+
+  it("surfaces the service's error text", async () => {
+    const { joinDesk } = await import("./chain");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        text: async () => JSON.stringify({ ok: false, error: "faucet busy" }),
+      })),
+    );
+    await expect(
+      joinDesk({ wallet: "x" as never, elgamalPubkey: new Uint8Array(32), mockAccount: "y" as never }),
+    ).rejects.toThrow("faucet busy");
+  });
+});

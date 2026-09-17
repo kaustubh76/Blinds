@@ -2,5 +2,17 @@
 interface ImportMetaEnv {
   readonly VITE_RPC_URL?: string;
   readonly VITE_ADMIN_URL?: string;
+  readonly VITE_WS_URL?: string;
   readonly VITE_CLUSTER?: string;
+}
+
+interface Window {
+  /** The SDK, RPC client, config, console store and query client — for DevTools and integrations. */
+  thewindow: {
+    sdk: typeof import("@thewindow/solana-sdk");
+    rpc: import("./lib/chain").Rpc;
+    config: import("./config").Resolved;
+    console: typeof import("./lib/console").devConsole;
+    queryClient: import("@tanstack/react-query").QueryClient;
+  };
 }

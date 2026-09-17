@@ -14,20 +14,48 @@ import { TxTimeline } from "../../components/TxTimeline";
 import { Badge, Button, ExplorerLink, Field, inputCls, Note } from "../../components/ui";
 import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
+import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
 import { formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
 import { useSession } from "../../lib/wallet";
 import { useDesk } from "./useDesk";
 
 export function Desk() {
   const s = useSession();
-  if (!s.account)
+  const [burnerError, setBurnerError] = useState<string | null>(null);
+  if (!s.account) {
+    const burner = s.wallets.find((w) => w.name === BURNER_WALLET_NAME);
     return (
       <Card eyebrow="desk" title="Borrow or lend against tokenized stock">
-        <EmptyState icon="wallet" title="Connect a wallet-standard wallet to start." action={<WalletButton />}>
-          Two signatures derive your ElGamal keys; they stay in this tab. Nothing is sent anywhere but the chain.
+        <EmptyState
+          icon="wallet"
+          title="Connect a wallet — or take a devnet burner and start now."
+          action={
+            <span className="flex flex-wrap items-center gap-2">
+              {burner && (
+                <Button
+                  icon="key"
+                  onClick={() => {
+                    setBurnerError(null);
+                    (async () => {
+                      if (!hasBurner()) await createBurner();
+                      await s.connect(burner);
+                    })().catch((e: unknown) => setBurnerError(e instanceof Error ? e.message : String(e)));
+                  }}
+                >
+                  {hasBurner() ? "Use my devnet burner" : "Create a devnet burner"}
+                </Button>
+              )}
+              <WalletButton />
+            </span>
+          }
+        >
+          Two signatures derive your ElGamal keys; they stay in this tab. A burner is a throwaway key kept in this
+          browser, so every step below runs with no prompts. Nothing is sent anywhere but the chain and the faucet.
+          {burnerError && <span className="mt-2 block text-status-critical">{burnerError}</span>}
         </EmptyState>
       </Card>
     );
+  }
   return <DeskFlow account={s.account} />;
 }
 

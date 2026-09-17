@@ -19,6 +19,7 @@ import {
 type Loan = creditNs.Loan;
 
 import type { UiWalletAccount } from "@wallet-standard/react";
+import { asCode } from "../../lib/asCode";
 import { findBid } from "../../lib/bidBook";
 import { hexToBytes, rentFor, rpc } from "../../lib/chain";
 import { useCreditConfig, useDeployment, useLoans, useTokenAccounts } from "../../lib/queries";
@@ -80,7 +81,7 @@ export function usePositions(account: UiWalletAccount) {
       const pc = priceCents(price.price, price.expo);
       const ms = multiplierScaled(mult.multiplier);
       const need = collateralPledge(size, solvencyScalars(pc, ms, credit.data.haircutBps));
-      const plan = await buildLockPlan({
+      const args = {
         borrower: txSigner,
         signature: session.memberSignature,
         auditorPubkey: new Uint8Array(epoch.auditorPubkey),
@@ -95,8 +96,16 @@ export function usePositions(account: UiWalletAccount) {
         feedId: dep.data.feedId,
         mockMint: dep.data.mockMint,
         rent: rentFor,
+      };
+      const plan = await buildLockPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: "buildLockPlan → sendPlan (priced solvency proof)",
+        code: asCode("buildLockPlan", args, {
+          prelude:
+            "// collateral = collateralPledge(size, solvencyScalars(priceCents, multScaled, haircutBps)); 6 transactions",
+          result: "plan",
+        }),
       });
-      return sendPlan(plan, txSigner, steps.onStep);
     },
     onSuccess: invalidate,
   });
@@ -110,7 +119,7 @@ export function usePositions(account: UiWalletAccount) {
       const need = collateralPledge(size, { kC: loan.kC, kL: loan.kL });
       const escrow = await fetchConfidentialAccount(rpc, credit.data.escrowAccount);
       if (!escrow.view) throw new Error("escrow account not configured");
-      const plan = await buildDepositPlan({
+      const args = {
         borrower: txSigner,
         tokenSignature: session.tokenSignature,
         borrowerCstock: accounts.data.cstockAta,
@@ -123,8 +132,12 @@ export function usePositions(account: UiWalletAccount) {
         escrowElgamalPubkey: new Uint8Array(getAddressEncoder().encode(escrow.view.elgamalPubkey)),
         auditorPubkey: dep.data.auditorPubkey,
         rent: rentFor,
+      };
+      const plan = await buildDepositPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: "buildDepositPlan → sendPlan (confidential transfer to escrow)",
+        code: asCode("buildDepositPlan", args, { result: "plan" }),
       });
-      return sendPlan(plan, txSigner, steps.onStep);
     },
     onSuccess: invalidate,
   });

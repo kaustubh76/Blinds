@@ -9,6 +9,7 @@
 import type { auction, oracle } from "@thewindow/solana-sdk";
 import { EpochStatus, PrintStatus } from "@thewindow/solana-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { devConsole } from "./console";
 import { useAuctionConfig, useEpoch, usePrint, useSlot } from "./queries";
 
 export type Phase = "loading" | "open" | "overdue" | "closed" | "printing" | "printed" | "notrade" | "idle";
@@ -157,7 +158,7 @@ export function useWindowClock(): Clock {
   const print = usePrint(current);
   const slotQ = useSlot();
   const slot = useEstimatedSlot(slotQ.data);
-  return useMemo(() => {
+  const clock = useMemo(() => {
     const d = derivePhase({
       hasOpenEpoch: cfg.data?.hasOpenEpoch ?? false,
       currentEpoch: current,
@@ -169,4 +170,26 @@ export function useWindowClock(): Clock {
     });
     return { ...d, slot };
   }, [cfg.data, current, epoch.data, print.data, slot]);
+  // Phase transitions are chain facts worth a line in the developer console.
+  const last = useRef<string>("");
+  useEffect(() => {
+    if (clock.phase === "loading") return;
+    const key = `${clock.epoch?.toString() ?? "-"}:${clock.phase}`;
+    if (key === last.current) return;
+    const first = last.current === "";
+    last.current = key;
+    devConsole.push({
+      kind: "chain",
+      title: `epoch ${clock.epoch?.toString() ?? "—"} → ${clock.phase}${first ? " (on load)" : ""}`,
+      detail: {
+        bids: clock.bids,
+        attested: clock.attested,
+        nonzero: clock.nonzero,
+        rStar: clock.rStar,
+        matched: clock.matched,
+        slot: clock.slot,
+      },
+    });
+  }, [clock]);
+  return clock;
 }

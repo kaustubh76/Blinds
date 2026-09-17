@@ -16,6 +16,12 @@ const PATHS: Record<string, string> = {
   wallet: "M2 5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1H2V5Zm0 1h12v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6Zm8 3h2",
   refresh: "M13 8a5 5 0 1 1-1.5-3.6M13 3v2.5h-2.5",
   alert: "M8 2l6.5 11h-13L8 2Zm0 4v3.5M8 11.5v.5",
+  gear: "M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm5-2.5-.1-1.3 1.3-1-1-1.8-1.5.5-1-.8-.3-1.6h-2l-.3 1.6-1 .8-1.5-.5-1 1.8 1.3 1L3 8l.1 1.3-1.3 1 1 1.8 1.5-.5 1 .8.3 1.6h2l.3-1.6 1-.8 1.5.5 1-1.8-1.3-1L13 8Z",
+  terminal: "M2 3h12v10H2V3Zm2.5 2.5L7 8l-2.5 2.5M8 10.5h3.5",
+  copy: "M6 6h7v7H6V6Zm-3 4V3h7",
+  play: "M5 3l8 5-8 5V3Z",
+  stop: "M4 4h8v8H4z",
+  code: "M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5",
 };
 
 export type IconName = keyof typeof PATHS;

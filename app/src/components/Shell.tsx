@@ -1,19 +1,31 @@
 /** The page frame: brand, live ticker, wallet; a segmented nav with 1–4 shortcuts; the honest footer. */
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { config } from "../config";
+import { devConsole, useConsole, useConsoleOpen } from "../lib/console";
 import { TABS, type Tab, useHashRoute } from "../lib/useHashRoute";
+import { DevConsole } from "./DevConsole";
+import { SettingsSheet } from "./SettingsSheet";
 import { Ticker } from "./Ticker";
+import { Button } from "./ui";
 import { WalletButton } from "./WalletButton";
 
 const LABEL: Record<Tab, string> = { market: "Market", explorer: "Explorer", desk: "Desk", positions: "Positions" };
 
 export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
   const { go } = useHashRoute();
+  const [settings, setSettings] = useState(false);
+  const [consoleOpen] = useConsoleOpen();
+  const entryCount = useConsole().length;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = (e.target as HTMLElement | null)?.tagName;
       if (t === "INPUT" || t === "SELECT" || t === "TEXTAREA") return;
+      if (e.key === "`") {
+        e.preventDefault();
+        devConsole.toggle();
+        return;
+      }
       const i = Number(e.key) - 1;
       const target = TABS[i];
       if (target) go(target);
@@ -53,10 +65,23 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
               ))}
             </nav>
             <WalletButton />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="terminal"
+              onClick={() => devConsole.toggle()}
+              title="developer console (`)"
+              className={consoleOpen ? "border-accent/60 text-accent" : ""}
+            >
+              <span className="mono text-[11px]">{entryCount}</span>
+            </Button>
+            <Button variant="ghost" size="sm" icon="gear" onClick={() => setSettings(true)} title="settings">
+              <span className="sr-only">settings</span>
+            </Button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1240px] px-5 py-6">{children}</main>
+      <main className={`mx-auto max-w-[1240px] px-5 py-6 ${consoleOpen ? "pb-[46vh]" : ""}`}>{children}</main>
       <footer className="mx-auto max-w-[1240px] px-5 pb-8 pt-6">
         <p className="max-w-[92ch] text-xs leading-relaxed text-ink-3">
           Bids, loan sizes and collateral live on chain as ElGamal ciphertexts. The administrator holds the auditor key
@@ -65,6 +90,8 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
           labelled as such. Nothing here is investment advice.
         </p>
       </footer>
+      <DevConsole />
+      {settings && <SettingsSheet onClose={() => setSettings(false)} />}
     </div>
   );
 }

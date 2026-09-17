@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as sdk from "@thewindow/solana-sdk";
 import { isTransientRpcError } from "@thewindow/solana-sdk";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./index.css";
+import { config } from "./config";
+import { registerBurnerWallet } from "./lib/burner";
+import { rpc } from "./lib/chain";
+import { devConsole } from "./lib/console";
 import { SessionProvider, WalletBridges } from "./lib/wallet";
 
 // A public RPC answers 429 and drops connections; those are retried with backoff, wrong queries are not.
@@ -17,6 +22,12 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Registered before the first render so `useWallets` sees it in its first snapshot.
+registerBurnerWallet();
+
+// The whole SDK on the page, for DevTools: `await thewindow.sdk.fetchAuctionConfig(thewindow.rpc)`.
+window.thewindow = { sdk, rpc, config, console: devConsole, queryClient };
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");

@@ -11,8 +11,10 @@ import {
 } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { useCallback, useState } from "react";
+import { asCode } from "../../lib/asCode";
 import { saveBid } from "../../lib/bidBook";
 import { bytesToHex, joinDesk, rentFor, rpc } from "../../lib/chain";
+import { devConsole } from "../../lib/console";
 import { useAuctionConfig, useDeployment, useMember, useTokenAccounts } from "../../lib/queries";
 import { type OnStep, type StepReport, sendPlan } from "../../lib/send";
 import { useAccountSigners, useSession } from "../../lib/wallet";
@@ -87,15 +89,52 @@ export function useDesk(account: UiWalletAccount) {
       const m = await signMember();
       const t = await signToken(new Uint8Array(getAddressEncoder().encode(accounts.data.cstockAta)));
       session.setSignatures({ member: m, token: t });
+      devConsole.push({
+        kind: "call",
+        title: "signMessage ×2 → ElGamal keys (in this tab)",
+        code: [
+          "// two wallet signatures are the key material; they never leave the tab",
+          "const memberSignature = await signMessage({ message: sdk.memberSigningMessage() });",
+          `const tokenSignature = await signMessage({ message: sdk.tokenAccountSigningMessage(addressBytes("${accounts.data.cstockAta}")) });`,
+          "const w = await sdk.proofs();",
+          "const elgamalPubkey = w.elgamal_pubkey_from_signature(memberSignature);",
+        ].join("\n"),
+        state: "confirmed",
+      });
     },
   });
 
   const join = useMutation({
     mutationFn: async () => {
       if (!memberKey.data || !accounts.data) throw new Error("derive keys first");
-      const sig = await joinDesk({ wallet, elgamalPubkey: memberKey.data, mockAccount: accounts.data.mockAta });
-      await new Promise((r) => setTimeout(r, 1500));
-      return sig;
+      const id = devConsole.push({
+        kind: "call",
+        title: "POST /join (demo faucet: add_member + mint mock shares + fee SOL)",
+        code: asCode(
+          "joinDesk",
+          { wallet, elgamalPubkey: memberKey.data, mockAccount: accounts.data.mockAta },
+          {
+            prelude: "// the administrator signs add_member; membership is public, positions are not",
+          },
+        ),
+        state: "pending",
+      });
+      const r = await joinDesk({ wallet, elgamalPubkey: memberKey.data, mockAccount: accounts.data.mockAta }).catch(
+        (e: unknown) => {
+          devConsole.update(id, { state: "failed", error: e instanceof Error ? e.message : String(e) });
+          throw e;
+        },
+      );
+      devConsole.update(id, {
+        state: "confirmed",
+        ...(r.signature ? { signature: r.signature } : {}),
+        detail: r.alreadyMember
+          ? "already a member — nothing minted or sent"
+          : "member added, 10,000 shares minted, 0.1 SOL sent",
+      });
+      // A fresh member's accounts land a moment after the faucet's transaction confirms.
+      if (!r.alreadyMember) await new Promise((res) => setTimeout(res, 1500));
+      return r;
     },
     onSuccess: invalidate,
   });
@@ -104,7 +143,7 @@ export function useDesk(account: UiWalletAccount) {
     mutationFn: async () => {
       if (!dep.data || !accounts.data || !session.tokenSignature) throw new Error("derive keys first");
       steps.reset();
-      const plan = await buildOnboardPlan({
+      const args = {
         member: txSigner,
         mockMint: dep.data.mockMint,
         cstockMint: dep.data.cstockMint,
@@ -112,8 +151,12 @@ export function useDesk(account: UiWalletAccount) {
         mockAtaExists: accounts.data.mockAmount !== null,
         cstockAtaExists: accounts.data.cstock.exists,
         cstockConfigured: accounts.data.cstock.configured,
+      };
+      const plan = await buildOnboardPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: "buildOnboardPlan → sendPlan",
+        code: asCode("buildOnboardPlan", args, { result: "plan" }),
       });
-      return sendPlan(plan, txSigner, steps.onStep);
     },
     onSuccess: invalidate,
   });
@@ -126,7 +169,7 @@ export function useDesk(account: UiWalletAccount) {
       steps.reset();
       const w = await proofs();
       const newBalance = balances.data.available + balances.data.pending + amountMilli;
-      const plan = await buildWrapPlan({
+      const args = {
         member: txSigner,
         mockMint: dep.data.mockMint,
         cstockMint: dep.data.cstockMint,
@@ -135,8 +178,15 @@ export function useDesk(account: UiWalletAccount) {
         amount: amountMilli,
         pendingCreditCounter: v.pendingBalanceCreditCounter,
         newDecryptableBalance: new Uint8Array(w.encrypt_balance(session.tokenSignature, newBalance.toString())),
+      };
+      const plan = await buildWrapPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: "buildWrapPlan → sendPlan",
+        code: asCode("buildWrapPlan", args, {
+          prelude: "// newDecryptableBalance = w.encrypt_balance(tokenSignature, available + pending + amount)",
+          result: "plan",
+        }),
       });
-      return sendPlan(plan, txSigner, steps.onStep);
     },
     onSuccess: invalidate,
   });
@@ -155,6 +205,10 @@ export function useDesk(account: UiWalletAccount) {
         { txs: [{ label: "apply pending balance", instructions: [ix], extraSigners: [] }] },
         txSigner,
         steps.onStep,
+        {
+          title: "applyPendingBalanceInstruction → sendPlan",
+          code: `const ix = sdk.applyPendingBalanceInstruction(address("${accounts.data.cstockAta}"), address("${wallet}"), ${v.pendingBalanceCreditCounter}n, newDecryptable);`,
+        },
       );
     },
     onSuccess: invalidate,
@@ -168,7 +222,7 @@ export function useDesk(account: UiWalletAccount) {
       // The auditor key in force for this epoch is stamped on the Epoch account (rotation-safe).
       const epoch = await fetchEpoch(rpc, epochIndex);
       if (!epoch) throw new Error("epoch account missing");
-      const plan = await buildBidPlan({
+      const bidArgs = {
         member: txSigner,
         signature: session.memberSignature,
         auditorPubkey: new Uint8Array(epoch.auditorPubkey),
@@ -178,8 +232,15 @@ export function useDesk(account: UiWalletAccount) {
         sizeMicroUsdc: args.sizeMicroUsdc,
         sMin: cfg.data.sMin,
         rent: rentFor,
+      };
+      const plan = await buildBidPlan(bidArgs);
+      const sigs = await sendPlan(plan, txSigner, steps.onStep, {
+        title: `buildBidPlan → sendPlan (${args.side === 1 ? "borrow" : "lend"} @ tick ${args.tick})`,
+        code: asCode("buildBidPlan", bidArgs, {
+          prelude: "// the size is encrypted in this tab (bid_proofs); the plan is 3 transactions",
+          result: "plan",
+        }),
       });
-      const sigs = await sendPlan(plan, txSigner, steps.onStep);
       saveBid(wallet, {
         epoch: epochIndex.toString(),
         side: args.side,
