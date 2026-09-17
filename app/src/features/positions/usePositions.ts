@@ -11,6 +11,7 @@ import {
   fetchMultiplier,
   fetchPrice,
   multiplierScaled,
+  pda,
   priceCents,
   proofs,
   solvencyScalars,
@@ -21,7 +22,7 @@ type Loan = creditNs.Loan;
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { asCode } from "../../lib/asCode";
 import { findBid } from "../../lib/bidBook";
-import { hexToBytes, rentFor, rpc } from "../../lib/chain";
+import { hexToBytes, rentFor, retry, rpc } from "../../lib/chain";
 import { useCreditConfig, useDeployment, useLoans, useTokenAccounts } from "../../lib/queries";
 import { sendPlan } from "../../lib/send";
 import { useAccountSigners, useSession } from "../../lib/wallet";
@@ -48,7 +49,7 @@ export function usePositions(account: UiWalletAccount) {
     if (!rec) throw new Error("this browser has no record of the bid (size + opening); the lock proof needs it");
     const w = await proofs();
     if (isZero(loan.openingNote)) return { size: BigInt(rec.sizeMicroUsdc), opening: hexToBytes(rec.opening) };
-    const epoch = await fetchEpoch(rpc, loan.epoch);
+    const epoch = await retry(() => fetchEpoch(rpc, loan.epoch));
     if (!epoch) throw new Error("epoch missing");
     const opening = new Uint8Array(
       w.open_note(
@@ -73,9 +74,9 @@ export function usePositions(account: UiWalletAccount) {
       steps.reset();
       const { size, opening } = await loanSecret(address, loan);
       const [epoch, price, mult] = await Promise.all([
-        fetchEpoch(rpc, loan.epoch),
-        fetchPrice(rpc, dep.data.feedId),
-        fetchMultiplier(rpc, dep.data.mockMint),
+        retry(() => fetchEpoch(rpc, loan.epoch)),
+        retry(() => fetchPrice(rpc, dep.data.feedId)),
+        retry(() => fetchMultiplier(rpc, dep.data.mockMint)),
       ]);
       if (!epoch || !price) throw new Error("epoch or price missing");
       const pc = priceCents(price.price, price.expo);
@@ -93,6 +94,7 @@ export function usePositions(account: UiWalletAccount) {
         priceCents: pc,
         multScaled: ms,
         haircutBps: credit.data.haircutBps,
+        listing: await pda.listing(dep.data.cstockMint),
         feedId: dep.data.feedId,
         mockMint: dep.data.mockMint,
         rent: rentFor,
@@ -117,7 +119,8 @@ export function usePositions(account: UiWalletAccount) {
       steps.reset();
       const { size } = await loanSecret(address, loan);
       const need = collateralPledge(size, { kC: loan.kC, kL: loan.kL });
-      const escrow = await fetchConfidentialAccount(rpc, credit.data.escrowAccount);
+      const escrowAccount = credit.data.escrowAccount;
+      const escrow = await retry(() => fetchConfidentialAccount(rpc, escrowAccount));
       if (!escrow.view) throw new Error("escrow account not configured");
       const args = {
         borrower: txSigner,
@@ -125,6 +128,7 @@ export function usePositions(account: UiWalletAccount) {
         borrowerCstock: accounts.data.cstockAta,
         cstockMint: dep.data.cstockMint,
         escrow: credit.data.escrowAccount,
+        listing: await pda.listing(dep.data.cstockMint),
         loan: address,
         availableCt: v.availableBalance,
         decryptable: v.decryptableAvailableBalance,

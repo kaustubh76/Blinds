@@ -1,5 +1,6 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
 import { type Address, address, createSolanaRpc } from "@solana/kit";
+import { isTransientRpcError, withRpcRetry } from "@thewindow/solana-sdk";
 // Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
 // admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
 import bundledDeployment from "../../../deployments/devnet.json";
@@ -159,4 +160,19 @@ export async function joinDesk(args: {
 
 /** Rent for a proof context account of `space` bytes. */
 export const rentFor = async (space: number): Promise<bigint> =>
-  BigInt(await rpc.getMinimumBalanceForRentExemption(BigInt(space)).send());
+  BigInt(await retry(() => rpc.getMinimumBalanceForRentExemption(BigInt(space)).send()));
+
+/** A read that rides through the public RPC's 429s; use for the reads a mutation makes before it sends. */
+export const retry = <T>(f: () => Promise<T>) => withRpcRetry(f, { attempts: 6 });
+
+/** A human line for an error a flow surfaced: the public RPC's rate limit is the common one. */
+export function describeError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (isTransientRpcError(e)) {
+    const status = (e as { context?: { statusCode?: number } }).context?.statusCode;
+    return status === 429
+      ? "the RPC rate-limited this browser (429) — it was retried; try again in a moment, or set a dedicated RPC URL in Settings"
+      : `the RPC did not answer (${m.split(";")[0]}) — try again, or set a dedicated RPC URL in Settings`;
+  }
+  return m.replace(/; Decode this error by running[^\n]*/, "");
+}

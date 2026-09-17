@@ -8,11 +8,13 @@ import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { EncryptedValue } from "../../components/EncryptedValue";
 import { LifecycleTrack } from "../../components/LifecycleTrack";
+import { Skeleton } from "../../components/Skeleton";
 import { TxTimeline } from "../../components/TxTimeline";
 import { Badge, Button, ExplorerLink, Note } from "../../components/ui";
 import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
-import { formatPrice, formatRate, formatSlotAge } from "../../lib/format";
+import { describeError } from "../../lib/chain";
+import { formatPrice, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
 import { useBids, useSlot } from "../../lib/queries";
 import { useSession } from "../../lib/wallet";
 import { usePositions } from "./usePositions";
@@ -97,14 +99,15 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
             <Row k="collateral" v={<EncryptedValue bytes={loan.collateralCt} size="sm" />} />
           )}
           {loan.priceAtLock > 0n && (
-            <Row k="price at lock" v={<span className="num">{formatPrice(loan.priceAtLock, -8)}</span>} />
+            <Row k="price at lock" v={<span className="num">{formatPrice(loan.priceAtLock, -2)}</span>} />
           )}
           {loan.fillDen > 0n && (loan.fillNum !== 1n || loan.fillDen !== 1n) && (
             <Row
               k="marginal fill"
               v={
                 <span className="num">
-                  {loan.fillNum.toString()} / {loan.fillDen.toString()}
+                  {((Number(loan.fillNum) * 100) / Number(loan.fillDen)).toFixed(1)}% · {formatUsdc(loan.fillNum)} of{" "}
+                  {formatUsdc(loan.fillDen)}
                 </span>
               }
             />
@@ -133,7 +136,9 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         <Note tone="warn">Derive your keys on the Desk to act on loans; reading them needs nothing.</Note>
       )}
       <Card eyebrow="borrowing" title={`${borrowed.length} loan${borrowed.length === 1 ? "" : "s"}`}>
-        {borrowed.length === 0 ? (
+        {p.loans.data === undefined ? (
+          <Skeleton className="h-16 w-full" />
+        ) : borrowed.length === 0 ? (
           <EmptyState title="No loans as a borrower yet.">
             A bid at or above the clearing rate becomes a loan when the administrator posts matches after the print.
           </EmptyState>
@@ -141,14 +146,16 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
           <ul className="grid gap-3">{borrowed.map((l) => card(l.address, l.data, "borrower"))}</ul>
         )}
         <TxTimeline steps={p.steps.steps} cluster={cluster} />
-        {err && <Note tone="bad">{err.message}</Note>}
+        {err && <Note tone="bad">{describeError(err)}</Note>}
       </Card>
       <Card
         eyebrow="lending"
         title={`${lent.length} loan${lent.length === 1 ? "" : "s"}`}
         footer="As a lender you are told the loan size by the administrator off chain (the disclosed surface); funding and repayment are confirmed by the administrator on chain."
       >
-        {lent.length === 0 ? (
+        {p.loans.data === undefined ? (
+          <Skeleton className="h-16 w-full" />
+        ) : lent.length === 0 ? (
           <EmptyState title="No loans as a lender yet.">
             An ask at or below the clearing rate is filled — pro rata at the marginal rate.
           </EmptyState>

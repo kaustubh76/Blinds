@@ -15,6 +15,7 @@ import { Badge, Button, ExplorerLink, Field, inputCls, Note } from "../../compon
 import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
 import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
+import { describeError } from "../../lib/chain";
 import { formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
 import { useSession } from "../../lib/wallet";
 import { useDesk } from "./useDesk";
@@ -327,7 +328,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
       {(d.steps.steps.length > 0 || err) && (
         <Card eyebrow="transactions" title="This session">
           <TxTimeline steps={d.steps.steps} cluster={cluster} />
-          {err && <Note tone="bad">{err.message}</Note>}
+          {err && <Note tone="bad">{describeError(err)}</Note>}
         </Card>
       )}
     </div>

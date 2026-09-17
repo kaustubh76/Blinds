@@ -5,6 +5,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { config } from "../config";
+import { describeError } from "./chain";
 import { devConsole, jsonSafe } from "./console";
 import { type LiveEvent, startLive } from "./live";
 import { readPref } from "./prefs";
@@ -68,7 +69,10 @@ export function useLiveEvents(): LiveState {
           ctrl.abort();
           set({ enabled: false, connected: false });
         } else if (s.error) {
-          devConsole.push({ kind: "note", title: `real-time: reconnecting (${s.attempt + 1}) — ${s.error}` });
+          devConsole.push({
+            kind: "note",
+            title: `real-time: reconnecting (${s.attempt + 1}) — ${describeError(new Error(s.error))}`,
+          });
         }
       },
     });

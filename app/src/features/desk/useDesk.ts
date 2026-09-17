@@ -16,7 +16,7 @@ import type { UiWalletAccount } from "@wallet-standard/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { asCode } from "../../lib/asCode";
 import { saveBid } from "../../lib/bidBook";
-import { bytesToHex, joinDesk, rentFor, rpc } from "../../lib/chain";
+import { bytesToHex, joinDesk, rentFor, retry, rpc } from "../../lib/chain";
 import { devConsole } from "../../lib/console";
 import { useAuctionConfig, useDeployment, useMember, useTokenAccounts } from "../../lib/queries";
 import { type OnStep, type StepReport, sendPlan } from "../../lib/send";
@@ -223,7 +223,7 @@ export function useDesk(account: UiWalletAccount) {
       steps.reset();
       const epochIndex = cfg.data.currentEpoch;
       // The auditor key in force for this epoch is stamped on the Epoch account (rotation-safe).
-      const epoch = await fetchEpoch(rpc, epochIndex);
+      const epoch = await retry(() => fetchEpoch(rpc, epochIndex));
       if (!epoch) throw new Error("epoch account missing");
       const bidArgs = {
         member: txSigner,
@@ -310,10 +310,10 @@ export function useDesk(account: UiWalletAccount) {
       } else note("already holds cSTOCK-W");
       if (!latest.current.open) throw new Error("autopilot: no window is open — the keeper opens the next one");
       // Bid at the last clearing rate when there is one, so the bid is likely to match.
-      const oracle = await fetchOracle(rpc);
+      const oracle = await retry(() => fetchOracle(rpc));
       let tick = 8;
       if (oracle?.hasPrinted) {
-        const last = await fetchPrint(rpc, oracle.lastPrintEpoch);
+        const last = await retry(() => fetchPrint(rpc, oracle.lastPrintEpoch));
         if (last?.status === PrintStatus.Printed) tick = last.rStarTick;
       }
       note(`sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick}`);
