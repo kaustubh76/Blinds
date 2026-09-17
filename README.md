@@ -14,7 +14,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 |---|---|
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
-| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · Tessera · PreStocks integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw) |
+| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · Tessera · PreStocks integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule |
 | Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 19 attack cases, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
 
@@ -28,7 +28,7 @@ sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated
 app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a developer console, a Build page)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
 config/     demo.toml · integration.toml · prod.toml — the single source of market parameters
-docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
+docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · PYTH.md · LISTINGS.md · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
 ```
 
 ## Quickstart
