@@ -8,6 +8,7 @@ import type * as SDK from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
 import type { DeploymentView } from "../../lib/chain";
 import { startLive } from "../../lib/live";
+import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
 
 export interface RecipeCtx {
   sdk: typeof SDK;
@@ -46,12 +47,13 @@ export const RECIPES: Recipe[] = [
 const auction = await sdk.fetchAuctionConfig(rpc);   // epoch length, sMin, current epoch, hasOpenEpoch
 const credit  = await sdk.fetchCreditConfig(rpc);    // haircut, tenor, escrow, price feed
 const oracle  = await sdk.fetchOracle(rpc);          // last print, τ, stale flag
+const listings = await sdk.fetchListings(rpc);       // the collateral schedule (see the "schedule" recipe)
 const pdas = {
   auctionConfig: await sdk.pda.auctionConfig(),
   epoch: await sdk.pda.epoch(auction.currentEpoch),
   print: await sdk.pda.print(auction.currentEpoch),
 };
-console.log(sdk.PROGRAMS, auction, credit, oracle, pdas);`,
+console.log(sdk.PROGRAMS, auction, credit, oracle, pdas, listings.length, "listings");`,
     run: async (ctx) => {
       const [auction, credit, oracle] = await Promise.all([
         ctx.sdk.fetchAuctionConfig(ctx.rpc),
@@ -64,7 +66,203 @@ console.log(sdk.PROGRAMS, auction, credit, oracle, pdas);`,
         epoch: await ctx.sdk.pda.epoch(auction.currentEpoch),
         print: await ctx.sdk.pda.print(auction.currentEpoch),
       };
-      return { programs: ctx.sdk.PROGRAMS, auction, credit, oracle, pdas };
+      const listings = await ctx.sdk.fetchListings(ctx.rpc);
+      return { programs: ctx.sdk.PROGRAMS, auction, credit, oracle, pdas, listings: listings.length };
+    },
+  },
+  {
+    id: "schedule",
+    title: "The collateral schedule, as the chain would judge it now",
+    blurb:
+      "Every Listing account, its PriceCache and the two freshness rules lock_collateral and seize apply — the same call the operator's `pnpm schedule` makes.",
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const listings = await sdk.fetchListings(rpc);                       // every Listing account, sorted by symbol
+const prices   = await sdk.fetchPrices(rpc, listings.map((l) => new Uint8Array(l.data.feedId)));   // one RPC call
+const slot     = Number(await rpc.getSlot({ commitment: "confirmed" }).send());
+const now      = Number(await rpc.getBlockTime(BigInt(slot)).send());
+for (const [i, { address, data: l }] of listings.entries()) {
+  const price = prices[i];
+  if (!price) { console.log(sdk.symbolOf(l), "no cache yet"); continue; }
+  const f = sdk.quoteFreshness({ listing: l, price, slot, nowSecs: now });
+  console.log(sdk.symbolOf(l), sdk.PRICE_SOURCE_NAMES[l.priceSource], sdk.isAttestedMark(l.priceSource) ? "(attested mark)" : "",
+    "mark", Number(price.price) * 10 ** price.expo, "haircut", Number(l.haircutBps) / 100 + "%",
+    "quote", f.quoteAgeSecs + "s old (limit " + l.maxPublishAgeSecs + ")", "posted", f.postedAgeSlots + " slots ago (limit " + l.maxPriceAge + ")",
+    f.usable ? "→ lock/seize ACCEPTED" : "→ REFUSED", "listing", address, "cache", await sdk.pda.priceCache(new Uint8Array(l.feedId)));
+}`,
+    run: async (ctx) => {
+      const listings = await ctx.sdk.fetchListings(ctx.rpc);
+      const prices = await ctx.sdk.fetchPrices(
+        ctx.rpc,
+        listings.map((l) => new Uint8Array(l.data.feedId)),
+      );
+      const slot = Number(await ctx.rpc.getSlot({ commitment: "confirmed" }).send());
+      const now = Number(await ctx.rpc.getBlockTime(BigInt(slot)).send());
+      const rows = [];
+      for (const [i, { address, data: l }] of listings.entries()) {
+        const price = prices[i];
+        const cache = await ctx.sdk.pda.priceCache(new Uint8Array(l.feedId));
+        const base = {
+          listing: ctx.sdk.symbolOf(l),
+          source: ctx.sdk.PRICE_SOURCE_NAMES[l.priceSource] ?? l.priceSource,
+          attestedMark: ctx.sdk.isAttestedMark(l.priceSource),
+          haircutBps: l.haircutBps,
+          listingPda: address,
+          priceCachePda: cache,
+        };
+        if (!price) {
+          rows.push({ ...base, verdict: "no cache yet" });
+          continue;
+        }
+        const f = ctx.sdk.quoteFreshness({ listing: l, price, slot, nowSecs: now });
+        rows.push({
+          ...base,
+          mark: Number(price.price) * 10 ** price.expo,
+          posts: price.posts,
+          quoteAgeSecs: f.quoteAgeSecs,
+          quoteLimitSecs: l.maxPublishAgeSecs,
+          postedAgeSlots: f.postedAgeSlots,
+          postedLimitSlots: l.maxPriceAge,
+          verdict: f.usable ? "lock / seize ACCEPTED" : `REFUSED (${!f.quoteFresh ? "QuoteStale" : "PriceStale"})`,
+        });
+      }
+      return { slot, chainTime: new Date(now * 1000).toISOString(), listings: rows };
+    },
+  },
+  {
+    id: "pyth-mainnet",
+    title: "Pyth's own accounts on mainnet, read from this browser",
+    blurb:
+      "The push-oracle PriceUpdateV2 accounts for Crypto.TSLAX/USD (the desk's mark) and Equity.US.TSLA/USD (the underlying): owner check, feed id, publish_time, verification level, and the wrapper basis. No key, no service.",
+    code: (ctx) => `import { createSolanaRpc, getProgramDerivedAddress, address } from "@solana/kit";
+const mainnet = createSolanaRpc("${ctx.config.rpcUrl.includes("devnet") ? "https://solana-rpc.publicnode.com" : ctx.config.rpcUrl}");
+const RECEIVER = "${PYTH_RECEIVER}";                       // PriceUpdateV2 accounts are owned by Pyth's receiver
+const TSLAX = "${FEEDS["Crypto.TSLAX/USD"]}";
+const TSLA  = "${FEEDS["Equity.US.TSLA/USD"]}";
+// push-oracle PDA: ["shard u16 le", feed_id] under pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT; shards 0 and 1
+const pda = async (shard, feed) => (await getProgramDerivedAddress({ programAddress: address("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT"),
+  seeds: [new Uint8Array([shard & 0xff, shard >> 8]), Uint8Array.from(feed.match(/../g), (h) => parseInt(h, 16))] }))[0];
+// layout: disc(8) ‖ write_authority(32) ‖ verification_level(1|2) ‖ feed_id(32) ‖ price i64 ‖ conf u64 ‖ expo i32 ‖ publish_time i64
+// (app/src/lib/pyth.ts decodePriceUpdate mirrors services/admin/src/price.rs; the keeper posts the freshest
+//  into the listing's cache — sdk.fetchPrice(rpc, feedId) — and the chain enforces its publish_time)
+for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
+  const accounts = await mainnet.getMultipleAccounts([await pda(0, feed), await pda(1, feed)], { encoding: "base64" }).send();
+  console.log(name, accounts.value.map((a) => a && a.owner === RECEIVER ? "present" : "absent"));
+}`,
+    run: async (ctx) => {
+      const read = async (name: string, feed: string) => {
+        const p = await fetchFreshest(mainnetRpc, feed);
+        if (!p) return { feed: name, present: false };
+        return {
+          feed: name,
+          account: p.account,
+          price: Number(p.price) * 10 ** p.expo,
+          publishTime: new Date(p.publishTime * 1000).toISOString(),
+          ageSecs: Math.max(0, Math.floor(Date.now() / 1000) - p.publishTime),
+          verification: p.verification,
+        };
+      };
+      const [wrapper, equity] = await Promise.all([
+        read("Crypto.TSLAX/USD", FEEDS["Crypto.TSLAX/USD"]),
+        read("Equity.US.TSLA/USD", FEEDS["Equity.US.TSLA/USD"]),
+      ]);
+      const basis =
+        "price" in wrapper && "price" in equity && wrapper.price && equity.price
+          ? basisBps(
+              { price: BigInt(Math.round(wrapper.price * 1e8)), expo: -8 },
+              { price: BigInt(Math.round(equity.price * 1e8)), expo: -8 },
+            )
+          : null;
+      ctx.log(`session: ${nyseSession().label}`);
+      return {
+        wrapper,
+        equity,
+        wrapperBasisBp: basis,
+        note: "the desk marks with the wrapper feed (24/7); the equity feed is shown beside it. A wrapper quote older than the listing's limit is refused on chain.",
+      };
+    },
+  },
+  {
+    id: "marks",
+    title: "The attested marks: Tessera and PreStocks, as posted on chain",
+    blurb:
+      "A mark listing's feed id is sha256(\"<source>:<symbol>\") — a label, never a Pyth id — and its publish_time is the keeper's fetch time. The public APIs send no CORS headers, so a browser reads the on-chain cache; the curl is what the keeper does.",
+    code: (ctx) => `${PRELUDE(ctx)}
+
+// feed id = sha256("tessera:T-OpenAI") / sha256("prestocks:ANTHROPIC"): a label under which the keeper posts
+const tessera   = await sdk.fetchPrice(rpc, await sdk.feedIdForLabel("tessera:T-OpenAI"));
+const prestocks = await sdk.fetchPrice(rpc, await sdk.feedIdForLabel("prestocks:ANTHROPIC"));
+console.log("cache", await sdk.pda.priceCache(await sdk.feedIdForLabel("tessera:T-OpenAI")));   // ["price", feed_id] under window_credit
+console.log(Number(tessera.price) * 10 ** tessera.expo, "USD, fetched", new Date(Number(tessera.publishTime) * 1000));
+console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new Date(Number(prestocks.publishTime) * 1000));
+
+// what the keeper reads (server side — these APIs answer no CORS preflight):
+//   curl -s https://rest-api.tessera.pe/v1/public/token-details | jq '.[] | select(.mint=="oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ") | .markPrice'
+//   curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`,
+    run: async (ctx) => {
+      const one = async (label: string, api: string) => {
+        const feedId = await ctx.sdk.feedIdForLabel(label);
+        const price = await ctx.sdk.fetchPrice(ctx.rpc, feedId);
+        const hex = Array.from(feedId, (b) => b.toString(16).padStart(2, "0")).join("");
+        if (!price) return { label, feedId: hex, cache: "none" };
+        return {
+          label,
+          feedId: hex,
+          priceCache: await ctx.sdk.pda.priceCache(feedId),
+          mark: Number(price.price) * 10 ** price.expo,
+          fetchedAt: new Date(Number(price.publishTime) * 1000).toISOString(),
+          ageSecs: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.publishTime)),
+          posts: price.posts,
+          api,
+        };
+      };
+      return {
+        tessera: await one("tessera:T-OpenAI", "https://rest-api.tessera.pe/v1/public/token-details"),
+        prestocks: await one("prestocks:ANTHROPIC", "https://prestocks.com/api/prestocks"),
+        note: "attested marks: publish_time is the keeper's fetch time; the on-chain limit for these listings is 48 h",
+      };
+    },
+  },
+  {
+    id: "solvency",
+    title: "What 1,000 USDC costs in collateral on each listing",
+    blurb:
+      "The scalars the program forms E_delta with: k_c from the listing's mark and the mint's multiplier, k_l from its haircut; then the pledge the desk asks for. Pure math over the same accounts.",
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const LOAN = 1_000_000_000n;                                       // 1,000 USDC in micro-USDC
+for (const { data: l } of await sdk.fetchListings(rpc)) {
+  const price = await sdk.fetchPrice(rpc, new Uint8Array(l.feedId));
+  const mult  = await sdk.fetchMultiplier(rpc, l.mockMint);        // ScaledUiAmount on the mock mint
+  const s = sdk.solvencyScalars(sdk.priceCents(price.price, price.expo), sdk.multiplierScaled(mult.multiplier), l.haircutBps);
+  console.log(sdk.symbolOf(l), "k_c", s.kC, "k_l", s.kL, "required", sdk.collateralRequired(LOAN, s), "pledge", sdk.collateralPledge(LOAN, s), "milli-shares");
+}`,
+    run: async (ctx) => {
+      const LOAN = 1_000_000_000n;
+      const out = [];
+      for (const { data: l } of await ctx.sdk.fetchListings(ctx.rpc)) {
+        const price = await ctx.sdk.fetchPrice(ctx.rpc, new Uint8Array(l.feedId));
+        if (!price) continue;
+        const mult = await ctx.sdk.fetchMultiplier(ctx.rpc, l.mockMint);
+        const s = ctx.sdk.solvencyScalars(
+          ctx.sdk.priceCents(price.price, price.expo),
+          ctx.sdk.multiplierScaled(mult.multiplier),
+          l.haircutBps,
+        );
+        const required = ctx.sdk.collateralRequired(LOAN, s);
+        const pledge = ctx.sdk.collateralPledge(LOAN, s);
+        out.push({
+          listing: ctx.sdk.symbolOf(l),
+          markUsd: Number(price.price) * 10 ** price.expo,
+          multiplier: mult.multiplier,
+          haircut: `${Number(l.haircutBps) / 100}%`,
+          kC: s.kC,
+          kL: s.kL,
+          requiredShares: Number(required) / 10 ** l.decimals,
+          pledgedShares: Number(pledge) / 10 ** l.decimals,
+        });
+      }
+      return { loanUsdc: 1000, listings: out };
     },
   },
   {
@@ -225,7 +423,8 @@ const plan  = await sdk.buildBidPlan({
   {
     id: "subscribe",
     title: "Subscribe to the programs' events",
-    blurb: "Open a WebSocket, follow the auction and oracle programs' logs, decode the Anchor events — for 60 seconds.",
+    blurb:
+      "Open a WebSocket, follow the auction, oracle and credit programs' logs, decode the Anchor events (EpochOpened, Printed, PricePosted per listing, MatchPosted…) — for 60 seconds.",
     code: (ctx) => `import { createSolanaRpcSubscriptions, getBase64Encoder } from "@solana/kit";
 import * as sdk from "@thewindow/solana-sdk";
 const subs = createSolanaRpcSubscriptions("${ctx.config.wsUrl}");
@@ -259,7 +458,7 @@ for await (const n of logs) {
         ctx.log(`listening on ${ctx.config.wsUrl} for 60 s (oracle + auction) …`);
         void startLive({
           wsUrl: ctx.config.wsUrl,
-          programs: ["oracle", "auction"],
+          programs: ["oracle", "auction", "credit"],
           signal: ctrl.signal,
           onInvalidate: () => {},
           onStatus: (s) => ctx.log(s.connected ? "connected" : `disconnected: ${s.error ?? ""}`),

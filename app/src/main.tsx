@@ -27,7 +27,30 @@ const queryClient = new QueryClient({
 registerBurnerWallet();
 
 // The whole SDK on the page, for DevTools: `await thewindow.sdk.fetchAuctionConfig(thewindow.rpc)`.
-window.thewindow = { sdk, rpc, config, console: devConsole, queryClient };
+window.thewindow = {
+  sdk,
+  rpc,
+  config,
+  console: devConsole,
+  queryClient,
+  // The collateral schedule as the chain would judge it now (the Build page's "schedule" recipe).
+  schedule: async () => {
+    const { RECIPES } = await import("./features/build/recipes");
+    const r = RECIPES.find((x) => x.id === "schedule");
+    if (!r) throw new Error("schedule recipe missing");
+    return r.run({
+      sdk,
+      rpc,
+      config,
+      deployment: null,
+      wallet: null,
+      memberSignature: null,
+      rentFor: async () => 0n,
+      signal: new AbortController().signal,
+      log: (line) => devConsole.push({ kind: "note", title: line }),
+    });
+  },
+};
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");

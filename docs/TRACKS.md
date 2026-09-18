@@ -54,6 +54,7 @@ devnet and those tokens live on mainnet.
 | Technical soundness | Keeper reads Hermes with a bearer key and falls back to Pyth's own `PriceUpdateV2` accounts (owner-checked against the receiver, feed id checked); the quote's `publish_time` is stored unmodified and **enforced on chain** per listing. | 1, 3 |
 | Use one feed, compare both | Dashboard shows the desk quote (`Crypto.TSLAX/USD`) beside the underlying `Equity.US.TSLA/USD` read from Pyth's mainnet account, with the wrapper basis in bps and the equity session state — the overnight window opens after the equity close, which is why the wrapper feed marks the collateral. | 2 |
 | Exists post-hackathon | Hosted dashboard, devnet market, `update_listing` to retune limits without an upgrade, `price-check` for operators. | all |
+| Developer surface | Build page (`#/build`): the live schedule row for `TSLAx-mock` (listing / price-cache PDA / feed id, both verdicts), the **Pyth** track column, and the `pyth-mainnet` recipe — the browser reads `Crypto.TSLAX/USD` and `Equity.US.TSLA/USD` from Pyth's mainnet push accounts (`fetchFreshest`, `decodePriceUpdate`, `basisBps`, `nyseSession`) and shows the shard-0 account's age; `solvency` recipe: `k_c`/`k_l` and the pledge for 1,000 USDC. Console titles `credit.PricePosted · TSLAx-mock $…`; DevTools `thewindow.schedule()`. | live |
 | Stretch | The Pyth listing reads Pyth's receiver-owned account posted on devnet by `services/pyth-poster`, so the program trusts Pyth's signature rather than the keeper's copy for that listing. | 4 |
 
 Incident recorded honestly: the mainnet push account `GpoWLTd6…` we copied from **stopped updating on Sat 12 Sep
@@ -68,6 +69,7 @@ account died, the feed did not).
 | A product or use case for T-OpenAI / T-Kalshi | A confidential borrow line against `T-OpenAI`: the holder wraps into a confidential mint, proves `collateral ≥ 200 % × loan` against Tessera's mark without revealing either amount, borrows at the xONIA print. | 3 |
 | Drives value to the tokens | Collateral utility. A pre-IPO token you can borrow against without disclosing your position is worth more than one you can only hold. | 3 |
 | Integration depth | Tessera's `token-details` mark is the on-chain `PriceCache` for the listing (`price_source = 1`), with `publish_time = keeper fetch time` — stated on chain and in the UI as an attested mark, not a feed. Listing, wrap, lock, deposit, seize, release all run per listing. | 3 |
+| Developer surface | Build page: the `T-OpenAI-mock` schedule row, the **Tessera** column (`feedIdForLabel("tessera:T-OpenAI")` → `fetchPrice`, `fetchListing(cstockMint)`, `buildLockPlan({ listing, feedId, mockMint, haircutBps })`, the `token-details` `curl`, explorer links to listing and escrow), the `marks` recipe (the label → feed-id rule, proven against the chain), the `solvency` recipe (200 % pledge). The API sends no CORS headers, so the on-chain cache is the browser's source — said on the page. | live |
 
 ## PreStocks — criteria → what answers them
 
@@ -76,6 +78,7 @@ account died, the feed did not).
 | Creativity | The same desk lists `ANTHROPIC` next to a listed stock and a Tessera token under one rate — a collateral schedule, the way a prime desk actually runs. | 3 |
 | Integration depth | `/api/prestocks` `markPrice` → keeper → `PriceCache` (`price_source = 2`); `tokenPrice` vs `markPrice` shown as the PreStocks basis in the schedule table. | 3 |
 | Product quality | Listing selector on the Desk, per-listing lock/deposit on Positions, schedule with quote ages on Market; tier-1 attack cases for wrong-listing and stale-quote paths; tier-2 lifecycle on a second listing. | 3 |
+| Developer surface | Build page: the `ANTHROPIC-mock` schedule row, the **PreStocks** column (`feedIdForLabel("prestocks:ANTHROPIC")`, the `/api/prestocks` `curl`, the same SDK calls), `marks` and `solvency` recipes (ANTHROPIC: 1.965 shares required, 3.143 pledged after the 200 % haircut for 1,000 USDC); console events named by listing (`credit.PricePosted · ANTHROPIC-mock $…`). | live |
 
 ## Honest limits (also in the UI)
 

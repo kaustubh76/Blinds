@@ -16,5 +16,7 @@ interface Window {
     config: import("./config").Resolved;
     console: typeof import("./lib/console").devConsole;
     queryClient: import("@tanstack/react-query").QueryClient;
+    /** Every listing with its mark, both freshness verdicts and PDAs — `await thewindow.schedule()`. */
+    schedule: () => Promise<unknown>;
   };
 }

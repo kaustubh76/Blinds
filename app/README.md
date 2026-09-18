@@ -37,9 +37,17 @@ from `deployments/admin-url.txt` by the Pages workflow) is the fallback pointer 
   code and redacts secrets by key before rendering.
 - `src/lib/live.ts` + `useLive.ts` — WebSocket account + logs subscriptions, Anchor events decoded
   with the generated codecs, backoff; polling stays the source of truth.
-- `src/features/build/` — the Build page: `recipes.ts` (code + run side by side, coupled by a test),
-  `ProgramSurface.tsx` (from `sdk/idl/*.json`).
-- `window.thewindow` — the SDK, RPC, config, console and query client for DevTools.
+- `src/features/build/` — the Build page: `Schedule.tsx` (the collateral schedule as a developer reads
+  it: every listing's PDA, price-cache PDA and feed id, source, mark, haircut, and the verdict the chain
+  would give a lock or seize right now — `fetchListings` → `fetchPrices` → `quoteFreshness`, with the
+  code shown), `Tracks.tsx` (Pyth / Tessera / PreStocks: what to call, the public-API `curl`, Pyth's
+  mainnet accounts read from the browser, each track's honest limit), `recipes.ts` (code + run side by
+  side, coupled by a test: `config`, `schedule`, `pyth-mainnet`, `marks`, `solvency`, `print`,
+  `verify-print`, `membership`, `bid-dry-run`, `subscribe`), `ProgramSurface.tsx` (from `sdk/idl/*.json`).
+  The mark APIs (Tessera, PreStocks) send no CORS headers, so the browser reads marks from the on-chain
+  `PriceCache` and shows the `curl`.
+- `window.thewindow` — the SDK, RPC, config, console and query client for DevTools;
+  `await thewindow.schedule()` returns the schedule rows the `schedule` recipe prints.
 
 ## Without the admin service
 

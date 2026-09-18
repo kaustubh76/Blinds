@@ -3,12 +3,13 @@
  * the developer console, and exposes a small store for the UI: connection state + last events.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { config } from "../config";
 import { describeError } from "./chain";
 import { devConsole, jsonSafe } from "./console";
 import { type LiveEvent, startLive } from "./live";
 import { readPref } from "./prefs";
+import { useDeployment } from "./queries";
 
 export interface LiveState {
   enabled: boolean;
@@ -27,8 +28,31 @@ const MAX_EVENTS = 40;
 const GIVE_UP_AFTER = 6;
 let started = false;
 
+/** A listing's symbol for an event that carries its feed id or its listing PDA. */
+function describeEvent(
+  e: LiveEvent,
+  listings: Array<{ symbol: string; listing: string; feedId: Uint8Array }> | undefined,
+): string {
+  const d = e.data as Record<string, unknown> | null;
+  if (!d || !listings) return `${e.program}.${e.name}`;
+  const hex = (b: ArrayLike<number>) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  const feed = d.feedId instanceof Uint8Array || Array.isArray(d.feedId) ? hex(d.feedId as ArrayLike<number>) : null;
+  const byFeed = feed ? listings.find((l) => hex(l.feedId) === feed) : undefined;
+  const byPda = typeof d.listing === "string" ? listings.find((l) => l.listing === d.listing) : undefined;
+  const l = byFeed ?? byPda;
+  if (e.name === "PricePosted" && typeof d.price === "bigint" && typeof d.expo === "number") {
+    const v = (Number(d.price) * 10 ** d.expo).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    return `credit.PricePosted · ${l?.symbol ?? "unknown listing"} $${v}`;
+  }
+  if (l) return `${e.program}.${e.name} · ${l.symbol}`;
+  return `${e.program}.${e.name}`;
+}
+
 export function useLiveEvents(): LiveState {
   const qc = useQueryClient();
+  const dep = useDeployment();
+  const listingsRef = useRef(dep.data?.listings);
+  listingsRef.current = dep.data?.listings;
   useEffect(() => {
     if (started || !state.enabled) return;
     started = true;
@@ -46,7 +70,7 @@ export function useLiveEvents(): LiveState {
         set({ events: [...state.events, e].slice(-MAX_EVENTS) });
         devConsole.push({
           kind: "event",
-          title: `${e.program}.${e.name}`,
+          title: describeEvent(e, listingsRef.current),
           signature: e.signature,
           programs: [e.program],
           detail: e.data,
@@ -55,6 +79,9 @@ export function useLiveEvents(): LiveState {
         // Loans and bids change on credit/auction events; membership on registry ones.
         if (e.program === "credit") void qc.invalidateQueries({ queryKey: ["loans"] });
         if (e.program === "credit" && e.name === "ListingAdded") void qc.invalidateQueries({ queryKey: ["listings"] });
+        if (e.program === "credit" && e.name === "PricePosted")
+          for (const k of ["price", "prices", "build-schedule", "build-mark"])
+            void qc.invalidateQueries({ queryKey: [k] });
         if (e.program === "auction" && e.name === "BidSubmitted") void qc.invalidateQueries({ queryKey: ["bids"] });
       },
       onStatus: (s) => {
@@ -91,4 +118,5 @@ export function useLiveEvents(): LiveState {
   );
 }
 
-export const describeEvent = (e: LiveEvent): string => jsonSafe(e.data, 0);
+/** The decoded event body, compact, for a one-line display. */
+export const describeEventData = (e: LiveEvent): string => jsonSafe(e.data, 0);

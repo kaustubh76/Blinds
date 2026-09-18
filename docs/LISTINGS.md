@@ -82,6 +82,13 @@ wrong action.
   per listing, kept in the tab).
 - **Positions**: lock under the selected listing; deposit under the loan's own listing (the tab signs for
   that listing's account if it has not yet); a listing badge on every loan.
+- **Build** (`#/build`, for developers): *The collateral schedule · live* — one row per listing with the
+  listing PDA, price-cache PDA and feed id (copy / explorer), the mark, the haircut and the verdict the chain
+  would give right now (`lock & seize accepted` / `QuoteStale` / `PriceStale`), with the SDK calls that produced
+  it; *The three tracks* — a Pyth, a Tessera and a PreStocks column with what to call, the public-API `curl`,
+  and each track's honest limit; recipes `schedule`, `pyth-mainnet`, `marks`, `solvency` run in the tab and
+  print their output; `listing(cstockMint)` in the PDA table; `await thewindow.schedule()` in DevTools. The
+  console names the listing on every `PricePosted` / `LockRequested` / `ListingAdded` event.
 
 ## Tests
 

@@ -16,6 +16,8 @@ import { useDeployment } from "../../lib/queries";
 import { useSession } from "../../lib/wallet";
 import { ProgramSurface } from "./ProgramSurface";
 import { RECIPES, type Recipe, type RecipeCtx } from "./recipes";
+import { Schedule } from "./Schedule";
+import { Tracks } from "./Tracks";
 
 function Code({ children }: { children: string }) {
   return (
@@ -151,14 +153,30 @@ const PDA_SEEDS: Array<[string, string, string]> = [
   ["wrap", "wrapVault(mockMint)", '["vault", mockMint]'],
   ["wrap", "wrapMintAuthority", '["mint_authority"]'],
   ["credit", "creditConfig", '["config"]'],
-  ["credit", "priceCache(feedId)", '["price", feedId]'],
+  ["credit", "listing(cstockMint)", '["listing", cstockMint]'],
+  [
+    "credit",
+    "priceCache(feedId)",
+    '["price", feedId]  — feedId: a Pyth id, or sha256("<source>:<symbol>") for an attested mark',
+  ],
   ["credit", "loan(epoch, borrower, bidTick, k)", '["loan", u64le(epoch), borrower, bidTick, k]'],
 ];
 
 const HOOKS: Array<[string, string]> = [
   ["useAuctionConfig / useCreditConfig / useOracle", "the three config accounts, polled on the slot clock"],
   ["useEpoch(index) / usePrint(index) / useSeries(latest, n)", "one epoch's accumulators, its print, the print series"],
-  ["usePrice(feedId) / useMultiplier(mint)", "the posted TSLAx price and the ScaledUiAmount multiplier"],
+  [
+    "usePrice(feedId) / usePrices(feedIds) / useMultiplier(mint)",
+    "a listing's posted mark (or all of them in one call) and the mint's ScaledUiAmount multiplier",
+  ],
+  [
+    "useOnChainListings() / useSelectedListing()",
+    "the schedule as the chain has it · the listing the Desk is working (persisted per browser; the token signature follows it)",
+  ],
+  [
+    "useUnderlying(feedId)",
+    "Pyth's mainnet push-oracle account read in the browser (the equity beside the wrapper) — lib/pyth.ts",
+  ],
   ["useMember(owner) / useBids(wallet) / useLoans(wallet)", "membership (public), sealed bids, loans on both sides"],
   ["useTokenAccounts(wallet, mock, cstock)", "the two ATAs and the confidential-extension view"],
   ["useWindowClock()", "phase, progress, seconds left — the ring's single source of truth"],
@@ -230,6 +248,16 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
       </Card>
 
       <Card
+        eyebrow="the collateral schedule · live"
+        title="Three listings, one rate — what the chain would accept right now"
+        footer="Two rules per listing at lock_collateral and seize: the keeper must have posted within max_price_age slots, and the quote's own publish_time must be within max_publish_age. Attested marks carry the keeper's fetch time; the Pyth quote carries the publisher's."
+      >
+        <Schedule />
+      </Card>
+
+      <Tracks />
+
+      <Card
         eyebrow="live recipes"
         title="Run it here, copy it as code"
         footer="Each run lands in the console (`) with the exact snippet. Secrets — the wallet signatures, bid openings — are never rendered."
@@ -283,7 +311,7 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
           </Note>
           <div className="mt-3">
             <Code>{`GET  ${adminShown}/healthz      → ok
-GET  ${adminShown}/deployment   → { cluster, programs, mock_mint, cstock_mint, escrow_account, feed_id_hex, auditor_elgamal_pubkey_hex, agents[] }
+GET  ${adminShown}/deployment   → { cluster, programs, listings[] { key, symbol, source, listing, mock_mint, cstock_mint, escrow_account, feed_id_hex, haircut_bps, max_price_age_slots, max_publish_age_secs }, auditor_elgamal_pubkey_hex, agents[] }
 GET  ${adminShown}/faucet       → { remaining_this_hour, max_per_hour, min_balance_sol }
 GET  ${adminShown}/metrics      → prometheus text
 POST ${adminShown}/join
@@ -292,7 +320,11 @@ POST ${adminShown}/join
      → 400 { "ok": false, "error": "…" } · 429 busy (retry_after_secs) · 503 balance floor
 
 curl -s -X POST ${adminShown}/join -H 'content-type: application/json' \\
-  -d '{"wallet":"<base58>","elgamal_pubkey_hex":"<hex>","mock_account":"<base58>"}'`}</Code>
+  -d '{"wallet":"<base58>","elgamal_pubkey_hex":"<hex>","mock_account":"<base58>"}'
+
+# operator-side, no transaction: every listing's source, mark and quote age / what the chain would accept now
+./target/release/window-admin --cluster devnet --profile devnet price-check
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule`}</Code>
           </div>
         </Card>
         <Card eyebrow="devtools" title="The whole SDK is on window.thewindow">
@@ -304,6 +336,8 @@ curl -s -X POST ${adminShown}/join -H 'content-type: application/json' \\
             <Code>{`const { sdk, rpc } = thewindow;
 await sdk.fetchAuctionConfig(rpc);
 await sdk.verifyPrint(rpc, 31n);
+await thewindow.schedule();                       // every listing: source, mark, both freshness verdicts, PDAs
+await sdk.fetchListing(rpc, "GRDt32Vp2BNEJPe1CFzSZaAFhCRw5bymWXH7tJrRZZhs");   // T-OpenAI-mock by its cSTOCK mint
 thewindow.console.push({ kind: "note", title: "hello from DevTools" });
 thewindow.queryClient.invalidateQueries();`}</Code>
           </div>
