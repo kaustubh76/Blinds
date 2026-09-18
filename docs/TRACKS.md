@@ -113,10 +113,12 @@ Executed step by step from a fresh browser (a devnet burner, no extension), agai
 
 Found and fixed along the way (app/ops, commits `4fb4cae`…): the listing picker reverted its pick; the
 faucet minted listing #0 into the selected listing's account; a listing switch left the token signature
-behind; the autopilot failed between windows. Open for the schedule's own code: only agents 0 and 1
-bid (lend supply too thin for §7.3 to cross), defaulted loans on listings 1/2 cannot be released to
-lenders that hold no cSTOCK-W account on those mints, the schedule row shows "no price yet" when its
-price query is rate-limited, and the CollateralMark footnote predates the quote-age rule.
+behind; the autopilot failed between windows. Then in the schedule's own code, same day: only agents 0
+and 1 bid — one borrower's loan service ran between agents' bids and outlasted the window (`2332d38`:
+two-pass tick, per-agent bid memory, warnings once); lenders held no account on listings 1/2 so
+defaulted loans there could not be released (`48474c3`: every agent gets a confidential account on every
+listing); the schedule row showed "no price yet" under RPC 429s and the CollateralMark footnote
+predated the quote-age rule (`9350eab`).
 
 ## Submission blurbs (drafts; finalised in Stage 5)
 
