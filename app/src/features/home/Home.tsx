@@ -25,7 +25,7 @@ export function Home() {
   const session = useSession();
   const { go } = useHashRoute();
   const { listings, selected, select } = useSelectedListing();
-  const prices = usePrices(dep.data?.listings.map((l) => l.feedId));
+  const prices = usePrices(dep.data?.listings);
   const lastPrinted = oracle.data?.hasPrinted ? oracle.data.lastPrintEpoch : null;
   const series = useSeries(clock.epoch ?? lastPrinted, 12);
   const xonia = oracle.data?.hasPrinted && oracle.data.lastRStarTick !== 255 ? oracle.data.lastRStarTick : null;

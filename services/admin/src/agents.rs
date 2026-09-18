@@ -11,9 +11,7 @@ use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use tracing::{debug, info, warn};
 use window_clearing::Side;
-use window_client::{
-    accounts, ct, ix, pda, AuctionConfig, Loan, LoanStatus, OracleState, PriceCache,
-};
+use window_client::{accounts, ct, ix, pda, AuctionConfig, Loan, LoanStatus, OracleState};
 use window_elgamal::encrypt::Opening;
 use window_proofs::{
     bid as bid_proofs, ix as zk, scalar,
@@ -361,17 +359,15 @@ impl Agents {
                         .ok_or_else(|| anyhow!("part size"))?;
                     (part, opening)
                 };
-                let feed_id = listing.feed_id();
                 let listing_pda = listing.listing_pda()?;
-                let price = read::<PriceCache>(chain, &pda::price_cache(&feed_id))?
-                    .ok_or_else(|| anyhow!("price"))?;
+                let quote_account = listing.quote_account()?;
+                let price =
+                    crate::quote::read_quote(chain, listing)?.ok_or_else(|| anyhow!("price"))?;
                 // The program would refuse this lock; do not spend rent on proof contexts for it.
                 let now = chain.unix_timestamp()?;
                 let quote_age = now.saturating_sub(price.publish_time);
                 let post_age = chain.slot()?.saturating_sub(price.posted_slot);
-                if quote_age > listing.max_publish_age_secs
-                    || post_age > listing.max_price_age_slots
-                {
+                if !price.usable(listing, now, chain.slot()?) {
                     if self.warned.insert(key, "price not usable") != Some("price not usable") {
                         warn!(agent = i, loan = %key, listing = %listing.symbol, quote_age, post_age, "price not usable on chain; not locking (retrying quietly)");
                     } else {
@@ -455,8 +451,8 @@ impl Agents {
                 // The proofs were built against one quote; if the keeper posted a new one meanwhile
                 // (the mock walks on every post), the program would compute a different E_delta and
                 // refuse them — skip this tick rather than spend rent on contexts that cannot verify.
-                let fresh = read::<PriceCache>(chain, &pda::price_cache(&feed_id))?
-                    .ok_or_else(|| anyhow!("price"))?;
+                let fresh =
+                    crate::quote::read_quote(chain, listing)?.ok_or_else(|| anyhow!("price"))?;
                 if fresh.price != price.price || fresh.expo != price.expo {
                     debug!(agent = i, loan = %key, "quote moved while proving; retrying next tick");
                     continue;
@@ -478,7 +474,7 @@ impl Agents {
                         &wallet.pubkey(),
                         &key,
                         &listing_pda,
-                        &feed_id,
+                        &quote_account,
                         &mock,
                         &lc,
                     )],

@@ -7,7 +7,8 @@
 //! collateral value ≥ 150 % of the loan — without learning either amount (spec v2 §7.3).
 //!
 //! One rate, a collateral schedule: every eligible collateral is a `Listing` with its own price
-//! source, haircut and freshness limits. `lock_collateral` and `seize` enforce both that the keeper
+//! source, haircut and freshness limits. A listing marked by Pyth can read Pyth's own
+//! receiver-owned account instead of the keeper's cache (`quote.rs`). `lock_collateral` and `seize` enforce both that the keeper
 //! posted recently (`max_price_age` slots) and that the quote itself is recent
 //! (`now − publish_time ≤ max_publish_age_secs`).
 
@@ -18,6 +19,7 @@ use anchor_lang::prelude::*;
 pub mod errors;
 pub mod events;
 pub mod instructions;
+pub mod quote;
 pub mod state;
 pub mod zk;
 

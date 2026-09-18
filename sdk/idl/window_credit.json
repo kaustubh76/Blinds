@@ -383,25 +383,9 @@
         },
         {
           "name": "price_cache",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  105,
-                  99,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "listing.feed_id",
-                "account": "Listing"
-              }
-            ]
-          }
+          "docs": [
+            "receiver-owned `PriceUpdateV2`; owner, address / feed id and verification are checked by `quote::read_quote`."
+          ]
         },
         {
           "name": "mock_mint"
@@ -866,26 +850,7 @@
           "name": "listing"
         },
         {
-          "name": "price_cache",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  114,
-                  105,
-                  99,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "listing.feed_id",
-                "account": "Listing"
-              }
-            ]
-          }
+          "name": "price_cache"
         }
       ],
       "args": []
@@ -1274,6 +1239,16 @@
       "code": 6033,
       "name": "WrongListing",
       "msg": "account is not the loan's listing"
+    },
+    {
+      "code": 6034,
+      "name": "BadPriceAccount",
+      "msg": "price account is not the listing's cache, or not a fully verified Pyth receiver account"
+    },
+    {
+      "code": 6035,
+      "name": "WrongFeed",
+      "msg": "price account carries another feed"
     }
   ],
   "types": [
@@ -1445,7 +1420,8 @@
           {
             "name": "price_source",
             "docs": [
-              "0 = Pyth · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk."
+              "0 = Pyth (keeper cache) · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk ·",
+              "4 = a Pyth receiver-owned `PriceUpdateV2` account read directly."
             ],
             "type": "u8"
           },

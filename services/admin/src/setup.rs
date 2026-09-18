@@ -2,7 +2,7 @@
 //! `deployments/<cluster>.json`. Idempotent per cluster file (re-running overwrites nothing
 //! on-chain that already exists; it fails loudly instead).
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
@@ -292,6 +292,10 @@ fn listing_record(
         haircut_bps: l.haircut_bps,
         max_price_age_slots: l.max_price_age_slots(&profile.market),
         max_publish_age_secs: l.max_publish_age_secs,
+        price_source: Some(l.source.tag()),
+        price_account: l
+            .pyth_shard
+            .map(|shard| crate::price::push_oracle_pda(shard, &feed_id).to_string()),
     }
 }
 
@@ -410,7 +414,16 @@ pub fn sync_listings(
     let admin = &keys.admin;
     let admin_pk = admin.pubkey();
     for (i, l) in profile.listings.iter().enumerate() {
-        if dep.listing_by_key(&l.key).is_some() {
+        if let Some(rec) = dep.listings.iter_mut().find(|r| r.key == l.key) {
+            // Already recorded; refresh the Pyth account the profile now names (the flip to
+            // `price_source = 4` itself is `listings set-source`, after the poster runs).
+            let account = l
+                .pyth_shard
+                .map(|shard| crate::price::push_oracle_pda(shard, &rec.feed_id()).to_string());
+            if rec.price_account != account {
+                rec.price_account = account;
+                dep.save(root)?;
+            }
             info!(key = %l.key, "listing already recorded");
             continue;
         }
@@ -467,5 +480,67 @@ pub fn sync_listings(
         let wallet = keys.agent_wallet(a.index);
         ensure_accounts_on_every_listing(chain, keys, a.index, &wallet, &listings)?;
     }
+    Ok(())
+}
+
+/// Flips one listing's `price_source` on chain (`update_listing`, everything else unchanged) and
+/// records it in the descriptor. Source 4 requires the descriptor to name the Pyth account and
+/// that account to exist on this cluster with a quote inside the listing's limit — the program
+/// would refuse every lock otherwise, so this refuses first.
+pub fn set_listing_source(
+    chain: &dyn Chain,
+    keys: &Keys,
+    profile: &Profile,
+    dep: &mut Deployment,
+    root: &std::path::Path,
+    key: &str,
+    source: u8,
+) -> Result<()> {
+    let l = profile
+        .listings
+        .iter()
+        .find(|l| l.key == key)
+        .ok_or_else(|| anyhow!("no listing {key} in the profile"))?;
+    let rec = dep
+        .listings
+        .iter_mut()
+        .find(|r| r.key == key)
+        .ok_or_else(|| anyhow!("no listing {key} in the descriptor; run listings-sync"))?;
+    if source == window_client::PRICE_SOURCE_PYTH_ACCOUNT {
+        if let Some(shard) = l.pyth_shard {
+            rec.price_account =
+                Some(crate::price::push_oracle_pda(shard, &rec.feed_id()).to_string());
+        }
+        let mut probe = rec.clone();
+        probe.price_source = Some(source);
+        let now = chain.unix_timestamp()?;
+        let slot = chain.slot()?;
+        match crate::quote::read_quote(chain, &probe)? {
+            Some(q) if q.usable(&probe, now, slot) => {
+                info!(listing = %rec.symbol, price = q.price, expo = q.expo, publish_age_secs = now - q.publish_time, "Pyth account is fresh");
+            }
+            Some(q) => bail!(
+                "the Pyth account {} holds a quote {} s old (limit {} s); start the poster first",
+                probe.quote_account()?,
+                now - q.publish_time,
+                rec.max_publish_age_secs
+            ),
+            None => bail!(
+                "the Pyth account {} does not exist on this cluster; start the poster first",
+                probe.quote_account()?
+            ),
+        }
+    }
+    let mut params = listing_params(profile, l);
+    params.feed_id = rec.feed_id();
+    params.price_source = source;
+    chain.send(
+        &keys.admin,
+        &[ix::update_listing(&keys.admin.pubkey(), &rec.listing_pda()?, params)],
+        &[],
+    )?;
+    rec.price_source = Some(source);
+    info!(listing = %rec.symbol, source, "price source updated on chain");
+    dep.save(root)?;
     Ok(())
 }

@@ -17,6 +17,7 @@ pub mod metrics;
 pub mod migrate;
 pub mod operator;
 pub mod price;
+pub mod quote;
 pub mod secret;
 pub mod setup;
 

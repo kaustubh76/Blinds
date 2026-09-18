@@ -10,7 +10,7 @@ import {
   fetchConfidentialAccount,
   fetchEpoch,
   fetchMultiplier,
-  fetchPrice,
+  fetchQuote,
   fetchTokenAmount,
   multiplierScaled,
   pda,
@@ -101,7 +101,7 @@ export function usePositions(account: UiWalletAccount) {
       const { size, opening } = await loanSecret(address, loan);
       const [epoch, price, mult] = await Promise.all([
         retry(() => fetchEpoch(rpc, loan.epoch)),
-        retry(() => fetchPrice(rpc, l.feedId)),
+        retry(() => fetchQuote(rpc, l)),
         retry(() => fetchMultiplier(rpc, l.mockMint)),
       ]);
       if (!epoch || !price) throw new Error(`epoch or ${l.symbol} price missing`);
@@ -122,6 +122,7 @@ export function usePositions(account: UiWalletAccount) {
         haircutBps: l.haircutBps,
         listing: l.listing,
         feedId: l.feedId,
+        priceAccount: l.priceAccount ?? undefined,
         mockMint: l.mockMint,
         rent: rentFor,
       };

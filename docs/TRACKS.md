@@ -22,7 +22,7 @@ source, haircut and freshness limits; the xONIA rate, the sealed-bid window and 
 
 ```
 Listing ["listing", cstock_mint]  { mock_mint, cstock_mint, escrow_account, feed_id[32],
-                                    price_source (0 Pyth · 1 Tessera · 2 PreStocks · 3 mock),
+                                    price_source (0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth's own account),
                                     haircut_bps, max_price_age (slots), max_publish_age_secs, symbol[16], decimals }
 PriceCache ["price", feed_id]     { feed_id, price, expo, publish_time, posted_slot, posts }   — one per listing
 Loan.listing                      bound at lock_collateral; deposit / seize / release check it
@@ -33,6 +33,11 @@ Two freshness rules, both on chain, checked at `lock_collateral` and `seize`:
 1. `slot − posted_slot ≤ listing.max_price_age` — the keeper is alive (existed before).
 2. `now − price.publish_time ≤ listing.max_publish_age_secs` — **the quote itself is fresh** (new). The keeper
    posts what the source published with its true timestamp; the chain decides whether it is usable.
+
+Where the quote is read from is the listing's choice (`programs/window_credit/src/quote.rs`): sources 0–3 read
+this program's `PriceCache` PDA; source 4 reads a **`PriceUpdateV2` owned by Pyth's receiver program** on the
+same cluster — owner, feed id and `Full` verification level checked, then the same two rules on Pyth's own
+`publish_time` and `posted_slot`. For that listing the keeper is out of the price path entirely.
 
 Planned devnet schedule:
 
@@ -55,7 +60,7 @@ devnet and those tokens live on mainnet.
 | Use one feed, compare both | Dashboard shows the desk quote (`Crypto.TSLAX/USD`) beside the underlying `Equity.US.TSLA/USD` read from Pyth's mainnet account, with the wrapper basis in bps and the equity session state — the overnight window opens after the equity close, which is why the wrapper feed marks the collateral. | 2 |
 | Exists post-hackathon | Hosted dashboard, devnet market, `update_listing` to retune limits without an upgrade, `price-check` for operators. | all |
 | Developer surface | Build page (`#/build`): the live schedule row for `TSLAx-mock` (listing / price-cache PDA / feed id, both verdicts), the **Pyth** track column, and the `pyth-mainnet` recipe — the browser reads `Crypto.TSLAX/USD` and `Equity.US.TSLA/USD` from Pyth's mainnet push accounts (`fetchFreshest`, `decodePriceUpdate`, `basisBps`, `nyseSession`) and shows the shard-0 account's age; `solvency` recipe: `k_c`/`k_l` and the pledge for 1,000 USDC. Console titles `credit.PricePosted · TSLAx-mock $…`; DevTools `thewindow.schedule()`. | live |
-| Stretch | The Pyth listing reads Pyth's receiver-owned account posted on devnet by `services/pyth-poster`, so the program trusts Pyth's signature rather than the keeper's copy for that listing. | 4 |
+| Pyth's own account on chain | `price_source = 4`: `lock_collateral` / `seize` read a receiver-owned `PriceUpdateV2` (owner `rec5EK…`, feed id, `Full`) — the price Pyth's guardians signed, verified by Pyth's receiver, never copied by the keeper. `services/pyth-poster` carries the Hermes VAA onto devnet (shard 7001 → `JBDgVnqW…`); `window-admin listing-set-source mock_tsla 4` flips the listing only once that account is fresh. | 4 |
 
 Incident recorded honestly: the mainnet push account `GpoWLTd6…` we copied from **stopped updating on Sat 12 Sep
 2026 12:18 UTC**; until Stage 1 the desk marked collateral on that quote and the slot-based rule could not see it.
@@ -96,7 +101,7 @@ account died, the feed did not).
 | 1 | Keeper: Hermes with key, freshest on-chain shard fallback, `price-check`, quote-age metric, doc corrections | done 17 Sep (Hermes path live once `PYTH_API_KEY` is set) |
 | 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | done 17 Sep (`app/src/lib/pyth.ts`, `CollateralMark.tsx`) |
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI, `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
-| 4 | Pyth stretch: receiver-owned account read on chain for the Pyth listing (only if 3 is green on devnet by Tue 22) | — |
+| 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; devnet upgrade and the TSLAx flip wait for `PYTH_API_KEY` (the poster needs Hermes; until then TSLAx stays source 0 and honestly stale) |
 | 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; submissions and freeze open |
 
 ## Verified on devnet, 18 Sep 2026
@@ -130,7 +135,9 @@ coefficient in the proof. Every loan is backed by a zero-knowledge statement `co
 where `price` is Pyth's quote, so without a fresh Pyth price no collateral can be locked and no position seized.
 We read Hermes with a key, fall back to Pyth's on-chain accounts, enforce the quote's own `publish_time` on chain
 per listing, and show the xStock quote against the underlying equity feed with the basis, because the overnight
-window opens exactly when the equity market closes.
+window opens exactly when the equity market closes. The Pyth listing can run with no keeper in the price path at
+all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, feed, verification level, age),
+posted onto devnet from Hermes by our own poster.
 
 **Tessera.** A confidential borrow line against T-OpenAI: wrap into a confidential mint, prove solvency against
 Tessera's mark without revealing the position, borrow at the xONIA print. Pre-IPO holders are the people who most

@@ -8,6 +8,7 @@ export * from "./keys.js";
 export * from "./listings.js";
 export * as pda from "./pda.js";
 export * from "./programs.js";
+export * from "./pyth.js";
 export * from "./rates.js";
 export * from "./send.js";
 export * from "./solvency.js";

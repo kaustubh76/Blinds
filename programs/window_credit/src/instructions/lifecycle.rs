@@ -4,7 +4,8 @@ use crate::{
     errors::CreditError,
     events::LoanStatusChanged,
     seeds,
-    state::{Config, Listing, Loan, LoanStatus, PriceCache},
+    quote,
+    state::{Config, Listing, Loan, LoanStatus},
 };
 
 #[derive(Accounts)]
@@ -72,8 +73,8 @@ pub struct Seize<'info> {
     pub loan: Account<'info, Loan>,
     #[account(address = loan.listing @ CreditError::WrongListing)]
     pub listing: Account<'info, Listing>,
-    #[account(seeds = [seeds::PRICE, listing.feed_id.as_ref()], bump = price_cache.bump)]
-    pub price_cache: Account<'info, PriceCache>,
+    /// CHECK: the listing's `PriceCache` PDA or its Pyth receiver-owned account; checked by `quote::read_quote`.
+    pub price_cache: UncheckedAccount<'info>,
 }
 
 pub(crate) fn seize(ctx: Context<Seize>) -> Result<()> {
@@ -83,8 +84,8 @@ pub(crate) fn seize(ctx: Context<Seize>) -> Result<()> {
     let slot = clock.slot;
     require!(slot > loan.deadline_slot, CreditError::NotMatured);
     // Safety degrades to inaction: a stale price cannot seize — neither a stale post nor a stale quote.
-    let price = &ctx.accounts.price_cache;
     let listing = &ctx.accounts.listing;
+    let price = quote::read_quote(listing, &ctx.accounts.price_cache.to_account_info())?;
     require!(
         slot.saturating_sub(price.posted_slot) <= listing.max_price_age,
         CreditError::PriceStale

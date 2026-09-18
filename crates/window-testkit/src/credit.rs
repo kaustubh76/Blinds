@@ -34,6 +34,8 @@ pub struct CreditSetup {
     pub credit_config: Pubkey,
     pub listing: Pubkey,
     pub price_cache: Pubkey,
+    /// What `lock_collateral` / `seize` read: the cache PDA, or a Pyth receiver-owned account.
+    pub price_account: Pubkey,
     pub operator: Keypair,
     pub escrow: ConfidentialAccount,
     pub feed_id: [u8; 32],
@@ -180,6 +182,7 @@ impl Harness {
             credit_config,
             listing: pda::listing(&cstock_mint),
             price_cache: pda::price_cache(&feed_id),
+            price_account: pda::price_cache(&feed_id),
             operator,
             escrow,
             feed_id,
@@ -203,10 +206,30 @@ impl Harness {
         haircut_bps: u64,
         max_publish_age_secs: i64,
     ) -> CreditSetup {
+        self.add_listing_with_source(
+            base,
+            feed_id,
+            haircut_bps,
+            max_publish_age_secs,
+            window_credit::state::PRICE_SOURCE_MOCK,
+        )
+    }
+
+    /// `add_listing` with an explicit `price_source`; for `PRICE_SOURCE_PYTH_ACCOUNT` the setup's
+    /// `price_account` is a fresh address the test fills with [`Harness::set_pyth_account`].
+    pub fn add_listing_with_source(
+        &mut self,
+        base: &CreditSetup,
+        feed_id: [u8; 32],
+        haircut_bps: u64,
+        max_publish_age_secs: i64,
+        price_source: u8,
+    ) -> CreditSetup {
         let decimals = base.decimals;
         let (mock_mint, cstock_mint, vault, custody) = self.create_listing_mints(decimals);
         let operator = base.operator.insecure_clone();
         let escrow = self.create_confidential_account(&cstock_mint, &operator);
+        let pyth = price_source == window_credit::state::PRICE_SOURCE_PYTH_ACCOUNT;
         let setup = CreditSetup {
             mock_mint,
             cstock_mint,
@@ -216,6 +239,7 @@ impl Harness {
             credit_config: base.credit_config,
             listing: pda::listing(&cstock_mint),
             price_cache: pda::price_cache(&feed_id),
+            price_account: if pyth { Keypair::new().pubkey() } else { pda::price_cache(&feed_id) },
             operator,
             escrow,
             feed_id,
@@ -223,6 +247,7 @@ impl Harness {
             max_publish_age_secs,
         };
         let mut params = setup.listing_params();
+        params.price_source = price_source;
         params.max_price_age = self.profile.market.max_price_age_slots;
         params.symbol = *b"SECOND-mock\0\0\0\0\0";
         let ix = self.add_listing_ix(&mock_mint, &cstock_mint, &setup.escrow.address, params);
@@ -287,6 +312,47 @@ impl Harness {
 
     pub fn listing(&self, key: &Pubkey) -> window_credit::state::Listing {
         self.account(key)
+    }
+
+    /// Writes a Pyth `PriceUpdateV2` account (the layout `window_credit::quote` reads) at `address`,
+    /// owned by `owner` (the receiver for the honest case). `full` = verification level Full.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_pyth_account(
+        &mut self,
+        address: &Pubkey,
+        owner: &Pubkey,
+        feed_id: &[u8; 32],
+        price: i64,
+        expo: i32,
+        publish_time: i64,
+        posted_slot: u64,
+        full: bool,
+    ) {
+        let mut data = Vec::with_capacity(134);
+        data.extend_from_slice(&[34, 241, 35, 99, 157, 126, 244, 205]); // PriceUpdateV2 discriminator
+        data.extend_from_slice(&[0u8; 32]); // write_authority
+        if full {
+            data.push(1);
+        } else {
+            data.extend_from_slice(&[0, 3]); // Partial { num_signatures: 3 }
+        }
+        data.extend_from_slice(feed_id);
+        data.extend_from_slice(&price.to_le_bytes());
+        data.extend_from_slice(&1_000_000u64.to_le_bytes()); // conf
+        data.extend_from_slice(&expo.to_le_bytes());
+        data.extend_from_slice(&publish_time.to_le_bytes());
+        data.extend_from_slice(&(publish_time - 1).to_le_bytes()); // prev_publish_time
+        data.extend_from_slice(&price.to_le_bytes()); // ema_price
+        data.extend_from_slice(&1_000_000u64.to_le_bytes()); // ema_conf
+        data.extend_from_slice(&posted_slot.to_le_bytes());
+        let account = solana_account::Account {
+            lamports: 10_000_000,
+            data,
+            owner: crate::addr(owner),
+            executable: false,
+            rent_epoch: 0,
+        };
+        self.svm.set_account(crate::addr(address), account).expect("set pyth account");
     }
 
     /// Gives member `m` `mock_amount` mock-xStock and a configured cSTOCK-W confidential account.
@@ -472,7 +538,18 @@ impl Harness {
     /// The scalars the program will derive from the current price cache and mint multiplier.
     pub fn current_scalars(&self, setup: &CreditSetup, multiplier: f64) -> SolvencyScalars {
         let cache: window_credit::state::PriceCache = self.account(&setup.price_cache);
-        let p = scalar::price_scaled(cache.price, cache.expo).unwrap();
+        self.scalars_for(setup, cache.price, cache.expo, multiplier)
+    }
+
+    /// The scalars for an explicit quote (a Pyth account's, for a source-4 listing).
+    pub fn scalars_for(
+        &self,
+        setup: &CreditSetup,
+        price: u64,
+        expo: i32,
+        multiplier: f64,
+    ) -> SolvencyScalars {
+        let p = scalar::price_scaled(price, expo).unwrap();
         let a = scalar::multiplier_scaled(multiplier).unwrap();
         scalar::solvency_scalars(p, a, setup.haircut_bps).unwrap()
     }
@@ -520,7 +597,7 @@ impl Harness {
                 borrower_record: pda::member(&owner),
                 loan: *loan_key,
                 listing: setup.listing,
-                price_cache: setup.price_cache,
+                price_cache: setup.price_account,
                 mock_mint: setup.mock_mint,
                 validity_ctx: ctxs[0].pubkey(),
                 range32_ctx: ctxs[1].pubkey(),
@@ -610,7 +687,7 @@ impl Harness {
                     config: setup.credit_config,
                     loan: *loan,
                     listing: setup.listing,
-                    price_cache: setup.price_cache,
+                    price_cache: setup.price_account,
                 }
                 .to_account_metas(None),
                 window_credit::instruction::Seize {}.data(),

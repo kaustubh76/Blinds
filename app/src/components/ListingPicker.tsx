@@ -30,7 +30,7 @@ export function ListingPicker({
               className={`rounded-[6px] px-3 py-1 text-sm transition-colors disabled:opacity-60 ${
                 on ? "bg-surface-2 text-ink-1" : "text-ink-3 hover:text-ink-1"
               }`}
-              title={`${sourceLabel(l.source)} · haircut ${Number(l.haircutBps) / 100}%`}
+              title={`${sourceLabel(l)} · haircut ${Number(l.haircutBps) / 100}%`}
             >
               {l.symbol}
               <span className="mono ml-1.5 text-[10px] text-ink-3">{Number(l.haircutBps) / 100}%</span>

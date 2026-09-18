@@ -6,7 +6,7 @@ import type { Address } from "@solana/kit";
 import type { Listing, PriceCache } from "./generated/window_credit/index.js";
 
 /** `Listing.price_source` tags. */
-export const PriceSource = { Pyth: 0, Tessera: 1, PreStocks: 2, Mock: 3 } as const;
+export const PriceSource = { Pyth: 0, Tessera: 1, PreStocks: 2, Mock: 3, PythAccount: 4 } as const;
 export type PriceSourceTag = (typeof PriceSource)[keyof typeof PriceSource];
 
 export const PRICE_SOURCE_NAMES: Record<number, string> = {
@@ -14,7 +14,31 @@ export const PRICE_SOURCE_NAMES: Record<number, string> = {
   [PriceSource.Tessera]: "Tessera mark",
   [PriceSource.PreStocks]: "PreStocks mark",
   [PriceSource.Mock]: "mock walk",
+  [PriceSource.PythAccount]: "Pyth (on-chain account)",
 };
+
+/** The tag a descriptor's `source` label maps to when it carries no explicit `price_source`. */
+export const priceSourceTag = (label: string): number =>
+  ({ pyth: PriceSource.Pyth, tessera: PriceSource.Tessera, prestocks: PriceSource.PreStocks, mock: PriceSource.Mock })[
+    label
+  ] ?? PriceSource.Mock;
+
+/** Whether `lock_collateral` / `seize` read Pyth's own receiver-owned account rather than the keeper's cache. */
+export const readsPythAccount = (tag: number): boolean => tag === PriceSource.PythAccount;
+
+/**
+ * The quote a listing prices from, whichever account holds it: the keeper's `PriceCache` (sources
+ * 0–3) or Pyth's `PriceUpdateV2` (source 4). The field names match `PriceCache` so either is a
+ * drop-in for display.
+ */
+export interface Quote {
+  price: bigint;
+  expo: number;
+  publishTime: bigint;
+  postedSlot: bigint;
+  /** Which account the quote came from. */
+  from: "cache" | "pyth";
+}
 
 /** Whether the quote's `publish_time` is the publisher's own (Pyth) or the keeper's fetch time (an attested mark). */
 export const isAttestedMark = (tag: number): boolean => tag === PriceSource.Tessera || tag === PriceSource.PreStocks;
@@ -45,7 +69,7 @@ export interface QuoteFreshness {
 /** The two on-chain freshness rules, evaluated off chain for display. */
 export function quoteFreshness(args: {
   listing: Pick<Listing, "maxPriceAge" | "maxPublishAgeSecs">;
-  price: Pick<PriceCache, "postedSlot" | "publishTime">;
+  price: Pick<PriceCache | Quote, "postedSlot" | "publishTime">;
   slot: number | bigint;
   nowSecs: number | bigint;
 }): QuoteFreshness {

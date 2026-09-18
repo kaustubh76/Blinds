@@ -40,6 +40,23 @@ read-only — send the fresh link (or `publish_admin_url.sh`). Optionally
 If GitHub Pages is unavailable (see §5): `./scripts/serve_app.sh start` serves the built dashboard from this
 machine through its own tunnel and prints `<url>/?admin=<faucet>`; that URL rotates per start.
 
+### 2a. The Pyth listing on Pyth's own account (Stage 4, needs `PYTH_API_KEY` in `.env`)
+
+With the key present, `market.sh start` also launches `services/pyth-poster` (`pnpm install` once), which
+posts Pyth's signed `Crypto.TSLAX/USD` update into the Pyth receiver on devnet every minute
+(`/tmp/window-pyth-poster-devnet.log`; ≈ 0.00001 SOL per post, ≈ 0.002 SOL rent once). Then, one time:
+
+```bash
+./scripts/upgrade_devnet.sh                                          # if window_credit is older than A15 (solana program show … slot)
+./target/release/window-admin --cluster devnet --profile devnet price-check   # "on-cluster Pyth account JBDgVnqW… age N s"
+./target/release/window-admin --cluster devnet --profile devnet listing-set-source mock_tsla 4   # refuses while the account is stale
+git add deployments/devnet.json && git commit -m "devnet: TSLAx reads Pyth's account"
+```
+
+From then on TSLAx locks and seizures are priced from the receiver-owned account and the keeper posts no cache
+for it. To go back (poster down for longer than an hour): `listing-set-source mock_tsla 0` — the cache path
+resumes on the next keeper tick.
+
 ## 3. Watch
 
 ```bash
@@ -63,6 +80,7 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | symptom | cause | do |
 |---|---|---|
 | `send_and_confirm … custom program error: 0`, `insufficient funds` in the admin log | deployer out of SOL | top up (§1), `market.sh stop` then `start` |
+| poster log says `post failed … 403 Not entitled` | the key is not entitled to `Crypto.TSLAX/USD` (Pyth Pro tier) | `listing-set-source mock_tsla 0` if it was flipped; the keeper's Hermes/on-chain path needs the same entitlement, so TSLAx stays refused by design |
 | `[TSLAx-mock] … age 137.4 h (limit 3600 s)`, schedule says `QuoteStale` | no `PYTH_API_KEY`: every Pyth HTTP API is keyed since 2026-08-26 and the only on-chain push account for `Crypto.TSLAX/USD` (shard 0) stopped on 12 Sep | get a Pyth key into `.env` (`PYTH_API_KEY=`), restart; without one the chain refuses TSLAx locks by design (inaction, never a stale mark) — the two mark listings still lock |
 | `no readable Pyth account`, 429 from `api.mainnet-beta` | public mainnet RPC rate limit | `WINDOW_PRICE_RPC_URL=https://solana-rpc.publicnode.com` in `.env`, restart |
 | epochs print `no trade` although agents run; the agents log shows bids from two agents only | (fixed 18 Sep) the loan service used to run between agents' bids and outlast the window; the two-pass tick lets all six quote first | update the binary: `cargo build -p window-admin --release`, then `market.sh stop && start` |

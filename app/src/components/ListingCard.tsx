@@ -7,7 +7,7 @@ import { sourceLabel } from "../lib/listings";
 import { Icon } from "./Icon";
 import { Pill } from "./ui";
 
-type PriceCache = creditNs.PriceCache;
+type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "postedSlot">;
 
 const SOURCE_TONE: Record<string, "accent" | "lend" | "borrow" | "mute"> = {
   pyth: "accent",
@@ -47,7 +47,7 @@ export function ListingCard({
         <div className="min-w-0">
           <div className="truncate text-base font-semibold text-ink-1">{l.symbol.replace(/-mock$/, "")}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <Pill tone={SOURCE_TONE[l.source] ?? "mute"}>{sourceLabel(l.source)}</Pill>
+            <Pill tone={SOURCE_TONE[l.source] ?? "mute"}>{sourceLabel(l)}</Pill>
             {attested && (
               <span
                 className="text-[11px] text-ink-3"

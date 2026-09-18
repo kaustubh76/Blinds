@@ -6839,6 +6839,7 @@ dependencies = [
  "bincode",
  "bytemuck",
  "litesvm",
+ "solana-account 4.3.2",
  "solana-address 2.6.1",
  "solana-clock",
  "solana-instruction",

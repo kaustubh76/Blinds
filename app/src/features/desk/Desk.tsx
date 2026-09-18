@@ -111,7 +111,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const slot = useSlot();
   const oracle = useOracle();
   const clock = useWindowClock();
-  const prices = usePrices(dep.data?.listings.map((l) => l.feedId));
+  const prices = usePrices(dep.data?.listings);
   const prefill = useMemo(readPrefill, []);
   const [wrapAmount, setWrapAmount] = useState("1000");
   const [side, setSide] = useState<0 | 1>(1);

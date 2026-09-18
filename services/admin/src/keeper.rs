@@ -63,6 +63,24 @@ pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
 fn post_prices(ctx: &Ctx, prices: &mut PriceSources, slot: u64, force: bool) -> Result<()> {
     let chain = ctx.chain.as_ref();
     for (rec, price) in ctx.deployment.listings.iter().zip(prices.iter_mut()) {
+        if rec.reads_pyth_account() {
+            // Pyth's receiver writes this listing's quote (via `services/pyth-poster`); the keeper
+            // only reports its age.
+            match crate::quote::read_quote(chain, rec) {
+                Ok(Some(q)) => {
+                    let age = chain.unix_timestamp()?.saturating_sub(q.publish_time);
+                    ctx.metrics.set_publish_age(&rec.symbol, age as u64);
+                    if age > rec.max_publish_age_secs {
+                        warn!(listing = %rec.symbol, publish_age_secs = age, limit = rec.max_publish_age_secs, "the Pyth account on this cluster is older than the listing's limit; is the poster running?");
+                    }
+                }
+                Ok(None) => {
+                    warn!(listing = %rec.symbol, "the Pyth account on this cluster does not exist yet; is the poster running?")
+                }
+                Err(e) => warn!(listing = %rec.symbol, "Pyth account unreadable: {e:#}"),
+            }
+            continue;
+        }
         let half = (rec.max_price_age_slots / 2).max(1);
         let posted =
             read::<PriceCache>(chain, &pda::price_cache(&rec.feed_id()))?.map(|c| c.posted_slot);
@@ -125,7 +143,12 @@ fn seize_matured(ctx: &Ctx, loans: &[(Pubkey, Loan)]) -> Result<()> {
             };
             match chain.send(
                 &ctx.keys.admin,
-                &[ix::seize(&ctx.keys.admin.pubkey(), &key, &rec.listing_pda()?, &rec.feed_id())],
+                &[ix::seize(
+                    &ctx.keys.admin.pubkey(),
+                    &key,
+                    &rec.listing_pda()?,
+                    &rec.quote_account()?,
+                )],
                 &[],
             ) {
                 Ok(_) => {

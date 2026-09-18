@@ -9,6 +9,7 @@ mod attack_07_stale_price;
 mod attack_08_rebase_replay;
 mod attack_09_wrong_listing;
 mod attack_10_listing_admin;
+mod attack_11_pyth_account;
 mod credit_fixture;
 
 use window_clearing::Side;

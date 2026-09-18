@@ -39,8 +39,10 @@ import {
   type Print,
 } from "./generated/window_oracle/index.js";
 import { fetchMaybeMember } from "./generated/window_registry/index.js";
+import { type Quote, readsPythAccount } from "./listings.js";
 import * as pda from "./pda.js";
 import { PROGRAMS } from "./programs.js";
+import { decodePriceUpdate, PYTH_RECEIVER } from "./pyth.js";
 import { type Clearing, clear, type DepthCurve, emptyCurve } from "./rates.js";
 
 export type RpcClient = Rpc<SolanaRpcApi>;
@@ -117,6 +119,64 @@ export async function fetchPrices(rpc: RpcClient, feedIds: Uint8Array[]): Promis
   const res = await rpc.getMultipleAccounts(addrs, { encoding: "base64", commitment: "confirmed" }).send();
   const decoder = getPriceCacheDecoder();
   return res.value.map((a) => (a ? decoder.decode(new Uint8Array(b64.encode(a.data[0]))) : null));
+}
+
+/** What `fetchQuotes` needs to know about a listing to find and decode its quote. */
+export interface QuoteSource {
+  feedId: Uint8Array;
+  priceSource: number;
+  /** Source 4: the Pyth receiver-owned account the listing reads. */
+  priceAccount?: Address | null | undefined;
+}
+
+/** The account a listing prices from: the cache PDA, or its Pyth account for source 4. */
+export async function quoteAccount(l: QuoteSource): Promise<Address> {
+  if (readsPythAccount(l.priceSource)) {
+    if (!l.priceAccount) throw new Error("a Pyth-account listing names no price account");
+    return l.priceAccount;
+  }
+  return pda.priceCache(l.feedId);
+}
+
+/**
+ * Every listing's quote in one RPC call, read the way the program reads it; `null` where the
+ * account does not exist yet or is not what the listing's source demands (wrong owner, another
+ * feed, a partial verification) — exactly the cases the chain would refuse.
+ */
+export async function fetchQuotes(rpc: RpcClient, listings: QuoteSource[]): Promise<Array<Quote | null>> {
+  if (listings.length === 0) return [];
+  const addrs = await Promise.all(listings.map(quoteAccount));
+  const res = await rpc.getMultipleAccounts(addrs, { encoding: "base64", commitment: "confirmed" }).send();
+  const decoder = getPriceCacheDecoder();
+  return res.value.map((a, i) => {
+    const l = listings[i];
+    if (!a || !l) return null;
+    const bytes = new Uint8Array(b64.encode(a.data[0]));
+    try {
+      if (readsPythAccount(l.priceSource)) {
+        if (a.owner !== PYTH_RECEIVER) return null;
+        const p = decodePriceUpdate(bytes, l.feedId);
+        if (p.verification !== "full") return null;
+        return {
+          price: p.price,
+          expo: p.expo,
+          publishTime: BigInt(p.publishTime),
+          postedSlot: p.postedSlot,
+          from: "pyth",
+        };
+      }
+      if (a.owner !== PROGRAMS.credit) return null;
+      const c = decoder.decode(bytes);
+      return { price: c.price, expo: c.expo, publishTime: c.publishTime, postedSlot: c.postedSlot, from: "cache" };
+    } catch {
+      return null;
+    }
+  });
+}
+
+/** One listing's quote (see `fetchQuotes`). */
+export async function fetchQuote(rpc: RpcClient, l: QuoteSource): Promise<Quote | null> {
+  return (await fetchQuotes(rpc, [l]))[0] ?? null;
 }
 
 /** One listing of the collateral schedule, by its cSTOCK mint. */

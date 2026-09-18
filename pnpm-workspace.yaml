@@ -2,3 +2,4 @@ packages:
   - sdk
   - app
   - tests/integration
+  - services/pyth-poster

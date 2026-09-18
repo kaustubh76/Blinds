@@ -4,7 +4,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchListings, PRICE_SOURCE_NAMES } from "@thewindow/solana-sdk";
+import { fetchListings, PRICE_SOURCE_NAMES, PriceSource } from "@thewindow/solana-sdk";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type ListingView, rpc } from "./chain";
 import { useDeployment } from "./queries";
@@ -53,7 +53,10 @@ export function listingByPda(listings: ListingView[], pda: string): ListingView 
 }
 
 /** Human label for a listing's source tag or descriptor string. */
-export function sourceLabel(source: string | number): string {
+export function sourceLabel(source: string | number | Pick<ListingView, "source" | "priceSource">): string {
+  if (typeof source === "object") {
+    return source.priceSource === PriceSource.PythAccount ? "Pyth · on-chain" : sourceLabel(source.source);
+  }
   if (typeof source === "number") return PRICE_SOURCE_NAMES[source] ?? `source ${source}`;
   return { pyth: "Pyth", tessera: "Tessera mark", prestocks: "PreStocks mark", mock: "mock walk" }[source] ?? source;
 }

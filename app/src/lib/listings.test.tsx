@@ -17,6 +17,8 @@ const listing = (key: string, cstockMint: string): ListingView => ({
   haircutBps: 15000n,
   maxPriceAgeSlots: 1200,
   maxPublishAgeSecs: 3600,
+  priceSource: 3,
+  priceAccount: null,
 });
 const LISTINGS = [listing("tsla", "MintA"), listing("openai", "MintB")];
 

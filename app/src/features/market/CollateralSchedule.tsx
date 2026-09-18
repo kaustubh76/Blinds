@@ -4,9 +4,9 @@
  * (Tessera, PreStocks) are labelled as such — their `publish_time` is the keeper's fetch time.
  */
 import type { credit as creditNs } from "@thewindow/solana-sdk";
-import { isAttestedMark, quoteFreshness, symbolOf } from "@thewindow/solana-sdk";
+import { isAttestedMark, PriceSource, quoteFreshness, symbolOf } from "@thewindow/solana-sdk";
 
-type PriceCache = creditNs.PriceCache;
+type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "postedSlot">;
 
 import { Card } from "../../components/Card";
 import { ListingCard } from "../../components/ListingCard";
@@ -28,7 +28,7 @@ export function CollateralSchedule() {
   const onChain = useOnChainListings();
   const slot = useSlot();
   const listings = dep.data?.listings ?? [];
-  const prices = usePrices(dep.data?.listings.map((l) => l.feedId));
+  const prices = usePrices(dep.data?.listings);
   if (listings.length <= 1 && (onChain.data?.length ?? 0) <= 1) return null;
   return (
     <Card
@@ -116,7 +116,8 @@ function Row({
   state: "loading" | "ready" | "error";
 }) {
   const price = { data: cache };
-  const attested = isAttestedMark(sourceTag(l.source));
+  const attested = isAttestedMark(l.priceSource);
+  const onChainPyth = l.priceSource === PriceSource.PythAccount;
   const fresh =
     price.data && slot !== undefined
       ? quoteFreshness({
@@ -142,10 +143,10 @@ function Row({
         <div className="flex flex-wrap items-center gap-1">
           {url ? (
             <a href={url} target="_blank" rel="noreferrer" className="text-ink-1 underline decoration-line">
-              {sourceLabel(l.source)}
+              {sourceLabel(l)}
             </a>
           ) : (
-            <span>{sourceLabel(l.source)}</span>
+            <span>{sourceLabel(l)}</span>
           )}
           {attested && (
             <Badge tone="warn" icon="alert">
@@ -156,9 +157,11 @@ function Row({
         <div className="text-[11px] text-ink-3">
           {attested
             ? "publish_time = keeper fetch time"
-            : l.source === "pyth"
-              ? "publisher's own timestamp"
-              : "local mock"}
+            : onChainPyth
+              ? "the program reads Pyth's receiver-owned account"
+              : l.source === "pyth"
+                ? "publisher's own timestamp"
+                : "local mock"}
         </div>
       </td>
       <td className="py-2 pr-4 text-ink-1">{price.data ? formatPrice(price.data.price, price.data.expo) : "—"}</td>
@@ -194,8 +197,4 @@ function Row({
       </td>
     </tr>
   );
-}
-
-function sourceTag(source: string): number {
-  return { pyth: 0, tessera: 1, prestocks: 2, mock: 3 }[source] ?? 3;
 }

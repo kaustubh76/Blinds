@@ -19,6 +19,7 @@ solana-instruction.workspace = true
 solana-pubkey.workspace = true
 solana-system-interface.workspace = true
 solana-clock.workspace = true
+solana-account = "4.3"
 solana-instructions-sysvar.workspace = true
 solana-zk-sdk.workspace = true
 solana-zk-elgamal-proof-interface.workspace = true

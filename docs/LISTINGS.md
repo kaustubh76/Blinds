@@ -10,12 +10,14 @@ untouched by which collateral a borrower pledges. (Amendment A14; track record i
 Listing  ["listing", cstock_mint]
   mock_mint · cstock_mint · escrow_account       the public twin, its confidential wrapper, the operator's escrow
   feed_id[32]                                    Pyth id · sha256("<source>:<symbol>") label · all-zero (mock)
-  price_source                                   0 Pyth · 1 Tessera mark · 2 PreStocks mark · 3 mock walk
+  price_source                                   0 Pyth (keeper cache) · 1 Tessera mark · 2 PreStocks mark · 3 mock walk
+                                                 4 Pyth's own receiver-owned account, read by the program
   haircut_bps                                    collateral value ≥ haircut × loan
   max_price_age                                  slots since the keeper posted (liveness)
   max_publish_age_secs                           seconds since the quote's own publish_time (freshness)
   symbol[16] · decimals
-PriceCache ["price", feed_id]                    one per listing; publish_time stored unmodified
+PriceCache ["price", feed_id]                    one per listing (sources 0–3); publish_time stored unmodified
+PriceUpdateV2 (owner rec5EK…)                    source 4: Pyth's account at [pyth_shard, feed_id] under pythWSns…
 Loan.listing                                     bound at lock_collateral
 ```
 
@@ -24,7 +26,7 @@ Loan.listing                                     bound at lock_collateral
 | `add_listing(params)` | admin | escrow must be the operator's account on `cstock_mint`; both mints Token-2022 with equal decimals; the mock mint carries `ScaledUiAmount` |
 | `update_listing(params)` | admin | rewrites `price_source`, `haircut_bps`, the two limits and `symbol` — never mints, escrow or `feed_id` |
 | `post_price(price, expo, publish_time)` | keeper | under the listing's `feed_id`; `publish_time ≤ now + 60 s`; never regresses |
-| `lock_collateral` | borrower | `slot − posted_slot ≤ max_price_age` **and** `now − publish_time ≤ max_publish_age_secs`; `k_l ← haircut_bps`; binds `Loan.listing` |
+| `lock_collateral` | borrower | the price account is the cache PDA (sources 0–3) or a receiver-owned `Full` `PriceUpdateV2` for the listing's feed (source 4; `BadPriceAccount` / `WrongFeed` otherwise); `slot − posted_slot ≤ max_price_age` **and** `now − publish_time ≤ max_publish_age_secs`; `k_l ← haircut_bps`; binds `Loan.listing` |
 | `deposit_collateral` · `seize` · `release_collateral` | borrower · anyone · operator | the listing passed must be `Loan.listing` (`WrongListing`); seize repeats both freshness rules |
 | `migrate_loan` | admin | a pre-schedule loan (414 B) is resized to 446 B and bound to the listing that mirrors `Config`'s collateral |
 
@@ -35,7 +37,7 @@ instruction prices from them any more.
 
 | Listing | Source | `feed_id` | Haircut | Quote limit | What the timestamp means |
 |---|---|---|---|---|---|
-| `TSLAx-mock` | Pyth `Crypto.TSLAX/USD`: Hermes with `PYTH_API_KEY`, Pyth's on-chain accounts as fallback | `0x47a15647…a362` | 150 % | 1 h | the publisher's own `publish_time` |
+| `TSLAx-mock` | Pyth `Crypto.TSLAX/USD`: Hermes with `PYTH_API_KEY`, Pyth's on-chain accounts as fallback; with the poster running, source 4 — Pyth's own account on devnet (`pyth_shard = 7001` → `JBDgVnqW…`) | `0x47a15647…a362` | 150 % | 1 h | the publisher's own `publish_time` |
 | `T-OpenAI-mock` | Tessera `GET /v1/public/token-details`, element `mint = oPAiAikW…`, field `markPrice` | `sha256("tessera:T-OpenAI")` | 200 % | 48 h | the keeper's fetch time (attested) |
 | `ANTHROPIC-mock` | PreStocks `GET /api/prestocks`, element `contract_address = Pren1FvF…`, field `markPrice` | `sha256("prestocks:ANTHROPIC")` | 200 % | 48 h | the keeper's fetch time (attested) |
 
@@ -63,19 +65,25 @@ wrong action.
   no agent's bid waits behind another's lock. Bid memory is keyed per agent. A judge who lends on
   listing 0 against a borrower on another listing receives a default payout on that listing's cSTOCK
   and needs a confidential account there: the Desk creates one when that listing is selected.
+- **Poster** (`services/pyth-poster`, Node): fetches the signed `Crypto.TSLAX/USD` update from Hermes and
+  posts it to Pyth's receiver on devnet every minute; started by `market.sh start` when `PYTH_API_KEY` is
+  set. `window-admin listing-set-source <key> 4` flips a listing to read that account, refusing while the
+  account is missing or stale; `listing-set-source <key> 0` flips it back to the keeper's cache.
 - **Setup / upgrade**: `window-admin setup` creates every profile listing; on an existing deployment,
   `window-admin listings-sync` registers listing #0 from `Config`'s own mints/escrow/feed id (so its price
   cache keeps its history) and creates the rest, and `window-admin migrate-loans` resizes the pre-schedule
   loans. `scripts/upgrade_devnet.sh` runs the whole devnet upgrade: extend `programdata` if needed →
   deploy `window_credit` → sync → migrate.
 - **Descriptor** (`deployments/<cluster>.json`): `listings[]` (key, symbol, source, PDA, mints, escrow,
-  feed id, limits) and `agents[].listing`; the legacy top-level fields mirror `listings[0]`.
+  feed id, limits, `price_source`, `price_account` for source 4) and `agents[].listing`; the legacy
+  top-level fields mirror `listings[0]`.
 
 ## SDK and dashboard
 
 - `pda.listing(cstockMint)`, `fetchListing`, `fetchListings`, `symbolOf`, `quoteFreshness` (both rules,
-  evaluated off chain for display), `feedIdForLabel`, `PriceSource`, `isAttestedMark`;
-  `buildLockPlan` / `buildDepositPlan` take the listing.
+  evaluated off chain for display), `feedIdForLabel`, `PriceSource`, `isAttestedMark`; `fetchQuotes` reads
+  every listing's quote from whichever account the program would read (`decodePriceUpdate` for source 4);
+  `buildLockPlan` / `buildDepositPlan` take the listing (and the price account for source 4).
 - **Market**: the schedule table — source (linked), mark, quote age vs limit, post age vs limit, haircut,
   and whether a lock or seize would be accepted right now.
 - **Desk**: a listing picker; the confidential account, wrap and balance follow it (one token signature
@@ -97,6 +105,8 @@ wrong action.
   future quote is refused. `attacks/attack_09` — a listing's cache cannot be swapped for another's;
   deposit, seize and release are bound to the loan's listing. `attacks/attack_10` — listing management is
   admin-only and validated; migration is admin-only and bound to the original collateral.
+  `attacks/attack_11` — a source-4 listing prices only from a receiver-owned, fully verified update for its own
+  feed, inside the limits; the cache and the Pyth account cannot stand in for each other.
   `privacy/idl_surface` allow-lists the listing's numeric fields.
 - Tier 2 (real validator): `integration/second_listing.test.ts` — a member on listing #1 wraps, bids, locks
   against listing #1's price and haircut, deposits into its escrow, and the operator confirms.

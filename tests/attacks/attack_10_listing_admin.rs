@@ -33,7 +33,7 @@ fn only_the_admin_lists_or_retunes_and_params_are_validated() {
     p.max_publish_age_secs = 0;
     assert!(f.h.update_listing(&admin, &f.setup, p).unwrap_err().has_code("BadParams"));
     let mut p = params(&f.setup);
-    p.price_source = 4;
+    p.price_source = window_credit::state::PRICE_SOURCE_MAX + 1;
     assert!(f.h.update_listing(&admin, &f.setup, p).unwrap_err().has_code("BadParams"));
     let mut p = params(&f.setup);
     p.haircut_bps = 17_500;

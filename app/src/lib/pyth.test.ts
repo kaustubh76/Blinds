@@ -13,6 +13,11 @@ describe("decodePriceUpdate", () => {
     expect(p.expo).toBe(-8);
     expect(p.publishTime).toBe(1_789_215_534);
     expect(p.verification).toBe("full");
+    // posted_slot sits at byte 125 (a Full account is padded to the Partial variant's 134 bytes).
+    expect(p.postedSlot).toBe(446_427_707n);
+  });
+  it("accepts the feed id as bytes too", () => {
+    expect(decodePriceUpdate(bytes, hexToBytes(FEEDS["Crypto.TSLAX/USD"])).price).toBe(36_523_000_001n);
   });
   it("rejects another feed, truncated data and an unknown verification level", () => {
     expect(() => decodePriceUpdate(bytes, FEEDS["Equity.US.TSLA/USD"])).toThrow(/carries feed/);

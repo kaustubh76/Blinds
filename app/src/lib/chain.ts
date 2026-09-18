@@ -1,6 +1,6 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
 import { type Address, address, createSolanaRpc } from "@solana/kit";
-import { isTransientRpcError, pda, withRpcRetry } from "@thewindow/solana-sdk";
+import { isTransientRpcError, pda, priceSourceTag, withRpcRetry } from "@thewindow/solana-sdk";
 // Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
 // admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
 import bundledDeployment from "../../../deployments/devnet.json";
@@ -45,6 +45,10 @@ export interface RawListing {
   haircut_bps: number;
   max_price_age_slots: number;
   max_publish_age_secs: number;
+  /** `Listing.price_source` on chain; absent in a descriptor written before source 4 (then derived from `source`). */
+  price_source?: number;
+  /** Source 4: the Pyth receiver-owned account the program reads for this listing. */
+  price_account?: string;
 }
 
 /** One eligible collateral, as the dashboard addresses it. */
@@ -62,6 +66,10 @@ export interface ListingView {
   haircutBps: bigint;
   maxPriceAgeSlots: number;
   maxPublishAgeSecs: number;
+  /** `Listing.price_source`: 0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth's own account. */
+  priceSource: number;
+  /** The Pyth account the program reads when `priceSource` is 4; `null` otherwise. */
+  priceAccount: Address | null;
 }
 
 export interface DeploymentView {
@@ -105,6 +113,8 @@ function listingView(l: RawListing): ListingView {
     haircutBps: BigInt(l.haircut_bps),
     maxPriceAgeSlots: l.max_price_age_slots,
     maxPublishAgeSecs: l.max_publish_age_secs,
+    priceSource: l.price_source ?? priceSourceTag(l.source),
+    priceAccount: l.price_account ? address(l.price_account) : null,
   };
 }
 

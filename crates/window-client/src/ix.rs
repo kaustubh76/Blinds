@@ -469,11 +469,13 @@ pub struct LockContexts {
     pub range64: Pubkey,
 }
 
+/// `price_account` is the listing's `PriceCache` PDA (`pda::price_cache(feed_id)`) or, for a
+/// `PRICE_SOURCE_PYTH_ACCOUNT` listing, its Pyth receiver-owned account.
 pub fn lock_collateral(
     borrower: &Pubkey,
     loan: &Pubkey,
     listing: &Pubkey,
-    feed_id: &[u8; 32],
+    price_account: &Pubkey,
     mock_mint: &Pubkey,
     ctxs: &LockContexts,
 ) -> Instruction {
@@ -486,7 +488,7 @@ pub fn lock_collateral(
             borrower_record: pda::member(borrower),
             loan: *loan,
             listing: *listing,
-            price_cache: pda::price_cache(feed_id),
+            price_cache: *price_account,
             mock_mint: *mock_mint,
             validity_ctx: ctxs.validity,
             range32_ctx: ctxs.range32,
@@ -560,7 +562,12 @@ pub fn repay(admin: &Pubkey, loan: &Pubkey) -> Instruction {
     }
 }
 
-pub fn seize(anyone: &Pubkey, loan: &Pubkey, listing: &Pubkey, feed_id: &[u8; 32]) -> Instruction {
+pub fn seize(
+    anyone: &Pubkey,
+    loan: &Pubkey,
+    listing: &Pubkey,
+    price_account: &Pubkey,
+) -> Instruction {
     Instruction {
         program_id: programs::CREDIT,
         accounts: window_credit::accounts::Seize {
@@ -568,7 +575,7 @@ pub fn seize(anyone: &Pubkey, loan: &Pubkey, listing: &Pubkey, feed_id: &[u8; 32
             config: pda::credit_config(),
             loan: *loan,
             listing: *listing,
-            price_cache: pda::price_cache(feed_id),
+            price_cache: *price_account,
         }
         .to_account_metas(None),
         data: window_credit::instruction::Seize {}.data(),

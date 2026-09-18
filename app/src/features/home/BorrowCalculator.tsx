@@ -18,7 +18,7 @@ import type { ListingView } from "../../lib/chain";
 import { formatPrice, formatRate, formatShares } from "../../lib/format";
 import { sourceLabel } from "../../lib/listings";
 
-type PriceCache = creditNs.PriceCache;
+type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "postedSlot">;
 
 export interface Quote {
   /** Milli-shares the program requires (`c·k_c ≥ ℓ·k_l`). */
@@ -120,7 +120,7 @@ export function BorrowCalculator({
                   <span className="flex items-center gap-2 text-xs text-ink-3">
                     {p ? formatPrice(p.price, p.expo) : "—"}
                     <Pill tone="mute">{Number(l.haircutBps) / 100}%</Pill>
-                    <span className="hidden sm:inline">{sourceLabel(l.source)}</span>
+                    <span className="hidden sm:inline">{sourceLabel(l)}</span>
                   </span>
                 </button>
               );

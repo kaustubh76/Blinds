@@ -49,6 +49,25 @@ keeper ── post_price(listing, price, expo, publish_time) ──▶ PriceCach
 `window-admin price-check` prints every listing's source, mark and quote age without sending anything;
 `/metrics` exposes `window_price_publish_age_seconds{listing="…"}`.
 
+### The second path: Pyth's own account, read by the program (`price_source = 4`)
+
+```
+Hermes (signed VAA, bearer key) ── services/pyth-poster ──▶ Pyth receiver on devnet (rec5EK…)
+                                                              verifies the guardian signatures, writes
+                                                              PriceUpdateV2 at [shard 7001, feed_id] = JBDgVnqW…
+lock_collateral / seize ── quote::read_quote(listing, account) ─▶ owner == rec5EK…, feed_id == listing's,
+                                                              verification == Full, price > 0; then the same
+                                                              two age rules on Pyth's publish_time / posted_slot
+```
+
+The keeper is not in this path. `PriceCache` is still what sources 0–3 read; a source-4 listing refuses the
+cache PDA (`BadPriceAccount`), and a cache-priced listing refuses a Pyth account. The listing is flipped by
+`window-admin listing-set-source mock_tsla 4`, which first reads the devnet account and refuses while it is
+missing or older than the listing's limit — so the flip can never strand the listing. The poster runs from
+`scripts/market.sh start` whenever `PYTH_API_KEY` is set (`/tmp/window-pyth-poster-devnet.log`), one post per
+minute (≈ 0.00001 SOL each, the PDA's rent once). `price-check` prints the devnet account's age beside the
+Hermes read.
+
 ## What the chain enforces
 
 Two rules, both at `lock_collateral` and `seize`, per listing (`Listing.max_price_age`,
@@ -74,9 +93,11 @@ account died, not the feed.
 
 ## Honest limits
 
-- The keeper is a trusted copier: the program checks the quote's age and feed id, not Pyth's signature.
-  Reading Pyth's receiver-owned account on chain for this listing is the planned next step
-  (`docs/TRACKS.md`, Stage 4).
+- Under source 0 the keeper is a trusted copier: the program checks the quote's age and feed id, not Pyth's
+  signature. Under source 4 the program reads the account Pyth's receiver wrote after verifying the guardian
+  signatures; what it does not do is verify a VAA itself (that is the receiver's job, on the same cluster).
+  The desk's poster is still the party that *carries* the update onto devnet, and can only be late, never
+  wrong: a stale account fails rule 2. Status of the devnet flip: `docs/TRACKS.md`, Stage 4.
 - Tessera and PreStocks listings are marked by their public APIs, not by Pyth, and their `publish_time`
   is the keeper's fetch time — attested, and labelled as such everywhere.
 - `Equity.US.TSLA/USD` is read in the browser from a browser-friendly mainnet RPC (`solana-rpc.publicnode.com`
@@ -87,6 +108,9 @@ account died, not the feed.
 - `services/admin/src/price.rs`: Hermes parse and feed-id check, push-oracle PDA vectors
   (`GpoWLTd6…` = shard 0, `Exzs9zru…` = shard 1, `FQB8c4zB…` = TSLA shard 1), account decode against a
   captured mainnet `PriceUpdateV2`.
+- `tests/attacks/attack_11_pyth_account.rs`: a `Full` receiver-owned update locks and seizes; wrong owner,
+  `Partial`, a cache PDA on a source-4 listing and a Pyth account on a cache listing → `BadPriceAccount`;
+  another feed → `WrongFeed`; past the limit → `QuoteStale`, at the limit accepted.
 - `app/src/lib/pyth.test.ts`: the same decoder in TypeScript, the same PDA vectors, the NYSE session
   boundaries, the basis arithmetic.
 - `tests/attacks/attack_07_stale_price.rs`: stale post, stale quote (freshly posted), future quote.

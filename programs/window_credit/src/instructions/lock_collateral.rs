@@ -22,7 +22,8 @@ use crate::{
     errors::CreditError,
     events::LockRequested,
     seeds,
-    state::{Config, Listing, Loan, LoanStatus, PriceCache},
+    quote,
+    state::{Config, Listing, Loan, LoanStatus},
     zk,
 };
 
@@ -45,8 +46,9 @@ pub struct LockCollateral<'info> {
     /// The collateral the borrower locks under; bound to the loan here.
     #[account(seeds = [seeds::LISTING, listing.cstock_mint.as_ref()], bump = listing.bump)]
     pub listing: Box<Account<'info, Listing>>,
-    #[account(seeds = [seeds::PRICE, listing.feed_id.as_ref()], bump = price_cache.bump)]
-    pub price_cache: Box<Account<'info, PriceCache>>,
+    /// CHECK: the listing's `PriceCache` PDA, or for a `PRICE_SOURCE_PYTH_ACCOUNT` listing a Pyth
+    /// receiver-owned `PriceUpdateV2`; owner, address / feed id and verification are checked by `quote::read_quote`.
+    pub price_cache: UncheckedAccount<'info>,
     /// CHECK: the listing's mock mint; its `ScaledUiAmount` extension is read.
     #[account(address = listing.mock_mint)]
     pub mock_mint: UncheckedAccount<'info>,
@@ -84,8 +86,9 @@ pub(crate) fn handler(ctx: Context<LockCollateral>) -> Result<()> {
     let config = &ctx.accounts.config;
     let listing = &ctx.accounts.listing;
 
-    // Freshness: the keeper posted recently, and the quote itself is recent.
-    let price = &ctx.accounts.price_cache;
+    // Freshness: the quote was posted recently, and the quote itself is recent.
+    let price = quote::read_quote(listing, &ctx.accounts.price_cache.to_account_info())?;
+    let price = &price;
     require!(
         clock.slot.saturating_sub(price.posted_slot) <= listing.max_price_age,
         CreditError::PriceStale

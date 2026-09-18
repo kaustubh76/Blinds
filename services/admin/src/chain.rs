@@ -19,6 +19,8 @@ pub trait Chain: Send + Sync {
     fn slot(&self) -> Result<u64>;
     fn unix_timestamp(&self) -> Result<i64>;
     fn account_data(&self, key: &Pubkey) -> Result<Option<Vec<u8>>>;
+    /// The account's owner and data — for accounts another program owns (a Pyth price update).
+    fn account_owner_and_data(&self, key: &Pubkey) -> Result<Option<(Pubkey, Vec<u8>)>>;
     /// Accounts of `program` whose data starts with `discriminator`.
     fn program_accounts(
         &self,
@@ -86,6 +88,13 @@ impl Chain for RpcChain {
             .get_account_with_commitment(key, CommitmentConfig::confirmed())?
             .value
             .map(|a| a.data))
+    }
+    fn account_owner_and_data(&self, key: &Pubkey) -> Result<Option<(Pubkey, Vec<u8>)>> {
+        Ok(self
+            .client
+            .get_account_with_commitment(key, CommitmentConfig::confirmed())?
+            .value
+            .map(|a| (a.owner, a.data)))
     }
     fn program_accounts(
         &self,

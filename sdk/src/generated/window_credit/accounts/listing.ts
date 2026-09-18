@@ -20,7 +20,10 @@ escrowAccount: Address;
  * mark — a label, never a Pyth id; all-zero for the documented local mock walk.
  */
 feedId: ReadonlyUint8Array; 
-/** 0 = Pyth · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk. */
+/**
+ * 0 = Pyth (keeper cache) · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk ·
+ * 4 = a Pyth receiver-owned `PriceUpdateV2` account read directly.
+ */
 priceSource: number; 
 /** Collateral value must cover this many bps of the loan. */
 haircutBps: bigint; 
@@ -39,7 +42,10 @@ escrowAccount: Address;
  * mark — a label, never a Pyth id; all-zero for the documented local mock walk.
  */
 feedId: ReadonlyUint8Array; 
-/** 0 = Pyth · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk. */
+/**
+ * 0 = Pyth (keeper cache) · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk ·
+ * 4 = a Pyth receiver-owned `PriceUpdateV2` account read directly.
+ */
 priceSource: number; 
 /** Collateral value must cover this many bps of the loan. */
 haircutBps: number | bigint; 

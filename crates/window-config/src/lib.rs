@@ -117,6 +117,11 @@ pub struct ListingCfg {
     /// Tessera / PreStocks: the JSON field carrying the USD mark (`markPrice`).
     #[serde(default)]
     pub price_field: String,
+    /// Pyth: the push-oracle shard the desk's own poster (`services/pyth-poster`) writes this feed
+    /// into on the desk's cluster. Set, the listing may run as `price_source = 4` and the program
+    /// reads Pyth's receiver-owned `PriceUpdateV2` at `[shard, feed_id]` directly.
+    #[serde(default)]
+    pub pyth_shard: Option<u16>,
 }
 
 impl ListingCfg {

@@ -73,6 +73,14 @@ enum Cmd {
     ListingsSync,
     /// Resize every pre-listing Loan (32 bytes shorter) to the current layout, bound to listing #0.
     MigrateLoans,
+    /// Change one listing's price source on chain (0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock ·
+    /// 4 Pyth's own receiver account on this cluster). Source 4 is refused until that account holds
+    /// a fresh quote.
+    ListingSetSource {
+        /// The profile key (`mock_tsla`).
+        key: String,
+        source: u8,
+    },
     /// Run the simulated members
     Agents {
         /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
@@ -331,6 +339,22 @@ fn main() -> Result<()> {
                     }
                     Err(e) => println!("[{}] ERROR {e:#}", l.symbol),
                 }
+                if let (Some(shard), Some(feed_id)) = (l.pyth_shard, l.feed_id()) {
+                    let account = window_admin::price::push_oracle_pda(shard, &feed_id);
+                    match chain.account_owner_and_data(&account)? {
+                        Some((owner, data)) if owner == window_client::PYTH_RECEIVER => {
+                            match window_admin::price::decode_price_update_slot(&data, &feed_id) {
+                                Ok((p, posted_slot)) => println!(
+                                    "[{}] on-cluster Pyth account {account} (shard {shard}): price {} expo {} publish_time {} age {} s posted_slot {}",
+                                    l.symbol, p.price, p.expo, p.publish_time, p.age_secs(now), posted_slot
+                                ),
+                                Err(e) => println!("[{}] on-cluster Pyth account {account}: ERROR {e:#}", l.symbol),
+                            }
+                        }
+                        Some((owner, _)) => println!("[{}] on-cluster Pyth account {account} is owned by {owner}, not the receiver", l.symbol),
+                        None => println!("[{}] on-cluster Pyth account {account} (shard {shard}) does not exist — start services/pyth-poster", l.symbol),
+                    }
+                }
             }
         }
         Cmd::ListingsSync => {
@@ -339,6 +363,26 @@ fn main() -> Result<()> {
             for l in &deployment.listings {
                 println!("{} {} listing {} feed {}", l.key, l.symbol, l.listing, l.feed_id_hex);
             }
+        }
+        Cmd::ListingSetSource { key, source } => {
+            let mut deployment = Deployment::load(&root, &cli.cluster)?;
+            setup::set_listing_source(
+                &chain,
+                &keys,
+                &profile,
+                &mut deployment,
+                &root,
+                &key,
+                source,
+            )?;
+            let l = deployment.listing_by_key(&key).expect("just updated");
+            println!(
+                "{} {} price_source {} reads {}",
+                l.key,
+                l.symbol,
+                l.price_source(),
+                l.quote_account()?
+            );
         }
         Cmd::MigrateLoans => {
             let deployment = Deployment::load(&root, &cli.cluster)?;

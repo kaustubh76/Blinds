@@ -125,6 +125,8 @@ export async function buildLockPlan(args: {
   /** The listing the collateral is locked under; `feedId` and `mockMint` are that listing's. */
   listing: Address;
   feedId: Uint8Array;
+  /** The account the listing prices from when it is not the `PriceCache` PDA (a `price_source = 4` listing's Pyth account). */
+  priceAccount?: Address | undefined;
   mockMint: Address;
   rent: Rent;
 }): Promise<Plan & { collateralCiphertext: Uint8Array; kC: bigint; kL: bigint }> {
@@ -167,7 +169,7 @@ export async function buildLockPlan(args: {
     borrowerRecord: await pda.member(b),
     loan: args.loan,
     listing: args.listing,
-    priceCache: await pda.priceCache(args.feedId),
+    priceCache: args.priceAccount ?? (await pda.priceCache(args.feedId)),
     mockMint: args.mockMint,
     validityCtx: cV.address,
     range32Ctx: cR32.address,

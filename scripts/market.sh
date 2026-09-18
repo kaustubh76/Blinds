@@ -18,6 +18,7 @@ PROFILE="${WINDOW_PROFILE:-$CLUSTER}"
 ADMIN_LOG="${WINDOW_ADMIN_LOG:-/tmp/window-admin-$CLUSTER.log}"
 AGENTS_LOG="${WINDOW_AGENTS_LOG:-/tmp/window-agents-$CLUSTER.log}"
 TUNNEL_LOG="${WINDOW_TUNNEL_LOG:-/tmp/window-tunnel-$CLUSTER.log}"
+POSTER_LOG="${WINDOW_POSTER_LOG:-/tmp/window-pyth-poster-$CLUSTER.log}"
 BIN=./target/release/window-admin
 PORT="${WINDOW_METRICS_PORT:-9090}"
 APP_URL="$(grep -v '^#' deployments/app-url.txt 2>/dev/null | grep -m1 . || echo 'https://kaustubh76.github.io/Blinds/')"
@@ -37,10 +38,22 @@ case "${1:-status}" in
     nohup "$BIN" --cluster "$CLUSTER" --profile "$PROFILE" run --metrics-port "${WINDOW_METRICS_PORT:-9090}" \
       >>"$ADMIN_LOG" 2>&1 &
     nohup "$BIN" --cluster "$CLUSTER" --profile "$PROFILE" agents >>"$AGENTS_LOG" 2>&1 &
+    # Stage 4: with a Pyth key, the poster carries Pyth's signed TSLAX update onto this cluster so a
+    # `price_source = 4` listing reads Pyth's own account (services/pyth-poster). Without the key the
+    # keeper's cache path stays in force and the listing honestly reports its quote age.
+    if [ -n "${PYTH_API_KEY:-}" ] && [ -d services/pyth-poster/node_modules ]; then
+      if ! pgrep -f "tsx src/main.ts" >/dev/null; then
+        (cd services/pyth-poster && WINDOW_CLUSTER="$CLUSTER" WINDOW_PROFILE="$PROFILE" nohup pnpm start >>"$POSTER_LOG" 2>&1 &)
+      fi
+      poster="  poster $POSTER_LOG"
+    else
+      poster="  poster not started (PYTH_API_KEY unset or services/pyth-poster not installed)"
+    fi
     sleep 5
     echo "market running on $CLUSTER (profile $PROFILE)"
     echo "  admin  $ADMIN_LOG"
     echo "  agents $AGENTS_LOG"
+    echo "$poster"
     echo "  metrics http://127.0.0.1:$PORT/metrics"
     if [ "$CLUSTER" = devnet ] && command -v cloudflared >/dev/null; then
       if ! pgrep -f "cloudflared tunnel --url http://127.0.0.1:$PORT" >/dev/null; then
@@ -67,12 +80,18 @@ case "${1:-status}" in
     ;;
   stop)
     pkill -f "window-admin --cluster $CLUSTER" 2>/dev/null && echo "market stopped" || echo "not running"
+    if pkill -f "tsx src/main.ts" 2>/dev/null; then echo "poster stopped"; fi
     if pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null; then echo "tunnel closed"; fi
     [ -n "$(current_admin_url)" ] && { write_admin_url ""; echo "admin-url.txt cleared (run ./scripts/publish_admin_url.sh to publish that)"; }
     ;;
   status)
     if pgrep -f "window-admin --cluster $CLUSTER" >/dev/null; then
       echo "running on $CLUSTER"
+      if pgrep -f "tsx src/main.ts" >/dev/null; then
+        echo "poster: running · last: $(grep -o '"msg":"posted".*"age_secs":[0-9-]*' "$POSTER_LOG" 2>/dev/null | tail -1 | grep -o '"publish_time":[0-9]*,"age_secs":[0-9-]*' || echo 'nothing posted yet')"
+      else
+        echo "poster: not running (Stage 4 needs PYTH_API_KEY)"
+      fi
       curl -s "http://127.0.0.1:$PORT/metrics" 2>/dev/null | grep -E "^window_" || true
       url="$(current_admin_url)"
       if [ -n "$url" ]; then

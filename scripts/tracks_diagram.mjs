@@ -194,7 +194,7 @@ note(
   40,
   52,
   1400,
-  "Stage badges: ① keeper freshness  ② dashboard panel  ③ Listing upgrade  ④ Pyth stretch (dashed). Frames are trust boundaries. docs/TRACKS.md is the written record.",
+  "Stage badges: ① keeper freshness  ② dashboard panel  ③ Listing upgrade  ④ Pyth's own account read on chain (dashed = waits for the key). Frames are trust boundaries. docs/TRACKS.md is the written record.",
   { fontSize: 12 },
 );
 
@@ -233,7 +233,7 @@ frame(
   780,
   1080,
   300,
-  "④ STRETCH — the Pyth listing reads Pyth's receiver-owned account; the program trusts Pyth, not the keeper's copy",
+  "④ BUILT (program + poster, 18 Sep) — the Pyth listing reads Pyth's receiver-owned account; the program trusts Pyth, not the keeper's copy. Devnet flip waits for PYTH_API_KEY",
   { stroke: C.stage4.stroke },
 );
 
@@ -526,7 +526,7 @@ box(
   970,
   1020,
   90,
-  "④ window_credit: Listing.price_source = PythAccount → lock_collateral / seize take the PDA instead of PriceCache\nowner == receiver · feed_id == listing.feed_id · verification == Full · now − publish_time ≤ max_publish_age_secs\nsecond devnet upgrade + update_listing flip for TSLAx · tier 1 via LiteSVM set_account · tier 2 via --account fixture",
+  "④ window_credit quote.rs: Listing.price_source = 4 → lock_collateral / seize read the receiver's account, not PriceCache\nowner == rec5EK… · feed_id == listing.feed_id · verification == Full · both age rules on Pyth's own publish_time / posted_slot\nBadPriceAccount · WrongFeed · attack_11 (7 cases, LiteSVM set_account) · window-admin listing-set-source mock_tsla 4 (refuses a stale account)",
   C.stage4,
 );
 
@@ -563,12 +563,11 @@ arrow("e.accounts.rpc", "s.pyth.accounts", "a.rpc", "② Equity.US.TSLA/USD (key
 arrow("e.desk.wrap", "a.desk", "d.wrap", "wrap(listing)", C.app);
 arrow("e.positions.guards", "a.positions", "d.guards", "lock_collateral(listing) · deposit", C.app);
 // stage 4
-arrow("e.hermes.poster", "s.hermes", "x.poster", "④ VAA", { ...C.stage4, dashed: true });
-arrow("e.poster.receiver", "x.poster", "x.receiver", "updatePriceFeed", { ...C.stage4, dashed: true });
-arrow("e.receiver.rule", "x.receiver", "x.rule", null, { ...C.stage4, dashed: true });
+arrow("e.hermes.poster", "s.hermes", "x.poster", "④ VAA (bearer key)", { ...C.stage4, dashed: true });
+arrow("e.poster.receiver", "x.poster", "x.receiver", "updatePriceFeed", C.stage4);
+arrow("e.receiver.rule", "x.receiver", "x.rule", null, C.stage4);
 arrow("e.rule.guards", "x.rule", "d.guards", "④ read Pyth's account directly", {
   ...C.stage4,
-  dashed: true,
   strokeWidth: 2,
 });
 

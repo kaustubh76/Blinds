@@ -2,9 +2,10 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
+use window_client::pda;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Deployment {
@@ -43,11 +44,44 @@ pub struct ListingRecord {
     pub haircut_bps: u64,
     pub max_price_age_slots: u64,
     pub max_publish_age_secs: i64,
+    /// `Listing.price_source` on chain (0 Pyth · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth
+    /// receiver account). Absent in older descriptors: derived from `source`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price_source: Option<u8>,
+    /// The Pyth receiver-owned push-oracle account on this cluster (`[pyth_shard, feed_id]`),
+    /// when the profile names a shard. What `lock_collateral`/`seize` read once `price_source` is 4.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price_account: Option<String>,
 }
 
 impl ListingRecord {
     pub fn feed_id(&self) -> [u8; 32] {
         hex::decode(&self.feed_id_hex).ok().and_then(|v| v.try_into().ok()).unwrap_or([0u8; 32])
+    }
+    pub fn price_source(&self) -> u8 {
+        self.price_source.unwrap_or(match self.source.as_str() {
+            "pyth" => window_client::PRICE_SOURCE_PYTH,
+            "tessera" => 1,
+            "prestocks" => 2,
+            _ => window_client::PRICE_SOURCE_MOCK,
+        })
+    }
+    /// `true` when the program reads Pyth's own account for this listing, so the keeper does not
+    /// post a `PriceCache` for it.
+    pub fn reads_pyth_account(&self) -> bool {
+        self.price_source() == window_client::PRICE_SOURCE_PYTH_ACCOUNT
+    }
+    pub fn pyth_account(&self) -> Result<Option<Pubkey>> {
+        self.price_account.as_deref().map(|s| s.parse().context("price account")).transpose()
+    }
+    /// The account `lock_collateral` / `seize` take: the `PriceCache` PDA, or the Pyth account.
+    pub fn quote_account(&self) -> Result<Pubkey> {
+        if self.reads_pyth_account() {
+            return self.pyth_account()?.ok_or_else(|| {
+                anyhow!("listing {} reads a Pyth account but the descriptor names none", self.key)
+            });
+        }
+        Ok(pda::price_cache(&self.feed_id()))
     }
     pub fn listing_pda(&self) -> Result<Pubkey> {
         self.listing.parse().context("listing pda")

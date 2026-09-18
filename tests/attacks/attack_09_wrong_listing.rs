@@ -22,13 +22,15 @@ fn a_listings_price_cache_cannot_be_swapped_for_anothers() {
             &scalars,
         )
         .unwrap();
-    // Listing #0's listing account with the second listing's cache: the PDA seeds do not match.
+    // Listing #0's listing account with the second listing's cache: a genuine cache, but not the
+    // PDA of listing #0's feed id — `quote::read_quote` refuses it.
     let mut mixed = f.h.add_listing(&f.setup, [11u8; 32], 15_000, 3_600);
     mixed.listing = f.setup.listing;
     mixed.price_cache = second.price_cache;
+    mixed.price_account = second.price_account;
     mixed.mock_mint = f.setup.mock_mint;
     let err = f.h.lock_collateral(&mixed, f.borrower, &f.loan, &claim, &pair).unwrap_err();
-    assert!(err.has_code("ConstraintSeeds"), "{err}");
+    assert!(err.has_code("BadPriceAccount"), "{err}");
     // The right pairing locks.
     f.h.lock_collateral(&f.setup, f.borrower, &f.loan, &claim, &pair).unwrap();
     assert_eq!(f.h.loan(&f.loan).listing, f.setup.listing);

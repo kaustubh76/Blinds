@@ -394,6 +394,17 @@ pub fn decode_price_update(data: &[u8], expected_feed_id: &[u8; 32]) -> Result<P
     Ok(Price { price: price as u64, expo, publish_time })
 }
 
+/// `decode_price_update` plus the account's own `posted_slot` (the slot Pyth's receiver wrote it),
+/// which the program's slot rule reads for a `price_source = 4` listing.
+pub fn decode_price_update_slot(data: &[u8], expected_feed_id: &[u8; 32]) -> Result<(Price, u64)> {
+    let price = decode_price_update(data, expected_feed_id)?;
+    // The account is allocated for the 2-byte `Partial` variant, so a `Full` account carries one
+    // trailing pad byte: walk the offsets rather than reading the last eight bytes.
+    let off = 8 + 32 + if data[40] == 1 { 1 } else { 2 } + 32 + 8 + 8 + 4 + 8 + 8 + 8 + 8;
+    let posted_slot = u64::from_le_bytes(data[off..off + 8].try_into().unwrap());
+    Ok((price, posted_slot))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,6 +428,9 @@ mod tests {
         assert_eq!(p.publish_time, 1_789_215_534);
         // §7.3 / A3: p′ = price · 10^(expo+2) = the price in cents.
         assert_eq!(window_proofs::scalar::price_scaled(p.price, p.expo), Some(36_523));
+        // The receiver's write slot, past the pad byte a `Full` account carries.
+        let (_, posted_slot) = decode_price_update_slot(TSLAX, &feed(TSLAX_FEED_ID)).unwrap();
+        assert_eq!(posted_slot, 446_427_707);
     }
 
     #[test]

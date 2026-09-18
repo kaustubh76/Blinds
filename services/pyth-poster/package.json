@@ -1,0 +1,23 @@
+{
+  "name": "@thewindow/pyth-poster",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Posts Pyth's signed Crypto.TSLAX/USD update into the Pyth receiver on the desk's cluster, so window_credit reads Pyth's own account (price_source = 4).",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "once": "tsx src/main.ts --once",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@pythnetwork/hermes-client": "3.1.0",
+    "@pythnetwork/pyth-solana-receiver": "0.16.0",
+    "@solana/web3.js": "^1.98.0",
+    "smol-toml": "^1.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

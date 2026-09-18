@@ -12,11 +12,12 @@ import {
   fetchMultiplier,
   fetchOracle,
   fetchPrice,
-  fetchPrices,
   fetchPrint,
+  fetchQuotes,
   fetchSeries,
   fetchTokenAmount,
   pda,
+  type QuoteSource,
   withRpcRetry,
 } from "@thewindow/solana-sdk";
 import { config } from "../config";
@@ -78,11 +79,15 @@ export const usePrice = (feedId: Uint8Array | undefined) =>
   });
 
 /** All listings' price caches in one call (the public RPC rate-limits a query per row); retried through 429s. */
-export const usePrices = (feedIds: Uint8Array[] | undefined) =>
+/** Every listing's quote, read the way the program reads it (cache PDA, or the Pyth account for source 4), in one RPC call. */
+export const usePrices = (listings: QuoteSource[] | undefined) =>
   useQuery({
-    queryKey: ["prices", (feedIds ?? []).map((f) => Array.from(f.slice(0, 4)).join(".")).join("|")],
-    queryFn: () => withRpcRetry(() => fetchPrices(rpc, feedIds ?? []), { attempts: 4 }),
-    enabled: !!feedIds && feedIds.length > 0,
+    queryKey: [
+      "quotes",
+      (listings ?? []).map((l) => `${l.priceSource}:${Array.from(l.feedId.slice(0, 4)).join(".")}`).join("|"),
+    ],
+    queryFn: () => withRpcRetry(() => fetchQuotes(rpc, listings ?? []), { attempts: 4 }),
+    enabled: !!listings && listings.length > 0,
     refetchInterval: SLOT_MS * 2,
   });
 

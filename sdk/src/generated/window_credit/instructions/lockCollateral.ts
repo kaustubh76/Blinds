@@ -42,6 +42,7 @@ borrowerRecord: TAccountBorrowerRecord;
 loan: TAccountLoan;
 /** The collateral the borrower locks under; bound to the loan here. */
 listing: TAccountListing;
+/** receiver-owned `PriceUpdateV2`; owner, address / feed id and verification are checked by `quote::read_quote`. */
 priceCache: TAccountPriceCache;
 mockMint: TAccountMockMint;
 validityCtx: TAccountValidityCtx;
@@ -82,6 +83,7 @@ borrowerRecord: TAccountBorrowerRecord;
 loan: TAccountLoan;
 /** The collateral the borrower locks under; bound to the loan here. */
 listing: TAccountListing;
+/** receiver-owned `PriceUpdateV2`; owner, address / feed id and verification are checked by `quote::read_quote`. */
 priceCache: TAccountPriceCache;
 mockMint: TAccountMockMint;
 validityCtx: TAccountValidityCtx;
@@ -120,6 +122,7 @@ borrowerRecord: TAccountMetas[3];
 loan: TAccountMetas[4];
 /** The collateral the borrower locks under; bound to the loan here. */
 listing: TAccountMetas[5];
+/** receiver-owned `PriceUpdateV2`; owner, address / feed id and verification are checked by `quote::read_quote`. */
 priceCache: TAccountMetas[6];
 mockMint: TAccountMetas[7];
 validityCtx: TAccountMetas[8];
