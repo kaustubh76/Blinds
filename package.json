@@ -16,6 +16,7 @@
     "codegen": "pnpm --filter=@thewindow/solana-sdk codegen",
     "docs:measurements": "node scripts/measurements_to_md.mjs",
     "watch:epoch": "tsx scripts/watch_epoch.ts",
+    "schedule": "tsx scripts/schedule.ts",
     "leak-audit": "tsx scripts/leak_audit.ts"
   },
   "devDependencies": {

@@ -10,6 +10,7 @@ import {
   fetchOracle,
   fetchPrint,
   PrintStatus,
+  pda,
   proofs,
 } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
@@ -114,30 +115,33 @@ export function useDesk(account: UiWalletAccount) {
   const join = useMutation({
     mutationFn: async () => {
       if (!memberKey.data || !accounts.data) throw new Error("derive keys first");
+      // The faucet mints listing #0's mint into `mockAccount` (and every other listing into the
+      // wallet's own ATAs), so the account named here is always listing #0's — whichever is selected.
+      const first = listings[0];
+      if (!first) throw new Error("no listings in the deployment");
+      const mockAccount = await pda.ata(wallet, first.mockMint);
       const id = devConsole.push({
         kind: "call",
-        title: "POST /join (demo faucet: add_member + mint mock shares + fee SOL)",
+        title: "POST /join (demo faucet: add_member + mint every listed collateral + fee SOL)",
         code: asCode(
           "joinDesk",
-          { wallet, elgamalPubkey: memberKey.data, mockAccount: accounts.data.mockAta },
+          { wallet, elgamalPubkey: memberKey.data, mockAccount },
           {
             prelude: "// the administrator signs add_member; membership is public, positions are not",
           },
         ),
         state: "pending",
       });
-      const r = await joinDesk({ wallet, elgamalPubkey: memberKey.data, mockAccount: accounts.data.mockAta }).catch(
-        (e: unknown) => {
-          devConsole.update(id, { state: "failed", error: e instanceof Error ? e.message : String(e) });
-          throw e;
-        },
-      );
+      const r = await joinDesk({ wallet, elgamalPubkey: memberKey.data, mockAccount }).catch((e: unknown) => {
+        devConsole.update(id, { state: "failed", error: e instanceof Error ? e.message : String(e) });
+        throw e;
+      });
       devConsole.update(id, {
         state: "confirmed",
         ...(r.signature ? { signature: r.signature } : {}),
         detail: r.alreadyMember
           ? "already a member — nothing minted or sent"
-          : "member added, 10,000 shares minted, 0.1 SOL sent",
+          : `member added, 10,000 shares of each of ${listings.length} listing(s) minted, 0.1 SOL sent`,
       });
       // A fresh member's accounts land a moment after the faucet's transaction confirms.
       if (!r.alreadyMember) await new Promise((res) => setTimeout(res, 1500));
@@ -267,7 +271,8 @@ export function useDesk(account: UiWalletAccount) {
   const latest = useRef({ keys: false, member: false, configured: false, balance: null as bigint | null, open: false });
   useEffect(() => {
     latest.current = {
-      keys: !!session.memberSignature && !!memberKey.data,
+      // Per mint: switching listing needs a new token-account signature (the member key is shared).
+      keys: !!session.memberSignature && !!memberKey.data && !!session.tokenSignature,
       member: !!member.data,
       configured: !!accounts.data?.cstock.configured,
       balance: balances.data ? balances.data.available + balances.data.pending : null,
@@ -290,7 +295,11 @@ export function useDesk(account: UiWalletAccount) {
     mutationFn: async (opts: { wrapShares: bigint; sizeMicroUsdc: bigint; side: 0 | 1 }) => {
       const note = (title: string) => devConsole.push({ kind: "note", title: `autopilot: ${title}` });
       if (!latest.current.keys) {
-        note("deriving keys (2 signatures)");
+        note(
+          session.memberSignature
+            ? `signing the token-account message for ${listing?.symbol ?? "this listing"}`
+            : "deriving keys (2 signatures)",
+        );
         await deriveKeys.mutateAsync();
         await waitFor("keys", () => latest.current.keys);
       } else note("keys already derived");

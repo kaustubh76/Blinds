@@ -54,6 +54,7 @@ export function useLiveEvents(): LiveState {
         });
         // Loans and bids change on credit/auction events; membership on registry ones.
         if (e.program === "credit") void qc.invalidateQueries({ queryKey: ["loans"] });
+        if (e.program === "credit" && e.name === "ListingAdded") void qc.invalidateQueries({ queryKey: ["listings"] });
         if (e.program === "auction" && e.name === "BidSubmitted") void qc.invalidateQueries({ queryKey: ["bids"] });
       },
       onStatus: (s) => {

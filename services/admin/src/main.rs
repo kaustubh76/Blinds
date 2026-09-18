@@ -230,17 +230,22 @@ fn main() -> Result<()> {
                     retry_after_secs: wait.as_secs().max(1),
                 })?;
                 let mut ixs = vec![window_client::ix::add_member(&admin.pubkey(), &wallet, eg, 0)];
-                // The wallet has no SOL yet: the admin creates its mock ATA (idempotent) before minting.
-                if mock_account == window_client::pda::ata(&wallet, &mock_mint) {
-                    ixs.push(window_client::ct::create_ata_idempotent(
-                        &admin.pubkey(),
-                        &wallet,
-                        &mock_mint,
-                    ));
+                // Listing #0's shares go to the wallet's own ATA on listing #0's mint. The account the
+                // request names is accepted only if it is that ATA; a dashboard working another
+                // listing used to name that listing's ATA, which `mint_to` on this mint would refuse.
+                let first_ata = window_client::pda::ata(&wallet, &mock_mint);
+                if mock_account != first_ata {
+                    tracing::info!(%wallet, requested = %mock_account, "join: using the wallet's listing #0 ATA");
                 }
+                // The wallet has no SOL yet: the admin creates the ATA (idempotent) before minting.
+                ixs.push(window_client::ct::create_ata_idempotent(
+                    &admin.pubkey(),
+                    &wallet,
+                    &mock_mint,
+                ));
                 ixs.push(window_client::ct::mint_to(
                     &mock_mint,
-                    &mock_account,
+                    &first_ata,
                     &admin.pubkey(),
                     10_000_000,
                 )); // 10,000.000 shares

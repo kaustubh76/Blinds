@@ -75,10 +75,11 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const [tick, setTick] = useState(8);
   const [size, setSize] = useState("1000");
   const cluster = config.cluster;
-  const keysReady = !!d.memberKey.data;
+  // The member key is one per wallet; the token-account signature is one per listing mint.
+  const keysReady = !!d.memberKey.data && !!s.tokenSignature;
   const isMember = !!d.member.data;
   const configured = !!d.accounts.data?.cstock.configured;
-  const decimals = d.dep.data?.decimals ?? 3;
+  const decimals = d.listing?.decimals ?? d.dep.data?.decimals ?? 3;
   const faucet = !!d.dep.data?.faucet;
   const busy =
     d.deriveKeys.isPending ||
@@ -117,7 +118,11 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
           icon="key"
           variant={keysReady ? "ghost" : "primary"}
         >
-          {keysReady ? "Re-derive" : "Sign twice to derive"}
+          {keysReady
+            ? "Re-derive"
+            : s.memberSignature
+              ? `Sign for ${d.listing?.symbol ?? "this listing"}`
+              : "Sign twice to derive"}
         </Button>
       ),
     },

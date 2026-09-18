@@ -5,7 +5,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchListings, PRICE_SOURCE_NAMES } from "@thewindow/solana-sdk";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { type ListingView, rpc } from "./chain";
 import { useDeployment } from "./queries";
 import { useSession } from "./wallet";
@@ -20,31 +20,30 @@ function readSelected(): string | null {
   }
 }
 
-/** The listing the desk works: the saved key, else listing #0. Keeps the session's mint in step. */
+/**
+ * The listing the desk works: the saved key, else listing #0. Keeps the session's mint in step.
+ * The choice is React state (seeded from storage): the descriptor's `listings` array never changes
+ * identity, so a memo over it alone would never see a new pick.
+ */
 export function useSelectedListing() {
   const dep = useDeployment();
   const session = useSession();
   const listings = dep.data?.listings ?? [];
-  const selected = useMemo(() => {
-    const saved = readSelected();
-    return listings.find((l) => l.key === saved) ?? listings[0];
-  }, [listings]);
+  const [key, setKey] = useState<string | null>(readSelected);
+  const selected = useMemo(() => listings.find((l) => l.key === key) ?? listings[0], [listings, key]);
+  const mint = selected?.cstockMint ?? null;
+  const { listing: sessionMint, setListing } = session;
   useEffect(() => {
-    const mint = selected?.cstockMint ?? null;
-    if (session.listing !== mint) session.setListing(mint);
-  }, [selected, session]);
-  const select = useCallback(
-    (key: string) => {
-      try {
-        localStorage.setItem(LISTING_KEY, key);
-      } catch {
-        // per-browser convenience only
-      }
-      const l = listings.find((x) => x.key === key);
-      session.setListing(l?.cstockMint ?? null);
-    },
-    [listings, session],
-  );
+    if (sessionMint !== mint) setListing(mint);
+  }, [mint, sessionMint, setListing]);
+  const select = useCallback((next: string) => {
+    try {
+      localStorage.setItem(LISTING_KEY, next);
+    } catch {
+      // per-browser convenience only
+    }
+    setKey(next);
+  }, []);
   return { listings, selected, select };
 }
 
