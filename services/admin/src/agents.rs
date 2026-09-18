@@ -452,6 +452,15 @@ impl Agents {
                     chain.rent(zk::context_size::<BatchedRangeProofContext>())?,
                     &pair.range,
                 );
+                // The proofs were built against one quote; if the keeper posted a new one meanwhile
+                // (the mock walks on every post), the program would compute a different E_delta and
+                // refuse them — skip this tick rather than spend rent on contexts that cannot verify.
+                let fresh = read::<PriceCache>(chain, &pda::price_cache(&feed_id))?
+                    .ok_or_else(|| anyhow!("price"))?;
+                if fresh.price != price.price || fresh.expo != price.expo {
+                    debug!(agent = i, loan = %key, "quote moved while proving; retrying next tick");
+                    continue;
+                }
                 chain.send(wallet, &[c0, v0, c2, v2], &[&ctxs[0], &ctxs[2]])?;
                 chain.send(wallet, &[c1], &[&ctxs[1]])?;
                 chain.send(wallet, &[v1], &[])?;
