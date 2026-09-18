@@ -3,7 +3,7 @@
  * (listing PDA, price-cache PDA, feed id), its source, mark and the two freshness verdicts the
  * chain would give right now — and the SDK calls that produced each row.
  */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   fetchListings,
   fetchPrices,
@@ -20,7 +20,6 @@ import { Skeleton } from "../../components/Skeleton";
 import { Badge, Button, ExplorerLink, type Tone } from "../../components/ui";
 import { config } from "../../config";
 import { rpc } from "../../lib/chain";
-import { useSlot } from "../../lib/queries";
 
 const SOURCE_TONE: Record<string, Tone> = { Pyth: "accent", "Tessera mark": "lend", "PreStocks mark": "borrow" };
 
@@ -37,11 +36,14 @@ const rows = listings.map(({ address, data: l }, i) => ({
   ...(prices[i] ? sdk.quoteFreshness({ listing: l, price: prices[i], slot, nowSecs: now }) : { usable: false }),
 }));`;
 
-/** One query for the whole schedule: listings, their caches, the slot's block time. */
+/**
+ * One query for the whole schedule: listings, their caches, the slot's block time. Re-read every
+ * 30 s, on every `PricePosted` event (`useLive` invalidates the key) and on the refresh button —
+ * not on every slot, and the rows stay on screen while the next read is in flight.
+ */
 function useScheduleRows() {
-  const slot = useSlot();
   return useQuery({
-    queryKey: ["build-schedule", slot.data],
+    queryKey: ["build-schedule"],
     queryFn: async () => {
       const listings = await withRpcRetry(() => fetchListings(rpc));
       const prices = await withRpcRetry(() =>
@@ -73,6 +75,8 @@ function useScheduleRows() {
       );
     },
     staleTime: 20_000,
+    refetchInterval: 30_000,
+    placeholderData: keepPreviousData,
   });
 }
 
