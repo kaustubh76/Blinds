@@ -15,13 +15,9 @@ export function ListingPicker({
 }) {
   if (listings.length <= 1) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <span className="flex flex-wrap items-center gap-2">
       <span className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">collateral</span>
-      <div
-        className="flex rounded-[var(--radius-md)] border border-line p-0.5"
-        role="radiogroup"
-        aria-label="Collateral"
-      >
+      <span className="flex rounded-[var(--radius-md)] border border-line p-0.5" aria-label="Collateral">
         {listings.map((l) => {
           const on = l.key === selected?.key;
           return (
@@ -41,7 +37,7 @@ export function ListingPicker({
             </button>
           );
         })}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
