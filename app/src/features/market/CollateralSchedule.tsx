@@ -48,7 +48,13 @@ export function CollateralSchedule() {
     >
       <div className="mb-4 grid gap-3 md:grid-cols-3">
         {listings.map((l, i) => (
-          <ListingCard key={l.key} listing={l} price={prices.data?.[i] ?? null} slot={slot.data} compact />
+          <ListingCard
+            key={l.key}
+            listing={l}
+            price={prices.data ? (prices.data[i] ?? null) : undefined}
+            slot={slot.data}
+            compact
+          />
         ))}
       </div>
       <details className="group">

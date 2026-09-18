@@ -199,6 +199,17 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Grid and flex children default to min-width:auto, which lets one long line push a phone layout
+   wider than the viewport. Nothing here needs that behaviour. */
+.grid > *,
+.flex > * {
+  min-width: 0;
+}
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* Only columns of numbers align; big figures keep proportional digits. */
 .num {
   font-variant-numeric: tabular-nums;

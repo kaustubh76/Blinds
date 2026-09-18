@@ -39,7 +39,7 @@ export function WindowClock({ clock, size = 160, detail = true }: { clock: Clock
               : "var(--color-line-strong)";
   const big = size >= 120;
   return (
-    <div className="flex items-center gap-4" data-phase={phase}>
+    <div className="flex max-w-full flex-wrap items-center justify-center gap-4" data-phase={phase}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" aria-hidden="true">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-line)" strokeWidth={stroke} />
         <circle

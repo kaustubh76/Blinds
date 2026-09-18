@@ -70,7 +70,8 @@ export function ListingCard({
             {price ? formatPrice(price.price, price.expo) : "—"}
           </div>
           <div className="text-xs text-ink-3">
-            {price ? `quote ${formatAge(price.publishTime)}` : "no quote yet"} · haircut {Number(l.haircutBps) / 100}%
+            {price ? `quote ${formatAge(price.publishTime)}` : price === null ? "no quote yet" : "loading"} · haircut{" "}
+            {Number(l.haircutBps) / 100}%
           </div>
         </div>
         {fresh ? (
