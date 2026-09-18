@@ -42,8 +42,8 @@ export function Button({
   onClick?: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "ghost" | "danger";
-  size?: "sm" | "md";
+  variant?: "primary" | "ghost" | "danger" | "hero" | "soft";
+  size?: "sm" | "md" | "lg";
   type?: "button" | "submit";
   icon?: IconName;
   className?: string;
@@ -51,10 +51,13 @@ export function Button({
 }) {
   const base =
     "inline-flex items-center gap-1.5 rounded-[var(--radius-md)] font-medium transition-colors disabled:cursor-not-allowed";
-  const sizing = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-2 text-sm";
+  const sizing =
+    size === "sm" ? "px-2.5 py-1 text-xs" : size === "lg" ? "px-5 py-3 text-base rounded-full" : "px-3.5 py-2 text-sm";
   const look = {
     primary: "bg-accent text-accent-ink hover:bg-accent/90 disabled:bg-surface-2 disabled:text-ink-3",
-    ghost: "border border-line text-ink-1 hover:bg-surface-2 disabled:text-ink-3",
+    hero: "brand-gradient text-white shadow-[0_8px_30px_-10px_var(--color-accent)] hover:brightness-105 disabled:opacity-60",
+    soft: "bg-accent-soft text-accent hover:bg-accent/15 disabled:text-ink-3",
+    ghost: "border border-line bg-surface-1 text-ink-1 hover:bg-surface-2 disabled:text-ink-3",
     danger: "border border-status-critical/50 text-status-critical hover:bg-status-critical/10 disabled:text-ink-3",
   }[variant];
   return (
@@ -121,5 +124,85 @@ export function ExplorerLink({
       {children ?? `${address.slice(0, 4)}…${address.slice(-4)}`}
       <Icon name="external" size={11} className="text-ink-3" />
     </a>
+  );
+}
+
+/** A rounded chip for a state or a source. */
+export function Pill({ tone = "mute", icon, children }: { tone?: Tone; icon?: IconName; children: ReactNode }) {
+  const c: Record<Tone, string> = {
+    mute: "bg-surface-2 text-ink-2",
+    good: "bg-status-good/12 text-status-good",
+    warn: "bg-status-warning/12 text-status-warning",
+    bad: "bg-status-critical/12 text-status-critical",
+    accent: "bg-accent-soft text-accent",
+    lend: "bg-lend/12 text-lend",
+    borrow: "bg-borrow/12 text-borrow",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${c[tone]}`}>
+      {icon && <Icon name={icon} size={12} />}
+      {children}
+    </span>
+  );
+}
+
+/** A page section with an eyebrow, a heading and an optional lead. */
+export function Section({
+  eyebrow,
+  title,
+  lead,
+  right,
+  children,
+  className = "",
+}: {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  lead?: ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={`grid gap-5 ${className}`}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-[64ch]">
+          {eyebrow && <div className="t-eyebrow">{eyebrow}</div>}
+          <h2 className="t-h2 mt-1 text-ink-1">{title}</h2>
+          {lead && <p className="mt-2 text-sm leading-relaxed text-ink-2">{lead}</p>}
+        </div>
+        {right}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** A soft callout: an icon, a title, a sentence. */
+export function Callout({
+  icon = "spark",
+  tone = "accent",
+  title,
+  children,
+}: {
+  icon?: IconName;
+  tone?: "accent" | "warn" | "mute";
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  const c = {
+    accent: "border-accent/25 bg-accent-soft/60 text-ink-1",
+    warn: "border-status-warning/30 bg-status-warning/8 text-ink-1",
+    mute: "border-line bg-surface-2 text-ink-1",
+  }[tone];
+  return (
+    <div className={`flex gap-3 rounded-[var(--radius-lg)] border p-4 ${c}`}>
+      <span className={`mt-0.5 ${tone === "warn" ? "text-status-warning" : "text-accent"}`}>
+        <Icon name={icon} size={18} />
+      </span>
+      <div className="min-w-0 text-sm">
+        <div className="font-medium">{title}</div>
+        <div className="mt-0.5 leading-relaxed text-ink-2">{children}</div>
+      </div>
+    </div>
   );
 }

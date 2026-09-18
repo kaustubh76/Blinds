@@ -14,18 +14,25 @@ export function Card({
   eyebrow?: ReactNode;
   right?: ReactNode;
   footer?: ReactNode;
-  tone?: "default" | "accent";
+  tone?: "default" | "accent" | "brand" | "flat";
   className?: string;
   children: ReactNode;
 }) {
-  const border = tone === "accent" ? "border-accent/40" : "border-line";
+  const look =
+    tone === "accent"
+      ? "border-accent/40 bg-surface-1"
+      : tone === "brand"
+        ? "border-accent/20 bg-surface-1 brand-wash"
+        : tone === "flat"
+          ? "border-transparent bg-surface-2"
+          : "border-line bg-surface-1";
   return (
-    <section className={`flex flex-col rounded-[var(--radius-lg)] border ${border} bg-surface-1 ${className}`}>
+    <section className={`flex flex-col rounded-[var(--radius-lg)] border ${look} ${className}`}>
       {(title || eyebrow || right) && (
         <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
           <div className="min-w-0">
-            {eyebrow && <div className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">{eyebrow}</div>}
-            {title && <h2 className="mt-0.5 text-[15px] font-medium text-ink-1">{title}</h2>}
+            {eyebrow && <div className="t-eyebrow">{eyebrow}</div>}
+            {title && <h2 className="mt-0.5 text-base font-semibold text-ink-1">{title}</h2>}
           </div>
           {right && <div className="shrink-0">{right}</div>}
         </header>

@@ -3,6 +3,7 @@ import { Shell } from "./components/Shell";
 import { Skeleton } from "./components/Skeleton";
 import { useHashRoute } from "./lib/useHashRoute";
 
+const Home = lazy(() => import("./features/home/Home").then((m) => ({ default: m.Home })));
 const Market = lazy(() => import("./features/market/Market").then((m) => ({ default: m.Market })));
 const Explorer = lazy(() => import("./features/explorer/Explorer").then((m) => ({ default: m.Explorer })));
 const Desk = lazy(() => import("./features/desk/Desk").then((m) => ({ default: m.Desk })));
@@ -21,6 +22,7 @@ export function App() {
           </div>
         }
       >
+        {route.tab === "home" && <Home />}
         {route.tab === "market" && <Market />}
         {route.tab === "explorer" && <Explorer epochParam={route.param} />}
         {route.tab === "desk" && <Desk />}

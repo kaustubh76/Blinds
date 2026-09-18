@@ -1,38 +1,41 @@
 @import "tailwindcss";
 
 /*
- * Desk terminal. Dark only, by decision: one surface family, three ink levels, one accent, the two
- * market sides in a colour-vision-safe pair, and status colours that are reserved for the loan
- * lifecycle and never used as decoration. Every hex in the app lives here. `static` keeps every
- * token in the CSS even when no utility class uses it, because the charts read them at runtime.
+ * Design tokens. Two themes over one vocabulary: a warm paper light theme (the default — this is a
+ * product a first-time visitor should feel at home in) and the desk's dark theme. Every hex in the
+ * app lives here. `static` keeps every token in the CSS even when no utility class uses it, because
+ * the charts read them at runtime (`lib/theme.ts`). Lend blue and borrow orange are a
+ * colour-vision-safe pair; the status colours are reserved for the loan lifecycle; violet is the one
+ * accent, so a button or a focus ring is never mistaken for a warning.
  */
 @theme static {
-  --color-surface-0: #0c0d10;
-  --color-surface-1: #131519;
-  --color-surface-2: #1b1e24;
-  --color-line: #262a32;
-  --color-line-strong: #343941;
+  --color-surface-0: #f6f3ec;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #f0ebe1;
+  --color-surface-3: #e7e1d4;
+  --color-line: #e5dfd3;
+  --color-line-strong: #cfc7b8;
 
-  --color-ink-1: #f2efe8;
-  --color-ink-2: #b7b3aa;
-  --color-ink-3: #7d7a73;
+  --color-ink-1: #1a1724;
+  --color-ink-2: #4f4b5c;
+  --color-ink-3: #7c7889;
 
-  /* Violet: the one hue family not already spent by lend blue, borrow orange or the four status
-     colours, so a button, a focus ring or the r* marker is never mistaken for a warning. */
-  --color-accent: #a78bfa;
-  --color-accent-ink: #0c0d10;
+  --color-accent: #6d4ff5;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #ece7ff;
 
-  --color-lend: #3987e5;
-  --color-borrow: #d95926;
+  --color-lend: #2563eb;
+  --color-borrow: #ea580c;
 
-  --color-status-good: #0ca30c;
-  --color-status-warning: #fab219;
-  --color-status-serious: #ec835a;
-  --color-status-critical: #d03b3b;
+  --color-status-good: #15803d;
+  --color-status-warning: #b45309;
+  --color-status-serious: #c2410c;
+  --color-status-critical: #b91c1c;
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -40,6 +43,101 @@
   --animate-stamp: stamp 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-reveal: reveal 260ms ease-out both;
   --animate-tick: tick 180ms ease-out both;
+  --animate-rise: rise 480ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+/* The dark theme: the same vocabulary, the desk's palette. Chosen explicitly (`data-theme`) or by
+   the system when nothing is chosen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-surface-0: #0c0d10;
+    --color-surface-1: #131519;
+    --color-surface-2: #1b1e24;
+    --color-surface-3: #23272f;
+    --color-line: #262a32;
+    --color-line-strong: #343941;
+    --color-ink-1: #f2efe8;
+    --color-ink-2: #b7b3aa;
+    --color-ink-3: #7d7a73;
+    --color-accent: #a78bfa;
+    --color-accent-ink: #0c0d10;
+    --color-accent-soft: #241f3d;
+    --color-lend: #3987e5;
+    --color-borrow: #d95926;
+    --color-status-good: #22c55e;
+    --color-status-warning: #fab219;
+    --color-status-serious: #ec835a;
+    --color-status-critical: #ef4444;
+  }
+}
+:root[data-theme="dark"] {
+  --color-surface-0: #0c0d10;
+  --color-surface-1: #131519;
+  --color-surface-2: #1b1e24;
+  --color-surface-3: #23272f;
+  --color-line: #262a32;
+  --color-line-strong: #343941;
+  --color-ink-1: #f2efe8;
+  --color-ink-2: #b7b3aa;
+  --color-ink-3: #7d7a73;
+  --color-accent: #a78bfa;
+  --color-accent-ink: #0c0d10;
+  --color-accent-soft: #241f3d;
+  --color-lend: #3987e5;
+  --color-borrow: #d95926;
+  --color-status-good: #22c55e;
+  --color-status-warning: #fab219;
+  --color-status-serious: #ec835a;
+  --color-status-critical: #ef4444;
+}
+
+/* The brand gradient: violet into a warm rose, used for the hero wash and the one hero button. */
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-accent) 0%, #c084fc 55%, #f472b6 100%);
+}
+.brand-wash {
+  background-image:
+    radial-gradient(60% 50% at 20% 0%, color-mix(in oklab, var(--color-accent) 22%, transparent) 0%, transparent 70%),
+    radial-gradient(50% 40% at 90% 10%, color-mix(in oklab, #f472b6 16%, transparent) 0%, transparent 70%);
+}
+.brand-text {
+  background-image: linear-gradient(120deg, var(--color-accent), #c084fc 60%, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Type scale: display and headings are proportional; only columns of numbers are tabular. */
+.t-display {
+  font-size: clamp(40px, 6vw, 68px);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+.t-h1 {
+  font-size: clamp(28px, 3.4vw, 36px);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+.t-h2 {
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  font-weight: 600;
+}
+.t-lead {
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.t-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
 }
 
 @keyframes stamp {
@@ -70,6 +168,25 @@
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
   }
 }
 
@@ -123,6 +240,8 @@ body {
   .animate-stamp,
   .animate-reveal,
   .animate-tick,
+  .animate-rise,
+  .animate-float,
   .animate-ping,
   .animate-spin,
   .animate-pulse {

@@ -9,8 +9,9 @@ describe("hash route", () => {
     expect(toHash("explorer", "16")).toBe("#/explorer/16");
     expect(toHash("market")).toBe("#/market");
   });
-  it("falls back to the market", () => {
-    expect(parseHash("")).toEqual({ tab: "market" });
-    expect(parseHash("#/nope/3")).toEqual({ tab: "market", param: "3" });
+  it("falls back to home", () => {
+    expect(parseHash("")).toEqual({ tab: "home" });
+    expect(parseHash("#/")).toEqual({ tab: "home" });
+    expect(parseHash("#/nope/3")).toEqual({ tab: "home", param: "3" });
   });
 });
