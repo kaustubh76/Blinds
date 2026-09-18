@@ -321,7 +321,11 @@ export function useDesk(account: UiWalletAccount) {
         await wrap.mutateAsync(opts.wrapShares);
         await waitFor("the wrapped balance", () => (latest.current.balance ?? 0n) > 0n);
       } else note("already holds cSTOCK-W");
-      if (!latest.current.open) throw new Error("autopilot: no window is open — the keeper opens the next one");
+      if (!latest.current.open) {
+        // Between windows the keeper prints and matches, then opens the next one (a few minutes).
+        note("no window is open — waiting for the keeper to open the next one");
+        await waitFor("an open window", () => latest.current.open, 10 * 60_000);
+      }
       // Bid at the last clearing rate when there is one, so the bid is likely to match.
       const oracle = await retry(() => fetchOracle(rpc));
       let tick = 8;
