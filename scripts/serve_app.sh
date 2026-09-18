@@ -13,6 +13,8 @@ PORT="${WINDOW_APP_PORT:-4173}"
 APP_LOG="${WINDOW_APP_LOG:-/tmp/window-app-serve.log}"
 TUNNEL_LOG="${WINDOW_APP_TUNNEL_LOG:-/tmp/window-app-tunnel.log}"
 URL_FILE=/tmp/window-app-url.txt
+# The directory served; point WINDOW_APP_DIST at a build of a clean checkout when the working tree is mid-edit.
+DIST="${WINDOW_APP_DIST:-app/dist}"
 admin_url() { grep -v '^#' deployments/admin-url.txt 2>/dev/null | grep -m1 . || true; }
 
 case "${1:-status}" in
@@ -25,11 +27,11 @@ case "${1:-status}" in
         VITE_MAINNET_RPC_URL="${VITE_MAINNET_RPC_URL:-https://solana-rpc.publicnode.com}" VITE_ADMIN_URL= \
         pnpm -s --filter @thewindow/app build >/dev/null
     fi
-    cp deployments/admin-url.txt app/dist/admin-url.txt
+    cp deployments/admin-url.txt "$DIST/admin-url.txt"
     # A plain static server: the app is a hash-routed SPA, and Vite's preview refuses unknown hosts.
     pgrep -f "http.server $PORT" >/dev/null || {
       : > "$APP_LOG"
-      (cd app/dist && nohup python3 -m http.server "$PORT" --bind 127.0.0.1 >>"$APP_LOG" 2>&1 </dev/null &)
+      (cd "$DIST" && nohup python3 -m http.server "$PORT" --bind 127.0.0.1 >>"$APP_LOG" 2>&1 </dev/null &)
     }
     pgrep -f "cloudflared tunnel --url http://127.0.0.1:$PORT" >/dev/null || {
       : > "$TUNNEL_LOG"
