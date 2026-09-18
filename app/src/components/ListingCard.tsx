@@ -29,7 +29,7 @@ export function ListingCard({
   slot: number | undefined;
   selected?: boolean;
   compact?: boolean;
-  onSelect?: (key: string) => void;
+  onSelect?: ((key: string) => void) | undefined;
 }) {
   const fresh =
     price && slot !== undefined
