@@ -4,11 +4,29 @@
 use anyhow::{anyhow, Result};
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use tracing::{info, warn};
+use std::{collections::HashMap, sync::Mutex};
+
+use tracing::{debug, info, warn};
 use window_client::{accounts, ct, ix, Loan, LoanStatus};
 use window_elgamal::{bsgs::Solver, GroupedCiphertext2};
 
 use crate::Ctx;
+
+/// Loans whose release last failed, with the reason — logged once, retried quietly every tick
+/// (a missing destination account appears when its owner creates one; nothing else changes).
+static FAILED: Mutex<Option<HashMap<Pubkey, String>>> = Mutex::new(None);
+
+fn note_failure(key: &Pubkey, reason: &str) -> bool {
+    let mut g = FAILED.lock().unwrap_or_else(|e| e.into_inner());
+    let m = g.get_or_insert_with(HashMap::new);
+    m.insert(*key, reason.to_string()).as_deref() != Some(reason)
+}
+
+fn clear_failure(key: &Pubkey) {
+    if let Some(m) = FAILED.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        m.remove(key);
+    }
+}
 
 pub fn tick(ctx: &Ctx, solver: &Solver) -> Result<()> {
     let chain = ctx.chain.as_ref();
@@ -24,8 +42,16 @@ pub fn tick(ctx: &Ctx, solver: &Solver) -> Result<()> {
         } else if (status == LoanStatus::Repaid as u8 || status == LoanStatus::Defaulted as u8)
             && !loan.collateral_released
         {
-            if let Err(e) = release(ctx, solver, &key, &loan) {
-                warn!(loan = %key, "release failed: {e:#}");
+            match release(ctx, solver, &key, &loan) {
+                Ok(()) => clear_failure(&key),
+                Err(e) => {
+                    let reason = format!("{e:#}");
+                    if note_failure(&key, &reason) {
+                        warn!(loan = %key, "release failed: {reason} (retrying quietly every tick)");
+                    } else {
+                        debug!(loan = %key, "release still failing: {reason}");
+                    }
+                }
             }
         }
     }
@@ -112,4 +138,19 @@ fn release(ctx: &Ctx, solver: &Solver, key: &Pubkey, loan: &Loan) -> Result<()> 
     ctx.metrics.releases.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     info!(loan = %key, to = %to_owner, "collateral released");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failure_is_reported_once_per_reason_and_forgotten_on_success() {
+        let k = Pubkey::new_unique();
+        assert!(note_failure(&k, "no destination"));
+        assert!(!note_failure(&k, "no destination"));
+        assert!(note_failure(&k, "decrypt"), "a new reason is reported again");
+        clear_failure(&k);
+        assert!(note_failure(&k, "decrypt"), "after a success the next failure is news again");
+    }
 }

@@ -56,7 +56,13 @@ wrong action.
   cache is older than half its `max_price_age`; seizes with the loan's own listing.
   `window-admin price-check` prints every listing's source, mark and quote age without a transaction;
   `/metrics` exposes `window_price_publish_age_seconds{listing="…"}`.
-- **Agents**: borrowers are spread across the schedule (agent 1 → listing 0, agent 3 → listing 1, …).
+- **Agents**: borrowers are spread across the schedule (agent 1 → listing 0, agent 3 → listing 1, …);
+  every agent holds a confidential account on every listing, because a defaulted loan forwards the
+  loan listing's cSTOCK to the *lender*. Each tick runs in two passes — all quotes first, then the
+  borrowers' loan service (proofs and up to nine transactions per loan, longer than a window) — so
+  no agent's bid waits behind another's lock. Bid memory is keyed per agent. A judge who lends on
+  listing 0 against a borrower on another listing receives a default payout on that listing's cSTOCK
+  and needs a confidential account there: the Desk creates one when that listing is selected.
 - **Setup / upgrade**: `window-admin setup` creates every profile listing; on an existing deployment,
   `window-admin listings-sync` registers listing #0 from `Config`'s own mints/escrow/feed id (so its price
   cache keeps its history) and creates the rest, and `window-admin migrate-loans` resizes the pre-schedule
