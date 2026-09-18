@@ -1,0 +1,75 @@
+# Judging-day runbook
+
+What to run, in order, so a judge sees a live market with a working faucet; what each step costs;
+what to do when something fails. Everything is on devnet; the deployer key is `~/.config/solana/id.json`
+(`8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5`); `.env` holds the auditor seed.
+
+```bash
+export PATH="/opt/homebrew/bin:$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$HOME/Library/pnpm:$PATH"
+cd ~/Desktop/Blinds
+```
+
+## 1. Budget
+
+| what | cost |
+|---|---|
+| the market (keeper + administrator + operator + agents) | **~0.28 SOL / hour** — 0.032 SOL per ~7-minute epoch, all rent for accounts kept on chain |
+| the faucet, per new wallet | 0.10 SOL + two token accounts (~0.006) |
+| a judge's full flow (bid, lock, deposit) | < 0.05 SOL, paid from the faucet's 0.10 |
+
+`solana balance -ud` — have **≥ 1 SOL** for a two-hour window plus a handful of judges. `solana airdrop 2 -ud`
+is usually rate-limited; <https://faucet.solana.com> (GitHub login) gives 5 SOL. The market at 0.01 SOL
+fails every transaction and burns nothing — but shows nothing either.
+
+## 2. Start
+
+```bash
+./scripts/market.sh start        # keeper, administrator, operator, agents; opens the faucet tunnel
+#   prints:  faucet  https://<x>.trycloudflare.com
+#            share   https://kaustubh76.github.io/Blinds/?admin=https://<x>.trycloudflare.com
+./scripts/market.sh status       # counters, faucet health + remaining joins, hours of runway
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule     # every listing usable within one tick
+```
+
+Give judges the **share link** (it configures the faucet in their browser once). Optionally
+`./scripts/publish_admin_url.sh` commits the pointer so the hosted app finds the faucet without the link
+(Pages redeploys in ~2 min; its edge cache can lag ~10 min).
+
+If GitHub Pages is unavailable (see §5): `./scripts/serve_app.sh start` serves the built dashboard from this
+machine through its own tunnel and prints `<url>/?admin=<faucet>`; that URL rotates per start.
+
+## 3. Watch
+
+```bash
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm watch:epoch --epochs 1   # next print, re-verified in wasm
+./target/release/window-admin --cluster devnet --profile devnet price-check # every listing's source, mark, quote age
+curl -s 127.0.0.1:9090/metrics | grep -E 'price_publish_age|prices_posted|prints_total'
+tail -f /tmp/window-admin-devnet.log
+```
+
+## 4. Stop
+
+```bash
+./scripts/market.sh stop         # closes the tunnel, clears deployments/admin-url.txt (publish that too if you published the URL)
+./scripts/serve_app.sh stop      # if the fallback link was up
+```
+
+Every print, loan and listing stays on chain and verifiable while the market is paused.
+
+## 5. When it fails
+
+| symptom | cause | do |
+|---|---|---|
+| `send_and_confirm … custom program error: 0`, `insufficient funds` in the admin log | deployer out of SOL | top up (§1), `market.sh stop` then `start` |
+| `[TSLAx-mock] … age 137.4 h (limit 3600 s)`, schedule says `QuoteStale` | no `PYTH_API_KEY`: every Pyth HTTP API is keyed since 2026-08-26 and the only on-chain push account for `Crypto.TSLAX/USD` (shard 0) stopped on 12 Sep | get a Pyth key into `.env` (`PYTH_API_KEY=`), restart; without one the chain refuses TSLAx locks by design (inaction, never a stale mark) — the two mark listings still lock |
+| `no readable Pyth account`, 429 from `api.mainnet-beta` | public mainnet RPC rate limit | `WINDOW_PRICE_RPC_URL=https://solana-rpc.publicnode.com` in `.env`, restart |
+| a mark listing stops posting; `warn … re-posting last good` | Tessera / PreStocks API down | nothing for 6 h (last-good is re-posted); after 48 h the chain halts that listing's locks |
+| faucet answers `429 busy` / `503 paused` | hourly cap (30) / balance floor (0.5 SOL) | wait, or top up |
+| judge's Join fails with a token-account error | the dashboard was built before 2026-09-18 | reload (the faucet now derives listing #0's account itself) |
+| hosted site 404 / Actions "not started … payments have failed" | GitHub billing hold on the account (suspends Actions **and** Pages, even for public repos) | github.com/settings/billing → fix the payment; then `gh api -X POST repos/kaustubh76/Blinds/pages -f build_type=workflow` and re-run the `pages` workflow; meanwhile `serve_app.sh` |
+| browser 429s on `api.devnet.solana.com` | admin + agents + browsers share one IP | a dedicated devnet RPC in Settings (`?rpc=`), or the repo variable `VITE_RPC_URL` |
+
+## 6. The last action: freeze
+
+`./scripts/freeze.sh` sets every program's upgrade authority to none — **irreversible**. Only after the
+final program change is on devnet and verified; then `git tag -a v1.0.0-stocklana`.

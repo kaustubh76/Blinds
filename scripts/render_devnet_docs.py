@@ -16,6 +16,21 @@ if app_url.exists():
     lines = [l.strip() for l in app_url.read_text().splitlines() if l.strip() and not l.startswith("#")]
     hosted = lines[0] if lines else ""
 
+SOURCE = {
+    "pyth": "Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's on-chain push account (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY), the only shard that exists for this feed); the quote's own `publish_time`",
+    "tessera": "Tessera public API `markPrice` (`T-OpenAI`, mint `oPAiAikW…`) — an attested mark: `publish_time` is the keeper's fetch time",
+    "prestocks": "PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time",
+    "mock": "deterministic mock walk (localnet only)",
+}
+def hours(secs):
+    return f"{secs // 3600} h" if secs >= 3600 else f"{secs // 60} min"
+listing_rows = "\n".join(
+    f"| `{l['symbol']}` | [`{l['listing']}`]({ex(l['listing'])}) | {SOURCE.get(l['source'], l['source'])} | {l['haircut_bps'] / 100:.0f} % | "
+    f"{hours(l['max_publish_age_secs'])} quote · {l['max_price_age_slots']} slots posted | "
+    f"mock [`{l['mock_mint'][:4]}…{l['mock_mint'][-4:]}`]({ex(l['mock_mint'])}) · cSTOCK-W [`{l['cstock_mint'][:4]}…{l['cstock_mint'][-4:]}`]({ex(l['cstock_mint'])}) · escrow [`{l['escrow_account'][:4]}…{l['escrow_account'][-4:]}`]({ex(l['escrow_account'])}) |"
+    for l in d.get("listings", [])
+)
+
 section = f"""## C. Devnet — the deployment that is judged
 
 Everything below is live on devnet and readable by anyone; no account of ours is needed to check it.
@@ -27,12 +42,25 @@ Everything below is live on devnet and readable by anyone; no account of ours is
 | oracle | [`{progs['window_oracle']}`]({ex(progs['window_oracle'])}) |
 | wrap | [`{progs['window_wrap']}`]({ex(progs['window_wrap'])}) |
 | credit | [`{progs['window_credit']}`]({ex(progs['window_credit'])}) |
-| mock xStock mint (`ScaledUiAmount`) | [`{d['mock_mint']}`]({ex(d['mock_mint'])}) |
-| cSTOCK-W mint (confidential, auditor key) | [`{d['cstock_mint']}`]({ex(d['cstock_mint'])}) |
-| operator escrow (confidential account) | [`{d['escrow_account']}`]({ex(d['escrow_account'])}) |
-| price feed | Pyth `Crypto.TSLAX/USD` `0x{d['feed_id_hex']}`, read from mainnet account [`GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY) |
 
-Profile `config/devnet.toml`: ~7-minute epochs, 150 % haircut, `attest_batch = 4`. The
+**The collateral schedule** ([`docs/LISTINGS.md`](LISTINGS.md)): one xONIA rate, {len(d.get('listings', []))} eligible
+collaterals, each a `Listing` with its own price source, haircut and two freshness limits that
+`lock_collateral` and `seize` enforce on chain (the keeper must have posted within `max_price_age`
+slots **and** the quote's own timestamp must be within `max_publish_age`).
+
+| listing | account | price source | haircut | limits | mints · escrow |
+|---|---|---|---|---|---|
+{listing_rows}
+
+The `-mock` mints are devnet twins (Token-2022 `ScaledUiAmount` + `PermanentDelegate`), wrapped 1:1
+into a confidential mint under the desk's auditor key; no mainnet token is touched. `pnpm schedule`
+prints what the chain would accept right now:
+
+```bash
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule    # every listing: mark, quote age, posted age, lock accepted?
+```
+
+Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
 {len(d['agents'])} simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
@@ -54,10 +82,19 @@ pnpm leak-audit --cluster devnet
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev
 ```
 
-Market, Explorer and Positions read the chain directly, so they work with no service of ours
-running. The Desk's *Join* button is a demo faucet served by the admin service: it registers your
-wallet as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees. It needs
-`VITE_ADMIN_URL` pointing at a reachable admin service; the UI says so when it is not.
+Market, Explorer, Positions and Build read the chain directly, so they work with no service of ours
+running. The Desk's *Join* is a demo faucet served by the admin service: it registers your wallet
+as a member, mints you 10,000 mock shares of every listed collateral and sends 0.1 SOL for fees —
+once per wallet, at most 30 wallets an hour. While the market runs, `./scripts/market.sh start`
+exposes it through a tunnel and prints a link of the form `{hosted or 'https://<dashboard>/'}?admin=https://<x>.trycloudflare.com`;
+open the dashboard from that link (or paste the URL in Settings) and the Desk is live.
+
+**No wallet extension needed.** On the Desk, *Create a devnet burner* makes a throwaway key in
+your browser; pick a listing, and *Autopilot* runs derive → join → set up → wrap → bid in one click,
+every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
+the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
+(against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
+key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 

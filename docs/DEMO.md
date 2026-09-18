@@ -61,12 +61,27 @@ Everything below is live on devnet and readable by anyone; no account of ours is
 | oracle | [`78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV`](https://explorer.solana.com/address/78Z5vNDsujWjDZjKFp625tZ1QMjD44VEHKCFH3LmzfLV?cluster=devnet) |
 | wrap | [`E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3`](https://explorer.solana.com/address/E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3?cluster=devnet) |
 | credit | [`3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr`](https://explorer.solana.com/address/3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr?cluster=devnet) |
-| mock xStock mint (`ScaledUiAmount`) | [`HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn`](https://explorer.solana.com/address/HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn?cluster=devnet) |
-| cSTOCK-W mint (confidential, auditor key) | [`4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr`](https://explorer.solana.com/address/4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr?cluster=devnet) |
-| operator escrow (confidential account) | [`BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ`](https://explorer.solana.com/address/BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ?cluster=devnet) |
-| price feed | Pyth `Crypto.TSLAX/USD` `0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362`, read from mainnet account [`GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY) |
 
-Profile `config/devnet.toml`: ~7-minute epochs, 150 % haircut, `attest_batch = 4`. The
+**The collateral schedule** ([`docs/LISTINGS.md`](LISTINGS.md)): one xONIA rate, 3 eligible
+collaterals, each a `Listing` with its own price source, haircut and two freshness limits that
+`lock_collateral` and `seize` enforce on chain (the keeper must have posted within `max_price_age`
+slots **and** the quote's own timestamp must be within `max_publish_age`).
+
+| listing | account | price source | haircut | limits | mints · escrow |
+|---|---|---|---|---|---|
+| `TSLAx-mock` | [`5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG`](https://explorer.solana.com/address/5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG?cluster=devnet) | Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's on-chain push account (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY), the only shard that exists for this feed); the quote's own `publish_time` | 150 % | 1 h quote · 1200 slots posted | mock [`HspL…zJpn`](https://explorer.solana.com/address/HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn?cluster=devnet) · cSTOCK-W [`4qEY…HCQr`](https://explorer.solana.com/address/4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr?cluster=devnet) · escrow [`BZ66…v7FQ`](https://explorer.solana.com/address/BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ?cluster=devnet) |
+| `T-OpenAI-mock` | [`BAUiqwUUWTF2NDJqkSDz9so3BxNTW9hQS8Khf2qxqhYN`](https://explorer.solana.com/address/BAUiqwUUWTF2NDJqkSDz9so3BxNTW9hQS8Khf2qxqhYN?cluster=devnet) | Tessera public API `markPrice` (`T-OpenAI`, mint `oPAiAikW…`) — an attested mark: `publish_time` is the keeper's fetch time | 200 % | 48 h quote · 1200 slots posted | mock [`DVhT…o1Fz`](https://explorer.solana.com/address/DVhTynwmhm9hYNi7qAKtxpgPwCem9wEwXQonbf8Go1Fz?cluster=devnet) · cSTOCK-W [`GRDt…ZZhs`](https://explorer.solana.com/address/GRDt32Vp2BNEJPe1CFzSZaAFhCRw5bymWXH7tJrRZZhs?cluster=devnet) · escrow [`AmL9…TPp4`](https://explorer.solana.com/address/AmL991As2RWBmPojVvpokCYbB4bT1XbPbszPGpkYTPp4?cluster=devnet) |
+| `ANTHROPIC-mock` | [`4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp`](https://explorer.solana.com/address/4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp?cluster=devnet) | PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time | 200 % | 48 h quote · 1200 slots posted | mock [`BA1w…ie7C`](https://explorer.solana.com/address/BA1wPNWjGfNam7ViKiM6C6tAGsQRjtQfRBjZGEYdie7C?cluster=devnet) · cSTOCK-W [`DA7U…8rNo`](https://explorer.solana.com/address/DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo?cluster=devnet) · escrow [`93my…jkZ9`](https://explorer.solana.com/address/93myeNeYyYzeVrDtW327UtmAiThYKfTxY7orWVvtjkZ9?cluster=devnet) |
+
+The `-mock` mints are devnet twins (Token-2022 `ScaledUiAmount` + `PermanentDelegate`), wrapped 1:1
+into a confidential mint under the desk's auditor key; no mainnet token is touched. `pnpm schedule`
+prints what the chain would accept right now:
+
+```bash
+WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule    # every listing: mark, quote age, posted age, lock accepted?
+```
+
+Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
 6 simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
@@ -90,17 +105,17 @@ cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm de
 
 Market, Explorer, Positions and Build read the chain directly, so they work with no service of ours
 running. The Desk's *Join* is a demo faucet served by the admin service: it registers your wallet
-as a member, mints you 10,000 mock shares and sends 0.1 SOL for fees — once per wallet, at most 30
-wallets an hour. While the market runs, `./scripts/market.sh start` exposes it through a tunnel and
-prints a link of the form `https://kaustubh76.github.io/Blinds/?admin=https://<x>.trycloudflare.com`;
+as a member, mints you 10,000 mock shares of every listed collateral and sends 0.1 SOL for fees —
+once per wallet, at most 30 wallets an hour. While the market runs, `./scripts/market.sh start`
+exposes it through a tunnel and prints a link of the form `https://kaustubh76.github.io/Blinds/?admin=https://<x>.trycloudflare.com`;
 open the dashboard from that link (or paste the URL in Settings) and the Desk is live.
 
 **No wallet extension needed.** On the Desk, *Create a devnet burner* makes a throwaway key in
-your browser; *Autopilot* then runs derive → join → set up → wrap → bid in one click, and every
-transaction lands in the console (`` ` `` toggles it) as the SDK code that produced it. After the
-next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock and
-deposit run from the same key. *Build* (key 5) has the recipes, the IDLs and the API for anyone
-who wants to integrate.
+your browser; pick a listing, and *Autopilot* runs derive → join → set up → wrap → bid in one click,
+every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
+the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
+(against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
+key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 
