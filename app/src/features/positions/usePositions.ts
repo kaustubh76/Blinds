@@ -5,11 +5,13 @@ import type { credit as creditNs } from "@thewindow/solana-sdk";
 import {
   buildDepositPlan,
   buildLockPlan,
+  buildOnboardPlan,
   collateralPledge,
   fetchConfidentialAccount,
   fetchEpoch,
   fetchMultiplier,
   fetchPrice,
+  fetchTokenAmount,
   multiplierScaled,
   pda,
   priceCents,
@@ -182,6 +184,47 @@ export function usePositions(account: UiWalletAccount) {
     onSuccess: invalidate,
   });
 
+  /**
+   * A lender's confidential account on a loan's listing, so a default payout on that listing has
+   * somewhere to land (the operator retries the release every tick until it does). Same two
+   * transactions as the Desk's set-up, under the loan's listing rather than the selected one.
+   */
+  const receiveAccount = useMutation({
+    mutationFn: async ({ loan }: { loan: Loan }) => {
+      const depData = await settled(dep, "the deployment");
+      const l = listingByPda(depData.listings, loan.listing);
+      if (!l) throw new Error("this loan is bound to a listing this dashboard does not know");
+      const [mockAta, cstockAta] = await Promise.all([pda.ata(wallet, l.mockMint), pda.ata(wallet, l.cstockMint)]);
+      let tokenSignature: Uint8Array | null = session.tokenSignatureFor(l.cstockMint);
+      if (!tokenSignature) {
+        const fresh = await signToken(new Uint8Array(getAddressEncoder().encode(cstockAta)));
+        session.setSignatures({ token: fresh, tokenFor: l.cstockMint });
+        tokenSignature = fresh;
+      }
+      const [mockAmount, own] = await Promise.all([
+        retry(() => fetchTokenAmount(rpc, mockAta)),
+        retry(() => fetchConfidentialAccount(rpc, cstockAta)),
+      ]);
+      if (own.configured) return [];
+      steps.reset();
+      const args = {
+        member: txSigner,
+        mockMint: l.mockMint,
+        cstockMint: l.cstockMint,
+        tokenSignature,
+        mockAtaExists: mockAmount !== null,
+        cstockAtaExists: own.exists,
+        cstockConfigured: own.configured,
+      };
+      const plan = await buildOnboardPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: `buildOnboardPlan → sendPlan (${l.symbol} account for a default payout)`,
+        code: asCode("buildOnboardPlan", args, { result: "plan" }),
+      });
+    },
+    onSuccess: invalidate,
+  });
+
   return {
     wallet,
     dep,
@@ -193,6 +236,7 @@ export function usePositions(account: UiWalletAccount) {
     steps,
     lock,
     deposit,
+    receiveAccount,
     keysReady: !!session.memberSignature,
   };
 }

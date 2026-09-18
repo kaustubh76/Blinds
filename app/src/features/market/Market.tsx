@@ -42,6 +42,16 @@ export function Market() {
 
   return (
     <div className="grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 pb-2">
+        <div>
+          <div className="t-eyebrow">market</div>
+          <h1 className="t-h1 mt-1 text-ink-1">The window, the print, the schedule</h1>
+        </div>
+        <p className="max-w-[52ch] text-sm text-ink-2">
+          Everything on this page is read from the chain in your browser; every print can be re-verified in the
+          Explorer.
+        </p>
+      </div>
       {/* Hero row: the number, and the window it comes from. */}
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <Card

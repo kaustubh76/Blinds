@@ -9,6 +9,7 @@ import { isAttestedMark, quoteFreshness, symbolOf } from "@thewindow/solana-sdk"
 type PriceCache = creditNs.PriceCache;
 
 import { Card } from "../../components/Card";
+import { ListingCard } from "../../components/ListingCard";
 import { Badge, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import type { ListingView } from "../../lib/chain";
@@ -45,32 +46,43 @@ export function CollateralSchedule() {
         </>
       }
     >
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
-            <tr>
-              <th className="py-2 pr-4 font-medium">listing</th>
-              <th className="py-2 pr-4 font-medium">source</th>
-              <th className="py-2 pr-4 font-medium">mark</th>
-              <th className="py-2 pr-4 font-medium">quote age</th>
-              <th className="py-2 pr-4 font-medium">posted</th>
-              <th className="py-2 pr-4 font-medium">haircut</th>
-              <th className="py-2 pr-4 font-medium">usable</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listings.map((l, i) => (
-              <Row
-                key={l.key}
-                listing={l}
-                slot={slot.data}
-                price={prices.data?.[i] ?? null}
-                state={prices.isError ? "error" : prices.data ? "ready" : "loading"}
-              />
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-4 grid gap-3 md:grid-cols-3">
+        {listings.map((l, i) => (
+          <ListingCard key={l.key} listing={l} price={prices.data?.[i] ?? null} slot={slot.data} compact />
+        ))}
       </div>
+      <details className="group">
+        <summary className="cursor-pointer list-none text-sm text-accent hover:underline">
+          <span className="group-open:hidden">show the rules per listing →</span>
+          <span className="hidden group-open:inline">hide the table</span>
+        </summary>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
+              <tr>
+                <th className="py-2 pr-4 font-medium">listing</th>
+                <th className="py-2 pr-4 font-medium">source</th>
+                <th className="py-2 pr-4 font-medium">mark</th>
+                <th className="py-2 pr-4 font-medium">quote age</th>
+                <th className="py-2 pr-4 font-medium">posted</th>
+                <th className="py-2 pr-4 font-medium">haircut</th>
+                <th className="py-2 pr-4 font-medium">usable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {listings.map((l, i) => (
+                <Row
+                  key={l.key}
+                  listing={l}
+                  slot={slot.data}
+                  price={prices.data?.[i] ?? null}
+                  state={prices.isError ? "error" : prices.data ? "ready" : "loading"}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
       {onChain.data && onChain.data.length !== listings.length && (
         <p className="mt-3 text-xs text-ink-3">
           The chain lists {onChain.data.length} collateral{onChain.data.length === 1 ? "" : "s"}

@@ -21,13 +21,18 @@ export function AccumulatorWall({
   print,
   rStar,
   marginalTick,
+  onlyNonzero = false,
 }: {
   epoch: auction.Epoch;
   print: oracle.Print | null;
   rStar: number | null;
   marginalTick: number | null;
+  /** Hide the rates nobody bid at (the ladder is 37 rows; a window usually touches a handful). */
+  onlyNonzero?: boolean;
 }) {
-  const rows = Array.from({ length: TICKS }, (_, t) => t).reverse(); // high rates on top, like a ladder
+  const rows = Array.from({ length: TICKS }, (_, t) => t)
+    .reverse() // high rates on top, like a ladder
+    .filter((t) => !onlyNonzero || (epoch.bidCount[0]?.[t] ?? 0) + (epoch.bidCount[1]?.[t] ?? 0) > 0 || t === rStar);
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-separate border-spacing-0 text-xs">

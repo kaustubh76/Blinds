@@ -10,7 +10,7 @@ import { EncryptedValue } from "../../components/EncryptedValue";
 import { Icon } from "../../components/Icon";
 import { Skeleton } from "../../components/Skeleton";
 import { Stat } from "../../components/Stat";
-import { Badge, Button, inputCls, Note } from "../../components/ui";
+import { Badge, Button, Callout, inputCls } from "../../components/ui";
 import { VerifyStepper } from "../../components/VerifyStepper";
 import { config } from "../../config";
 import { formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
@@ -51,6 +51,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
   const slot = useSlot();
   const verify = useVerify(print.data ?? null);
   const [draft, setDraft] = useState("");
+  const [showAll, setShowAll] = useState(false);
   // A verdict belongs to one epoch: forget it when the epoch changes.
   const { reset } = verify;
   const indexKey = index?.toString();
@@ -68,8 +69,21 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
     if (n >= 0n && (latest === null || n <= latest)) go("explorer", n.toString());
   };
 
+  const quietTicks = e
+    ? (e.accCommitment[0]?.filter((_, t) => (e.bidCount[0]?.[t] ?? 0) + (e.bidCount[1]?.[t] ?? 0) === 0).length ?? 0)
+    : 0;
   return (
     <div className="grid gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 pb-2">
+        <div>
+          <div className="t-eyebrow">explorer</div>
+          <h1 className="t-h1 mt-1 text-ink-1">One window, as the chain holds it</h1>
+        </div>
+        <p className="max-w-[56ch] text-sm text-ink-2">
+          The sealed per-rate sums, the proven sums, the clearing — and a button that re-derives the print in your
+          browser without trusting anyone.
+        </p>
+      </div>
       <Card
         eyebrow="epoch"
         title={
@@ -175,19 +189,29 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
 
       {e && (
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <Card eyebrow="accumulators · what anyone can read" title="74 sealed sums">
-            <Note>
-              Each cell is the homomorphic sum of every bid at that rate, exactly as stored in the Epoch account —
+          <Card
+            eyebrow="accumulators · what anyone can read"
+            title="74 sealed sums"
+            right={
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-2">
+                <input type="checkbox" checked={showAll} onChange={(ev) => setShowAll(ev.target.checked)} />
+                show all {quietTicks > 0 ? `(${quietTicks} rates without bids)` : "rates"}
+              </label>
+            }
+          >
+            <Callout icon="lock" tone="mute" title="What you are looking at">
+              Each row is the homomorphic sum of every bid at that rate, exactly as stored in the Epoch account —
               individual bids stay separate ciphertexts under their owner's key and the auditor key. The print discloses
-              only these per-tick sums, each bound by a zero-ciphertext proof. A member alone at a rate is revealed by
+              only these per-rate sums, each bound by a zero-ciphertext proof. A member alone at a rate is revealed by
               that rate's sum; that is the disclosed cost of publishing a depth curve.
-            </Note>
+            </Callout>
             <div className="mt-3">
               <AccumulatorWall
                 epoch={e}
                 print={p ?? null}
                 rStar={p?.status === PrintStatus.Printed ? p.rStarTick : null}
                 marginalTick={p?.status === PrintStatus.Printed ? p.marginalTick : null}
+                onlyNonzero={!showAll}
               />
             </div>
           </Card>

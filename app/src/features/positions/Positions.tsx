@@ -5,13 +5,14 @@ import { type credit, LoanStatus } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
 import type { ReactNode } from "react";
 import { Card } from "../../components/Card";
+import { Countdown } from "../../components/Countdown";
 import { EmptyState } from "../../components/EmptyState";
 import { EncryptedValue } from "../../components/EncryptedValue";
 import { LifecycleTrack } from "../../components/LifecycleTrack";
 import { ListingPicker } from "../../components/ListingPicker";
 import { Skeleton } from "../../components/Skeleton";
 import { TxTimeline } from "../../components/TxTimeline";
-import { Badge, Button, ExplorerLink, Note } from "../../components/ui";
+import { Badge, Button, Callout, ExplorerLink, Note, Pill } from "../../components/ui";
 import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
 import { describeError } from "../../lib/chain";
@@ -27,12 +28,25 @@ export function Positions() {
   const s = useSession();
   if (!s.account)
     return (
-      <Card eyebrow="positions" title="Your loans and bids">
-        <EmptyState icon="wallet" title="Connect a wallet to see its positions." action={<WalletButton />}>
-          Loan sizes and collateral render as ciphertexts for everyone; only your own resolve here, decrypted in this
-          tab.
-        </EmptyState>
-      </Card>
+      <div className="mx-auto grid max-w-[720px] gap-6 py-6 text-center">
+        <div>
+          <div className="t-eyebrow">positions</div>
+          <h1 className="t-h1 mt-2 text-ink-1">Your loans and bids</h1>
+          <p className="t-lead mx-auto mt-3 max-w-[46ch]">
+            Loan sizes and collateral render as ciphertexts for everyone; only your own resolve here, decrypted in this
+            tab.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          <WalletButton />
+          <a
+            href="#/desk"
+            className="inline-flex items-center rounded-[var(--radius-md)] border border-line bg-surface-1 px-3.5 py-2 text-sm text-ink-1 hover:bg-surface-2"
+          >
+            or take a burner on the desk →
+          </a>
+        </div>
+      </div>
     );
   return <PositionsFor account={s.account} />;
 }
@@ -41,7 +55,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
   const p = usePositions(account);
   const bids = useBids(p.wallet);
   const slot = useSlot();
-  const err = p.lock.error ?? p.deposit.error;
+  const err = p.lock.error ?? p.deposit.error ?? p.receiveAccount.error;
   const cluster = config.cluster;
   const borrowed = p.loans.data?.borrowed ?? [];
   const lent = p.loans.data?.lent ?? [];
@@ -84,21 +98,39 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         <span className="text-xs text-ink-3">awaiting the operator's confirmation</span>
       ) : loan.status === LoanStatus.Locked ? (
         <span className="text-xs text-ink-3">awaiting funding confirmation</span>
+      ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased && bound ? (
+        // The payout is that listing's cSTOCK-W; the operator releases it the moment an account exists.
+        <span className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => p.receiveAccount.mutate({ loan })}
+            loading={p.receiveAccount.isPending}
+            disabled={!p.keysReady}
+            icon="key"
+          >
+            Receive the payout · set up a {bound.symbol} account
+          </Button>
+          <span className="text-xs text-ink-3">
+            the seized collateral is {bound.symbol}; the operator sends it once you hold an account there
+          </span>
+        </span>
       ) : null;
     return (
-      <li key={address} className="rounded-[var(--radius-lg)] border border-line bg-surface-1 px-5 py-4">
+      <li key={address} className="rounded-[var(--radius-xl)] border border-line bg-surface-1 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={role === "borrower" ? "borrow" : "lend"}>{role}</Badge>
+          <Pill tone={role === "borrower" ? "borrow" : "lend"}>{role === "borrower" ? "borrowing" : "lending"}</Pill>
           {bound && (
-            <Badge tone="mute" icon="shield">
-              {bound.symbol} · {Number(bound.haircutBps) / 100}%
-            </Badge>
+            <Pill tone="mute" icon="shield">
+              {bound.symbol.replace(/-mock$/, "")} · {Number(bound.haircutBps) / 100}%
+            </Pill>
           )}
-          <span className="text-sm font-medium text-ink-1">{formatRate(loan.tick)}</span>
-          <span className="mono text-xs text-ink-3">
-            epoch {loan.epoch.toString()} · #{loan.k}
+          <span className="num text-xl font-semibold text-ink-1">{formatRate(loan.tick)}</span>
+          <span className="text-xs text-ink-3">
+            epoch {loan.epoch.toString()} · match #{loan.k}
           </span>
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-3">
+            {loan.deadlineSlot > 0n && slot.data !== undefined && Number(loan.deadlineSlot) > slot.data && (
+              <Countdown slots={Number(loan.deadlineSlot) - slot.data} label="to maturity" className="text-sm" />
+            )}
             <ExplorerLink address={address} cluster={cluster} />
           </span>
         </div>
@@ -146,16 +178,47 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
     );
   };
 
+  const active = [...borrowed, ...lent].filter((l) => l.data.status === LoanStatus.Active).length;
+  const pending = borrowed.filter((l) => l.data.status === LoanStatus.Pending).length;
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="t-eyebrow">positions</div>
+          <h1 className="t-h1 mt-1 text-ink-1">Your loans and bids</h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Pill tone="borrow">{borrowed.length} borrowing</Pill>
+          <Pill tone="lend">{lent.length} lending</Pill>
+          <Pill tone="good">{active} funded</Pill>
+          {pending > 0 && (
+            <Pill tone="accent" icon="zap">
+              {pending} to lock
+            </Pill>
+          )}
+        </div>
+      </div>
       {!p.keysReady && (
-        <Note tone="warn">Derive your keys on the Desk to act on loans; reading them needs nothing.</Note>
+        <Callout icon="key" tone="warn" title="Derive your keys on the desk to act on loans">
+          Reading them needs nothing; locking and depositing need the keys this tab derives from your signatures.{" "}
+          <a href="#/desk" className="text-accent hover:underline">
+            Go to the desk →
+          </a>
+        </Callout>
       )}
       <Card eyebrow="borrowing" title={`${borrowed.length} loan${borrowed.length === 1 ? "" : "s"}`}>
         {p.loans.data === undefined ? (
           <Skeleton className="h-16 w-full" />
         ) : borrowed.length === 0 ? (
-          <EmptyState title="No loans as a borrower yet.">
+          <EmptyState
+            icon="zap"
+            title="No loans as a borrower yet."
+            action={
+              <a href="#/desk" className="text-sm text-accent hover:underline">
+                Seal a borrow bid on the desk →
+              </a>
+            }
+          >
             A bid at or above the clearing rate becomes a loan when the administrator posts matches after the print.
           </EmptyState>
         ) : (
