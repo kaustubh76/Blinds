@@ -19,6 +19,17 @@ Average: the first on-chain borrow rate for tokenized equities.
 | Runbook | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — judging day: budget, start/watch/stop, the share link, what to do when something fails |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
 
+## What you see
+
+| | |
+|---|---|
+| [![Home](docs/screens/home.png)](docs/screens/home.png) | [![Desk](docs/screens/desk.png)](docs/screens/desk.png) |
+| **Home** — the live window, the three collaterals with their marks and whether the chain would accept them right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
+| [![Market](docs/screens/market.png)](docs/screens/market.png) | [![Explorer](docs/screens/explorer.png)](docs/screens/explorer.png) |
+| **Market** — xONIA by epoch, the last proven curve, the collateral schedule and the Pyth mark beside the underlying equity. | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
+
+Light and dark themes (the header toggle, or `?theme=light|dark`); the same pages on a phone: [`docs/screens/home-phone.png`](docs/screens/home-phone.png).
+
 ## Layout
 
 ```
