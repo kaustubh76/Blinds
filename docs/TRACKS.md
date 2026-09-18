@@ -94,7 +94,29 @@ account died, the feed did not).
 | 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | done 17 Sep (`app/src/lib/pyth.ts`, `CollateralMark.tsx`) |
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI, `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
 | 4 | Pyth stretch: receiver-owned account read on chain for the Pyth listing (only if 3 is green on devnet by Tue 22) | — |
-| 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; submissions, restart and freeze open |
+| 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; submissions and freeze open |
+
+## Verified on devnet, 18 Sep 2026
+
+Executed step by step from a fresh browser (a devnet burner, no extension), against the live keeper:
+
+| step | evidence |
+|---|---|
+| tier 1 on the final sources | `attack_07` (4) · `attack_09` (2) · `attack_10` (2) · `e2e::loan_lifecycle` (4, incl. the second listing and a legacy migration) — 18/18 green; `window-admin` price parsers green |
+| Pyth | Hermes, hermes-beta and Benchmarks all answer **401 without a key**; `Crypto.TSLAX/USD` has **one** push account on mainnet (shard 0 `GpoWLTd6…`, dead since 12 Sep 12:18 UTC — shards 1–39 do not exist); the keeper posts it with its true timestamp and the chain refuses TSLAx locks (`QuoteStale`, 137 h > 1 h). The equity feed's shard 1 (`FQB8c4zB…`) is live and is what the dashboard shows beside it. A Pyth Pro key turns the listing back on; nothing else does. |
+| Tessera | `GET token-details` → `T-OpenAI` `markPrice` 812.79 (no browser UA needed); `price-check` posts the same; the API returned **500 three times** during the run and the keeper re-posted the last good mark, as designed |
+| PreStocks | `GET /api/prestocks` → `ANTHROPIC` `markPrice` 1016.50 vs `tokenPrice` 1003.53 (basis −127.6 bp); posted as 1016.33–1017.30 across ticks |
+| schedule on chain | `pnpm schedule`: within one keeper tick both marks **ACCEPTED** for lock and seize, TSLAx **REFUSED**; the same badges on the Market table |
+| T-OpenAI-mock, borrower | burner `GxkN3AVb…`: join → confidential account on `GRDt32…` → wrap → bid (epoch 263, printed 5.00 %, 2,875 USDC matched) → loan `EssLWbVx…` bound to `BAUiqw…` → 6-tx lock at `priceCents 81279`, `k_l 200` (`xZrrcuqK…`) → 6-tx confidential deposit into escrow `AmL991…` (`66uzREPG…`) → operator confirmed → funded → left to default by the demo policy |
+| ANTHROPIC-mock, same burner | listing switch = one extra token-account signature → new confidential account on `DA7UsQ…` → wrap → bid (epoch 270, printed 4.00 %, 1,000 USDC matched) → loan `ApZ9txst…` bound to `4qQ4A9…` → lock at `priceCents 101730`, `k_l 200` (`4o2tTnTs…`) → deposit into `93myeN…` (`4ga6KneR…`) → Locked |
+| faucet | funds a wallet once, mints every listed collateral; `already_member` on a second call |
+
+Found and fixed along the way (app/ops, commits `4fb4cae`…): the listing picker reverted its pick; the
+faucet minted listing #0 into the selected listing's account; a listing switch left the token signature
+behind; the autopilot failed between windows. Open for the schedule's own code: only agents 0 and 1
+bid (lend supply too thin for §7.3 to cross), defaulted loans on listings 1/2 cannot be released to
+lenders that hold no cSTOCK-W account on those mints, the schedule row shows "no price yet" when its
+price query is rate-limited, and the CollateralMark footnote predates the quote-age rule.
 
 ## Submission blurbs (drafts; finalised in Stage 5)
 
