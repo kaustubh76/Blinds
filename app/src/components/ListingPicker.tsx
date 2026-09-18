@@ -17,7 +17,7 @@ export function ListingPicker({
   return (
     <span className="flex flex-wrap items-center gap-2">
       <span className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">collateral</span>
-      <span className="flex rounded-[var(--radius-md)] border border-line p-0.5" aria-label="Collateral">
+      <span className="flex rounded-[var(--radius-md)] border border-line p-0.5">
         {listings.map((l) => {
           const on = l.key === selected?.key;
           return (
