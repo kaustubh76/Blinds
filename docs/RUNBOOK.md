@@ -31,7 +31,9 @@ fails every transaction and burns nothing — but shows nothing either.
 WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule     # every listing usable within one tick
 ```
 
-Give judges the **share link** (it configures the faucet in their browser once). Optionally
+Give judges the **share link** (it configures the faucet in their browser once). The tunnel URL is new
+on every `start`; a browser that saved an older one probes it, fails within 4 s and falls back to
+read-only — send the fresh link (or `publish_admin_url.sh`). Optionally
 `./scripts/publish_admin_url.sh` commits the pointer so the hosted app finds the faucet without the link
 (Pages redeploys in ~2 min; its edge cache can lag ~10 min).
 
@@ -64,7 +66,7 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | `[TSLAx-mock] … age 137.4 h (limit 3600 s)`, schedule says `QuoteStale` | no `PYTH_API_KEY`: every Pyth HTTP API is keyed since 2026-08-26 and the only on-chain push account for `Crypto.TSLAX/USD` (shard 0) stopped on 12 Sep | get a Pyth key into `.env` (`PYTH_API_KEY=`), restart; without one the chain refuses TSLAx locks by design (inaction, never a stale mark) — the two mark listings still lock |
 | `no readable Pyth account`, 429 from `api.mainnet-beta` | public mainnet RPC rate limit | `WINDOW_PRICE_RPC_URL=https://solana-rpc.publicnode.com` in `.env`, restart |
 | epochs print `no trade` although agents run; the agents log shows bids from two agents only | (fixed 18 Sep) the loan service used to run between agents' bids and outlast the window; the two-pass tick lets all six quote first | update the binary: `cargo build -p window-admin --release`, then `market.sh stop && start` |
-| `release failed: destination has no cSTOCK-W account … (retrying quietly)` once per loan | the payee holds no confidential account on the loan listing's cSTOCK mint (a lender on another listing) | agents: `window-admin listings-sync` creates them; a judge's wallet: select that listing on the Desk and set up the account — the operator retries every tick |
+| `release failed: destination has no cSTOCK-W account … (retrying quietly)` once per loan | the payee holds no confidential account on the loan listing's cSTOCK mint (a lender on another listing) | agents: `window-admin listings-sync` creates them; a judge's wallet: Positions shows *Receive the payout · set up a … account* on the defaulted loan (two transactions) — the operator releases on its next tick |
 | a mark listing stops posting; `warn … re-posting last good` | Tessera / PreStocks API down | nothing for 6 h (last-good is re-posted); after 48 h the chain halts that listing's locks |
 | faucet answers `429 busy` / `503 paused` | hourly cap (30) / balance floor (0.5 SOL) | wait, or top up |
 | judge's Join fails with a token-account error | the dashboard was built before 2026-09-18 | reload (the faucet now derives listing #0's account itself) |
