@@ -168,6 +168,11 @@ pub fn run(
         info!(agent = i, role, listing = %l.symbol, "agent onboarded (simulated)");
     }
 
+    for a in &agents {
+        let wallet = keys.agent_wallet(a.index);
+        ensure_accounts_on_every_listing(chain, keys, a.index, &wallet, &listings)?;
+    }
+
     let dep = Deployment {
         cluster: args.cluster.clone(),
         profile: args.profile_name.clone(),
@@ -343,6 +348,54 @@ fn create_agent_accounts(
     Ok((mock_acc.pubkey(), cstock_acc.pubkey()))
 }
 
+/// Tops up an agent wallet that cannot pay for its own accounts (~0.006 SOL each).
+fn fund_agent_if_low(chain: &dyn Chain, keys: &Keys, wallet: &Pubkey) -> Result<()> {
+    if chain.balance(wallet)? < 10_000_000 {
+        chain.send(
+            &keys.admin,
+            &[solana_system_interface::instruction::transfer(
+                &keys.admin.pubkey(),
+                wallet,
+                20_000_000,
+            )],
+            &[],
+        )?;
+    }
+    Ok(())
+}
+
+/// A confidential cSTOCK account for `wallet` on every listing it has none on. Lenders receive
+/// released collateral there when a borrower on that listing defaults; without one the operator
+/// has nowhere to send it. Idempotent (looks the accounts up by owner + mint).
+fn ensure_accounts_on_every_listing(
+    chain: &dyn Chain,
+    keys: &Keys,
+    i: usize,
+    wallet: &Keypair,
+    listings: &[ListingRecord],
+) -> Result<usize> {
+    let mut created = 0;
+    for l in listings {
+        let cstock = l.cstock_mint()?;
+        if !chain.token_accounts(&wallet.pubkey(), &cstock)?.is_empty() {
+            continue;
+        }
+        fund_agent_if_low(chain, keys, &wallet.pubkey())?;
+        let acc = Keypair::new();
+        let tx = ct::create_confidential_account_plan(
+            &wallet.pubkey(),
+            &acc,
+            &cstock,
+            &keys.agent_token_keys(i),
+            chain.rent(ct::token_account_space(true))?,
+        );
+        chain.send(wallet, &tx.instructions, &tx.extra_signers.iter().collect::<Vec<_>>())?;
+        info!(agent = i, listing = %l.symbol, account = %acc.pubkey(), "confidential account added");
+        created += 1;
+    }
+    Ok(created)
+}
+
 /// Brings an existing deployment up to the profile's schedule without touching what exists:
 /// listing #0 is registered from `Config`'s own mints, escrow and feed id (so its price cache
 /// keeps its history); every other profile listing that the descriptor does not know yet is
@@ -396,18 +449,7 @@ pub fn sync_listings(
         }
         let l = dep.listings[target].clone();
         let wallet = keys.agent_wallet(a.index);
-        // The agent pays for its own accounts (~0.006 SOL); on devnet its runway may be spent.
-        if chain.balance(&wallet.pubkey())? < 10_000_000 {
-            chain.send(
-                &keys.admin,
-                &[solana_system_interface::instruction::transfer(
-                    &keys.admin.pubkey(),
-                    &wallet.pubkey(),
-                    20_000_000,
-                )],
-                &[],
-            )?;
-        }
+        fund_agent_if_low(chain, keys, &wallet.pubkey())?;
         let (mock_acc, cstock_acc) = create_agent_accounts(chain, keys, a.index, &wallet, &l)?;
         a.mock_account = mock_acc.to_string();
         a.cstock_account = cstock_acc.to_string();
@@ -418,6 +460,12 @@ pub fn sync_listings(
     if !moved.is_empty() {
         dep.save(root)?;
         crate::agents::forget_wrap(root, &dep.cluster, &moved);
+    }
+    // Every agent can receive collateral on every listing (a lender's default payout).
+    let listings = dep.listings.clone();
+    for a in &dep.agents {
+        let wallet = keys.agent_wallet(a.index);
+        ensure_accounts_on_every_listing(chain, keys, a.index, &wallet, &listings)?;
     }
     Ok(())
 }
