@@ -27,7 +27,8 @@
       "decimals": 3,
       "haircut_bps": 15000,
       "max_price_age_slots": 1200,
-      "max_publish_age_secs": 3600
+      "max_publish_age_secs": 3600,
+      "price_account": "JBDgVnqW7p4Zm8r23AJHTgYUEu4evCt2VppGj3brVuCS"
     },
     {
       "key": "tessera_openai",
