@@ -49,11 +49,12 @@ export function CollateralMark() {
         <>
           The keeper posts Pyth&apos;s <span className="mono">Crypto.TSLAX/USD</span> quote — Hermes when it holds an
           API key, otherwise the freshest of Pyth&apos;s own on-chain accounts — with the feed&apos;s own timestamp
-          stored unmodified, so the quote&apos;s age is visible here. What is enforced on chain today is how recently
-          the keeper <em>posted</em> ({credit.data ? formatSlotAge(Number(credit.data.maxPriceAge)) : "…"} max). The
-          underlying <span className="mono">Equity.US.TSLA/USD</span> is read from Pyth&apos;s mainnet account in this
-          browser; the overnight window opens when that market closes, which is why the 24/7 wrapper feed marks the
-          collateral.
+          stored unmodified. Two rules are enforced on chain per listing at every lock and seize: the keeper must have
+          posted within the listing&apos;s <span className="mono">max_price_age</span>, and the quote&apos;s own
+          timestamp must be within <span className="mono">max_publish_age</span> ({formatSlotAge(staleAfter / 0.45)} for
+          this one). The underlying <span className="mono">Equity.US.TSLA/USD</span> is read from Pyth&apos;s mainnet
+          account in this browser; the overnight window opens when that market closes, which is why the 24/7 wrapper
+          feed marks the collateral.
         </>
       }
     >

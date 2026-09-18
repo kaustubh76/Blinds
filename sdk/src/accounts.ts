@@ -24,10 +24,12 @@ import {
   fetchMaybePriceCache,
   getListingDecoder,
   getLoanDecoder,
+  getPriceCacheDecoder,
   LISTING_DISCRIMINATOR,
   type Listing,
   LOAN_DISCRIMINATOR,
   type Loan,
+  type PriceCache,
 } from "./generated/window_credit/index.js";
 import {
   fetchMaybeOracleState,
@@ -106,6 +108,15 @@ export async function fetchMember(rpc: RpcClient, owner: Address) {
 export async function fetchPrice(rpc: RpcClient, feedId: Uint8Array) {
   const a = await fetchMaybePriceCache(rpc, await pda.priceCache(feedId));
   return a.exists ? a.data : null;
+}
+
+/** Every listing's `PriceCache` in one RPC call; `null` where the account does not exist yet. */
+export async function fetchPrices(rpc: RpcClient, feedIds: Uint8Array[]): Promise<Array<PriceCache | null>> {
+  if (feedIds.length === 0) return [];
+  const addrs = await Promise.all(feedIds.map((f) => pda.priceCache(f)));
+  const res = await rpc.getMultipleAccounts(addrs, { encoding: "base64", commitment: "confirmed" }).send();
+  const decoder = getPriceCacheDecoder();
+  return res.value.map((a) => (a ? decoder.decode(new Uint8Array(b64.encode(a.data[0]))) : null));
 }
 
 /** One listing of the collateral schedule, by its cSTOCK mint. */

@@ -28,7 +28,9 @@ const [listings, slot, blockTime] = await Promise.all([
     return Number(await rpc.getBlockTime(s).send());
   }),
 ]);
-console.log(`${rpcUrl} · slot ${slot} · chain time ${new Date(blockTime * 1000).toISOString()} · ${listings.length} listing(s)\n`);
+console.log(
+  `${rpcUrl} · slot ${slot} · chain time ${new Date(blockTime * 1000).toISOString()} · ${listings.length} listing(s)\n`,
+);
 let usable = 0;
 for (const { address, data: l } of listings) {
   const price = await withRpcRetry(() => fetchPrice(rpc, new Uint8Array(l.feedId)));

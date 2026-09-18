@@ -3,14 +3,18 @@
  * freshness rules (keeper post age in slots, quote age in seconds) and haircut. Attested marks
  * (Tessera, PreStocks) are labelled as such — their `publish_time` is the keeper's fetch time.
  */
+import type { credit as creditNs } from "@thewindow/solana-sdk";
 import { isAttestedMark, quoteFreshness, symbolOf } from "@thewindow/solana-sdk";
+
+type PriceCache = creditNs.PriceCache;
+
 import { Card } from "../../components/Card";
 import { Badge, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import type { ListingView } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { sourceLabel, useOnChainListings } from "../../lib/listings";
-import { useDeployment, usePrice, useSlot } from "../../lib/queries";
+import { useDeployment, usePrices, useSlot } from "../../lib/queries";
 
 const SOURCE_URL: Record<string, string> = {
   tessera: "https://rest-api.tessera.pe/v1/public/token-details",
@@ -23,6 +27,7 @@ export function CollateralSchedule() {
   const onChain = useOnChainListings();
   const slot = useSlot();
   const listings = dep.data?.listings ?? [];
+  const prices = usePrices(dep.data?.listings.map((l) => l.feedId));
   if (listings.length <= 1 && (onChain.data?.length ?? 0) <= 1) return null;
   return (
     <Card
@@ -54,8 +59,14 @@ export function CollateralSchedule() {
             </tr>
           </thead>
           <tbody>
-            {listings.map((l) => (
-              <Row key={l.key} listing={l} slot={slot.data} />
+            {listings.map((l, i) => (
+              <Row
+                key={l.key}
+                listing={l}
+                slot={slot.data}
+                price={prices.data?.[i] ?? null}
+                state={prices.isError ? "error" : prices.data ? "ready" : "loading"}
+              />
             ))}
           </tbody>
         </table>
@@ -75,8 +86,18 @@ export function CollateralSchedule() {
   );
 }
 
-function Row({ listing: l, slot }: { listing: ListingView; slot: number | undefined }) {
-  const price = usePrice(l.feedId);
+function Row({
+  listing: l,
+  slot,
+  price: cache,
+  state,
+}: {
+  listing: ListingView;
+  slot: number | undefined;
+  price: PriceCache | null;
+  state: "loading" | "ready" | "error";
+}) {
+  const price = { data: cache };
   const attested = isAttestedMark(sourceTag(l.source));
   const fresh =
     price.data && slot !== undefined
@@ -150,7 +171,7 @@ function Row({ listing: l, slot }: { listing: ListingView; slot: number | undefi
             {fresh.usable ? "lock & seize" : fresh.postedFresh ? "quote stale" : "post stale"}
           </Badge>
         ) : (
-          <Badge tone="mute">no price yet</Badge>
+          <Badge tone="mute">{state === "error" ? "rpc busy" : state === "loading" ? "loading" : "no price yet"}</Badge>
         )}
       </td>
     </tr>

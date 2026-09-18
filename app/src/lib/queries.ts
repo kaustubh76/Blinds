@@ -12,10 +12,12 @@ import {
   fetchMultiplier,
   fetchOracle,
   fetchPrice,
+  fetchPrices,
   fetchPrint,
   fetchSeries,
   fetchTokenAmount,
   pda,
+  withRpcRetry,
 } from "@thewindow/solana-sdk";
 import { config } from "../config";
 import { fetchDeployment, rpc } from "./chain";
@@ -72,6 +74,15 @@ export const usePrice = (feedId: Uint8Array | undefined) =>
     queryKey: ["price", feedId ? Array.from(feedId).join(",") : ""],
     queryFn: () => (feedId ? fetchPrice(rpc, feedId) : null),
     enabled: !!feedId,
+    refetchInterval: SLOT_MS * 2,
+  });
+
+/** All listings' price caches in one call (the public RPC rate-limits a query per row); retried through 429s. */
+export const usePrices = (feedIds: Uint8Array[] | undefined) =>
+  useQuery({
+    queryKey: ["prices", (feedIds ?? []).map((f) => Array.from(f.slice(0, 4)).join(".")).join("|")],
+    queryFn: () => withRpcRetry(() => fetchPrices(rpc, feedIds ?? []), { attempts: 4 }),
+    enabled: !!feedIds && feedIds.length > 0,
     refetchInterval: SLOT_MS * 2,
   });
 
