@@ -128,6 +128,26 @@ defaulted loans there could not be released (`48474c3`: every agent gets a confi
 listing); the schedule row showed "no price yet" under RPC 429s and the CollateralMark footnote
 predated the quote-age rule (`9350eab`).
 
+## Re-verified on the hosted site at A15, 19 Sep 2026
+
+Same path, now on **https://kaustubh76.github.io/Blinds/** (Pages back up: repo public, first real CI runs) against
+the A15 program (deployed bytes == `anchor build` of HEAD, all five programs) with the live keeper and agents:
+
+| step | evidence |
+|---|---|
+| tier 1 · tier 2 on HEAD | `cargo test --workspace`: 32 attack cases, 6 e2e, 3 invariants, 2 measurements, 2 privacy, all crates — green (debug, ≈95 min); `make test-integration` 15/15 (198 s) |
+| judge path, fresh burner `Hqj7…Qe5t` | Autopilot 16–30 s: faucet join `3B5FHeL5…` → confidential account → wrap → sealed borrow bid; matched in epoch 429 (`W1oS…myiH`, 4.00 %, T-OpenAI-mock); inline derive on Positions → `lock_collateral` with the priced proof `5rt6znKC…` (price at lock $812.79, 200 %) → confidential transfer + `deposit_collateral` `2YF8VmDJ…` |
+| every route, every wallet-free recipe | zero page errors on `#/` `#/desk` `#/positions` `#/market` `#/explorer` `#/build`; `config` `schedule` `pyth-mainnet` `marks` `solvency` `latest-print` `verify` `subscribe` all confirmed (verify re-proved epoch 398 in the browser) |
+| live events | `credit.PricePosted · T-OpenAI-mock $812.79`, `· ANTHROPIC-mock $1,018.91`, `· TSLAx-mock $365.23`, `credit.LockRequested · ANTHROPIC-mock` decoded over the WebSocket on the hosted build |
+
+Found and fixed (19 Sep): the agents quoted only every second or third window — the loan-service pass
+outlasted windows on the public RPC (one borrower per tick, one loan per pass, the listing's quote read
+once, wallet top-ups; `48b3937`, `e5cda31`); the Autopilot's bid *at* the last print was marginal and
+missed the print in three epochs (now 50 bp past it; `f08e5a1`); the burner did not reconnect after a
+reload (`530f109`); Positions sent the borrower back to the Desk for a signature (`9469abd`); the Build
+page, the Market's Pyth card and the header read the keeper's cache even for a source-4 listing
+(`1a4373a`: every reader resolves the account the program reads).
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a

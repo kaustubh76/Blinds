@@ -88,6 +88,8 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | a mark listing stops posting; `warn … re-posting last good` | Tessera / PreStocks API down | nothing for 6 h (last-good is re-posted); after 48 h the chain halts that listing's locks |
 | faucet answers `429 busy` / `503 paused` | hourly cap (30) / balance floor (0.5 SOL) | wait, or top up |
 | judge's Join fails with a token-account error | the dashboard was built before 2026-09-18 | reload (the faucet now derives listing #0's account itself) |
+| a judge's bid prints `no trade` and no loan appears | the agents did not quote in that window (before 2026-09-19 their loan service could outlast a window on the public RPC), or the bid sat exactly at the print | agents quote in every window now (`bid submitted … epoch=N` for all six in `/tmp/window-agents-devnet.log`); the Autopilot bids 50 bp past the last print; bid again in the next window |
+| Positions shows the loan but the lock button is disabled | the tab has no member signature (they never persist) | "Sign to derive" on Positions — one signature |
 | hosted site 404 / Actions "not started … payments have failed" | GitHub billing hold on the account (suspends Actions **and** Pages, even for public repos) | github.com/settings/billing → fix the payment; then `gh api -X POST repos/kaustubh76/Blinds/pages -f build_type=workflow` and re-run the `pages` workflow; meanwhile `serve_app.sh` |
 | browser 429s on `api.devnet.solana.com` | admin + agents + browsers share one IP | a dedicated devnet RPC in Settings (`?rpc=`), or the repo variable `VITE_RPC_URL` |
 
