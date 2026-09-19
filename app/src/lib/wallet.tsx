@@ -9,8 +9,10 @@ import { useSignMessage, useWalletAccountTransactionSigner } from "@solana/react
 import { memberSigningMessage, tokenAccountSigningMessage } from "@thewindow/solana-sdk";
 import type { UiWallet, UiWalletAccount } from "@wallet-standard/react";
 import { useConnect, useDisconnect, useWallets } from "@wallet-standard/react";
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { chain } from "../config";
+import { BURNER_WALLET_NAME, hasBurner } from "./burner";
+import { readPref, writePref } from "./prefs";
 
 export interface Session {
   wallets: readonly UiWallet[];
@@ -49,6 +51,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccount(preferred);
     setMember(null);
     setTokens({});
+    // The burner reconnects on the next page load (it asks nothing of the user); an extension does not.
+    writePref("burner-session", w.name === BURNER_WALLET_NAME);
   }, []);
   const disconnect = useCallback(async () => {
     if (wallet) await disconnectWallet(wallet);
@@ -56,7 +60,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAccount(null);
     setMember(null);
     setTokens({});
+    writePref("burner-session", false);
   }, [wallet]);
+
+  // A burner chosen in this browser stays connected across reloads and tabs — a judge who set up on
+  // the Desk and opens Positions later should not meet "Connect" again. Signatures are re-derived
+  // on demand (they never persist), so nothing secret is restored here.
+  useEffect(() => {
+    if (account || !readPref("burner-session", false) || !hasBurner()) return;
+    const w = wallets.find((x) => x.name === BURNER_WALLET_NAME);
+    if (!w || !bridges.has(w.name)) return;
+    void connect(w).catch(() => writePref("burner-session", false));
+  }, [wallets, account, connect]);
   const setSignatures = useCallback(
     (s: { member?: Uint8Array; token?: Uint8Array; tokenFor?: Address }) => {
       if (s.member) setMember(s.member);
