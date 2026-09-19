@@ -334,12 +334,31 @@ impl Agents {
     ) -> Result<()> {
         let chain = ctx.chain.as_ref();
         let disc = accounts::discriminator::<Loan>();
+        // The listing's quote, read once per pass: every pending loan of this agent is priced from
+        // it, and when the chain would refuse it (a stale Pyth quote, typically) none of them can
+        // lock — checking per loan cost five RPC reads each across dozens of stranded loans, and
+        // on the public devnet RPC that outlasted whole windows.
+        let now = chain.unix_timestamp()?;
+        let slot = chain.slot()?;
+        let price = crate::quote::read_quote(chain, listing)?;
+        let price_usable = price.as_ref().is_some_and(|p| p.usable(listing, now, slot));
+        if !price_usable {
+            let quote_age = price.as_ref().map(|p| now.saturating_sub(p.publish_time));
+            let post_age = price.as_ref().map(|p| slot.saturating_sub(p.posted_slot));
+            let listing_key = listing.listing_pda()?;
+            if self.warned.insert(listing_key, "price not usable") != Some("price not usable") {
+                warn!(agent = i, listing = %listing.symbol, ?quote_age, ?post_age, "price not usable on chain; not locking this listing's pending loans (retrying quietly)");
+            }
+        }
         for (key, data) in chain.program_accounts(&window_client::programs::CREDIT, &disc)? {
             let Some(loan) = accounts::decode::<Loan>(&data) else { continue };
             if loan.borrower != wallet.pubkey() {
                 continue;
             }
             if loan.status == LoanStatus::Pending as u8 {
+                if !price_usable {
+                    continue;
+                }
                 let scoped = bid_key(i, loan.epoch, 1, loan.bid_tick);
                 let legacy = legacy_bid_key(loan.epoch, 1, loan.bid_tick);
                 let Some((bid_size, opening_hex)) = self
@@ -394,20 +413,15 @@ impl Agents {
                 };
                 let listing_pda = listing.listing_pda()?;
                 let quote_account = listing.quote_account()?;
+                // Re-read right before proving: the mock walks on every post, and a proof against
+                // a moved price is refused (`DeltaMismatch`) — the guard below catches that.
                 let price =
                     crate::quote::read_quote(chain, listing)?.ok_or_else(|| anyhow!("price"))?;
-                // The program would refuse this lock; do not spend rent on proof contexts for it.
                 let now = chain.unix_timestamp()?;
-                let quote_age = now.saturating_sub(price.publish_time);
-                let post_age = chain.slot()?.saturating_sub(price.posted_slot);
                 if !price.usable(listing, now, chain.slot()?) {
-                    if self.warned.insert(key, "price not usable") != Some("price not usable") {
-                        warn!(agent = i, loan = %key, listing = %listing.symbol, quote_age, post_age, "price not usable on chain; not locking (retrying quietly)");
-                    } else {
-                        debug!(agent = i, loan = %key, quote_age, post_age, "price still not usable");
-                    }
                     continue;
                 }
+                self.warned.remove(&listing_pda);
                 let mock: Pubkey = listing.mock_mint()?;
                 let mint_data = chain.account_data(&mock)?.ok_or_else(|| anyhow!("mint"))?;
                 let mult = mint_multiplier(&mint_data, chain.unix_timestamp()?)?;
