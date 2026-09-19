@@ -6742,6 +6742,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "bytemuck",
+ "hex",
  "solana-instruction",
  "solana-instructions-sysvar 3.0.1",
  "solana-keypair",
