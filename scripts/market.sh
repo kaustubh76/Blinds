@@ -6,6 +6,7 @@
 #   ./scripts/market.sh start [cluster]   # default devnet, reads .env for the auditor seed
 #   ./scripts/market.sh stop
 #   ./scripts/market.sh status
+#   ./scripts/market.sh tunnel            # replace a dead quick tunnel (URL rotates) without restarting
 #
 # With `cloudflared` installed (brew install cloudflared), `start` also opens a quick tunnel to the
 # admin service so the hosted dashboard's faucet works: it writes the public URL to
@@ -28,6 +29,33 @@ write_admin_url() {
   { grep '^#' "$URL_FILE" 2>/dev/null || true; if [ -n "${1:-}" ]; then echo "$1"; fi; } > "$URL_FILE.tmp" && mv "$URL_FILE.tmp" "$URL_FILE"
 }
 current_admin_url() { grep -v '^#' "$URL_FILE" 2>/dev/null | grep -m1 . || true; }
+
+open_tunnel() {
+  # A quick tunnel does not reconnect after a long network outage: the process stays up while the
+  # link is dead. `tunnel` (or a restart) replaces it; the URL rotates, so the share link does too.
+  if pgrep -f "cloudflared tunnel --url http://127.0.0.1:$PORT" >/dev/null; then
+    url="$(current_admin_url)"
+    if [ -n "$url" ] && curl -s -m 8 "$url/healthz" >/dev/null 2>&1; then echo "  faucet  $url (up)"; return 0; fi
+    pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null || true
+    sleep 1
+  fi
+  : > "$TUNNEL_LOG"
+  nohup cloudflared tunnel --url "http://127.0.0.1:$PORT" >>"$TUNNEL_LOG" 2>&1 &
+  url=""
+  for _ in $(seq 1 30); do
+    url="$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" | tail -1 || true)"
+    [ -n "$url" ] && break
+    sleep 1
+  done
+  if [ -n "$url" ]; then
+    write_admin_url "$url"
+    echo "  faucet  $url  (tunnel log $TUNNEL_LOG)"
+    echo "  share   ${APP_URL}?admin=$url"
+    echo "  publish ./scripts/publish_admin_url.sh   # optional: lets the hosted app find it without the link"
+  else
+    echo "  tunnel: cloudflared gave no URL in 30 s — see $TUNNEL_LOG"
+  fi
+}
 
 case "${1:-status}" in
   start)
@@ -56,27 +84,16 @@ case "${1:-status}" in
     echo "$poster"
     echo "  metrics http://127.0.0.1:$PORT/metrics"
     if [ "$CLUSTER" = devnet ] && command -v cloudflared >/dev/null; then
-      if ! pgrep -f "cloudflared tunnel --url http://127.0.0.1:$PORT" >/dev/null; then
-        : > "$TUNNEL_LOG"
-        nohup cloudflared tunnel --url "http://127.0.0.1:$PORT" >>"$TUNNEL_LOG" 2>&1 &
-      fi
-      url=""
-      for _ in $(seq 1 30); do
-        url="$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" | tail -1 || true)"
-        [ -n "$url" ] && break
-        sleep 1
-      done
-      if [ -n "$url" ]; then
-        write_admin_url "$url"
-        echo "  faucet  $url  (tunnel log $TUNNEL_LOG)"
-        echo "  share   ${APP_URL}?admin=$url"
-        echo "  publish ./scripts/publish_admin_url.sh   # optional: lets the hosted app find it without the link"
-      else
-        echo "  tunnel: cloudflared gave no URL in 30 s — see $TUNNEL_LOG"
-      fi
+      open_tunnel
     elif [ "$CLUSTER" = devnet ]; then
       echo "  faucet: not exposed (brew install cloudflared to tunnel it for the hosted dashboard)"
     fi
+    ;;
+  tunnel)
+    [ "$CLUSTER" = devnet ] || { echo "tunnels are for devnet"; exit 1; }
+    command -v cloudflared >/dev/null || { echo "brew install cloudflared"; exit 1; }
+    pgrep -f "window-admin --cluster $CLUSTER" >/dev/null || { echo "start the market first"; exit 1; }
+    open_tunnel
     ;;
   stop)
     pkill -f "window-admin --cluster $CLUSTER" 2>/dev/null && echo "market stopped" || echo "not running"
@@ -108,5 +125,5 @@ case "${1:-status}" in
       [ -n "$bal" ] && printf 'balance: %s SOL (~%.0f h of live market left)\n' "$bal" "$(echo "$bal" | awk '{print $1/0.28}')"
     fi
     ;;
-  *) echo "usage: $0 {start|stop|status} [cluster]"; exit 2 ;;
+  *) echo "usage: $0 {start|stop|status|tunnel} [cluster]"; exit 2 ;;
 esac
