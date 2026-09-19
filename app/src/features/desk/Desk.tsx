@@ -524,9 +524,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
           <p className="text-sm leading-relaxed text-ink-2">
             Derive → join → set up → wrap 1,000 shares → seal a{" "}
             {prefill?.usdc ? prefill.usdc.toLocaleString("en-US") : "1,000"} USDC borrow bid 50 bp above the last
-            clearing rate, so it clears.
-            Every step is skipped if already done; every transaction lands in the console (`).{" "}
-            {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}
+            clearing rate, so it clears. Every step is skipped if already done; every transaction lands in the console
+            (`). {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}
           </p>
         </Card>
 

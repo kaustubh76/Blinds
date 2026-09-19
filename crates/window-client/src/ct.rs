@@ -442,3 +442,22 @@ pub fn withdraw_plan(
         ],
     })
 }
+
+#[cfg(test)]
+mod proof_self_check {
+    //! The proofs this crate generates verify with the SDK's own verifier — in every build profile.
+    //! (CI's tier 2 once failed `VerifyPubkeyValidity` on Linux with the release-built service while
+    //! the same code passed on macOS; this pins generation and verification together per platform.)
+    use solana_zk_sdk::zk_elgamal_proof_program::{
+        build_pubkey_validity_proof_data, VerifyZkProof,
+    };
+
+    #[test]
+    fn pubkey_validity_proof_verifies_for_seeded_keys() {
+        for label in ["thewindow:escrow:v1", "thewindow:agent-token:0", "x"] {
+            let keys = super::ConfidentialKeys::from_seed(&[0x11; 32], label);
+            let data = build_pubkey_validity_proof_data(&keys.elgamal).expect("proof");
+            data.verify_proof().expect("the proof we generate must verify");
+        }
+    }
+}
