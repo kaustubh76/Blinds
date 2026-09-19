@@ -326,14 +326,18 @@ export function useDesk(account: UiWalletAccount) {
         note("no window is open — waiting for the keeper to open the next one");
         await waitFor("an open window", () => latest.current.open, 10 * 60_000);
       }
-      // Bid at the last clearing rate when there is one, so the bid is likely to match.
+      // Two ticks (50 bp) on the far side of the last clearing rate — a borrower pays up to it, a
+      // lender accepts down to it — so the bid clears unless the rate moves against it by more
+      // than that. A bid exactly at the last print is marginal: the simulated lenders ask around
+      // it, and on devnet such a bid was left out of the print about half the time.
       const oracle = await retry(() => fetchOracle(rpc));
       let tick = 8;
       if (oracle?.hasPrinted) {
         const last = await retry(() => fetchPrint(rpc, oracle.lastPrintEpoch));
         if (last?.status === PrintStatus.Printed) tick = last.rStarTick;
       }
-      note(`sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick}`);
+      tick = Math.max(0, Math.min(36, tick + (opts.side === 1 ? 2 : -2)));
+      note(`sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick} (last print ± 2)`);
       const sigs = await bid.mutateAsync({ side: opts.side, tick, sizeMicroUsdc: opts.sizeMicroUsdc });
       note(`done — ${sigs.length} transactions for the bid; a match becomes a loan after the print`);
       return { tick, sigs };
