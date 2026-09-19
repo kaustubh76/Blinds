@@ -37,8 +37,13 @@ read-only — send the fresh link (or `publish_admin_url.sh`). Optionally
 `./scripts/publish_admin_url.sh` commits the pointer so the hosted app finds the faucet without the link
 (Pages redeploys in ~2 min; its edge cache can lag ~10 min).
 
+A quick tunnel does not survive a long network outage: the `cloudflared` process stays up while the link is
+dead, `status` shows `(unreachable)` and the hosted Desk says the faucet is offline. `./scripts/market.sh tunnel`
+replaces it (new URL, `admin-url.txt` rewritten) without restarting the market.
+
 If GitHub Pages is unavailable (see §5): `./scripts/serve_app.sh start` serves the built dashboard from this
-machine through its own tunnel and prints `<url>/?admin=<faucet>`; that URL rotates per start.
+machine through its own tunnel and prints `<url>/?admin=<faucet>`; that URL rotates per start, and it dies
+the same way — check it before sharing.
 
 ### 2a. The Pyth listing on Pyth's own account (Stage 4, needs `PYTH_API_KEY` in `.env`)
 
