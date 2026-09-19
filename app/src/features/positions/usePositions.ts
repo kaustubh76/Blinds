@@ -25,6 +25,7 @@ import type { UiWalletAccount } from "@wallet-standard/react";
 import { asCode } from "../../lib/asCode";
 import { findBid } from "../../lib/bidBook";
 import { hexToBytes, type ListingView, rentFor, retry, rpc } from "../../lib/chain";
+import { devConsole } from "../../lib/console";
 import { listingByPda, useSelectedListing } from "../../lib/listings";
 import { useCreditConfig, useDeployment, useLoans } from "../../lib/queries";
 import { sendPlan } from "../../lib/send";
@@ -36,7 +37,7 @@ const isZero = (b: ArrayLike<number>) => Array.from(b).every((x) => x === 0);
 export function usePositions(account: UiWalletAccount) {
   const session = useSession();
   const wallet = session.address as Address;
-  const { txSigner, signToken } = useAccountSigners(account);
+  const { txSigner, signMember, signToken } = useAccountSigners(account);
   const qc = useQueryClient();
   const dep = useDeployment();
   const credit = useCreditConfig();
@@ -226,6 +227,27 @@ export function usePositions(account: UiWalletAccount) {
     onSuccess: invalidate,
   });
 
+  /**
+   * The member signature this tab needs to open a loan's size and prove against it — one signature,
+   * here, so a judge who set up on the Desk and later opened Positions (or reloaded: signatures never
+   * persist) is not sent back to the Desk. The listing's token signature is asked for on demand.
+   */
+  const deriveKeys = useMutation({
+    mutationFn: async () => {
+      const m = session.memberSignature ?? (await signMember());
+      session.setSignatures({ member: m });
+      devConsole.push({
+        kind: "call",
+        title: "signMessage → member key (in this tab)",
+        code: [
+          "// the wallet signature is the key material; it never leaves the tab",
+          "const memberSignature = await signMessage({ message: sdk.memberSigningMessage() });",
+        ].join("\n"),
+        state: "confirmed",
+      });
+    },
+  });
+
   return {
     wallet,
     dep,
@@ -238,6 +260,7 @@ export function usePositions(account: UiWalletAccount) {
     lock,
     deposit,
     receiveAccount,
+    deriveKeys,
     keysReady: !!session.memberSignature,
   };
 }

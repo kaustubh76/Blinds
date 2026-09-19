@@ -199,11 +199,18 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         </div>
       </div>
       {!p.keysReady && (
-        <Callout icon="key" tone="warn" title="Derive your keys on the desk to act on loans">
-          Reading them needs nothing; locking and depositing need the keys this tab derives from your signatures.{" "}
-          <a href="#/desk" className="text-accent hover:underline">
-            Go to the desk →
-          </a>
+        <Callout icon="key" tone="warn" title="Derive your keys to act on loans">
+          Reading them needs nothing; locking and depositing need the key this tab derives from your signature — it
+          never leaves the tab, so it is asked for again after a reload.{" "}
+          <Button
+            size="sm"
+            icon="key"
+            onClick={() => p.deriveKeys.mutate()}
+            loading={p.deriveKeys.isPending}
+            disabled={p.deriveKeys.isPending}
+          >
+            Sign to derive
+          </Button>
         </Callout>
       )}
       <Card eyebrow="borrowing" title={`${borrowed.length} loan${borrowed.length === 1 ? "" : "s"}`}>
