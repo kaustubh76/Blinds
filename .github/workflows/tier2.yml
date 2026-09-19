@@ -1,0 +1,45 @@
+name: tier 2 on demand
+
+# Tier 2 alone (real validator, real services, the TS SDK), for iterating on a runner without waiting
+# for the LiteSVM suites. Prints the validator's exact version and feature set first.
+on:
+  workflow_dispatch:
+    inputs:
+      solana_version:
+        description: "Agave version to install"
+        default: "4.2.1"
+
+env:
+  CARGO_TERM_COLOR: always
+  ANCHOR_VERSION: 1.1.2
+
+jobs:
+  tier2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { toolchain: "1.98.1" }
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - name: install solana + anchor
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana_version }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          cargo install --git https://github.com/solana-foundation/anchor avm --locked
+          avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
+      - run: solana --version && solana-test-validator --version && lscpu | grep -E "Model name|Flags" | cut -c1-300
+      - run: cargo install wasm-pack --locked
+      - run: pnpm install --frozen-lockfile
+      - run: ./scripts/build_wasm.sh && pnpm --filter @thewindow/solana-sdk build
+      - run: anchor build
+      - run: cargo build -p window-admin --release
+      - run: solana-keygen new --no-bip39-passphrase --silent --outfile ~/.config/solana/id.json
+      - run: make test-integration
+      - name: logs (on failure)
+        if: failure()
+        run: |
+          for f in admin.log agents.log test-ledger.log; do echo "== $f"; tail -n 40 "$f" 2>/dev/null || true; done
+          echo "== validator.log"; grep -iE "zk|feature|proof|error" test-ledger/validator.log 2>/dev/null | tail -n 60 || true
