@@ -101,8 +101,8 @@ account died, the feed did not).
 | 1 | Keeper: Hermes with key, freshest on-chain shard fallback, `price-check`, quote-age metric, doc corrections | done 17 Sep (Hermes path live once `PYTH_API_KEY` is set) |
 | 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | done 17 Sep (`app/src/lib/pyth.ts`, `CollateralMark.tsx`) |
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI, `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
-| 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; devnet upgrade and the TSLAx flip wait for `PYTH_API_KEY` (the poster needs Hermes; until then TSLAx stays source 0 and honestly stale) |
-| 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; submissions and freeze open |
+| 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; **devnet upgraded to A15** (`window_credit` slot 500375381, `e2c2dbb`); only the TSLAx flip (`listing-set-source mock_tsla 4`) waits for `PYTH_API_KEY` — the poster needs Hermes; until then TSLAx stays source 0 and honestly stale, and every dashboard surface already reads a source-4 listing where the program would (`fetchQuotes`) |
+| 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; hosted site back on GitHub Pages 19 Sep (repo public); submission blurbs final (below); freeze + tag are the last action, on the user's go |
 
 ## Verified on devnet, 18 Sep 2026
 
@@ -128,7 +128,7 @@ defaulted loans there could not be released (`48474c3`: every agent gets a confi
 listing); the schedule row showed "no price yet" under RPC 429s and the CollateralMark footnote
 predated the quote-age rule (`9350eab`).
 
-## Submission blurbs (drafts; finalised in Stage 5)
+## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a
 coefficient in the proof. Every loan is backed by a zero-knowledge statement `collateral × price ≥ 150 % × loan`
@@ -137,11 +137,13 @@ We read Hermes with a key, fall back to Pyth's on-chain accounts, enforce the qu
 per listing, and show the xStock quote against the underlying equity feed with the basis, because the overnight
 window opens exactly when the equity market closes. The Pyth listing can run with no keeper in the price path at
 all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, feed, verification level, age),
-posted onto devnet from Hermes by our own poster.
+posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it the moment a Pyth key is present).
 
 **Tessera.** A confidential borrow line against T-OpenAI: wrap into a confidential mint, prove solvency against
 Tessera's mark without revealing the position, borrow at the xONIA print. Pre-IPO holders are the people who most
 need a position that never was public.
 
 **PreStocks.** ANTHROPIC listed on the same desk under the same rate, marked by PreStocks' published price with
-its implied-vs-mark basis on the schedule.
+its implied-vs-mark basis on the schedule: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing
+the position, borrow at the print, and — for developers — a Build page that shows the listing's PDAs, the account
+the program prices from, and the exact SDK calls, runnable in the tab.

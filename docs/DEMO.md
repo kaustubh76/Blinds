@@ -8,7 +8,7 @@ Two ways to see the desk run: locally in one command, or on devnet with a browse
 make build                          # anchor build → target/deploy/*.so, IDLs frozen into sdk/idl
 pnpm install && ./scripts/build_wasm.sh && pnpm -r build   # SDK (with the browser proofs) + dashboard
 make test-integration               # real solana-test-validator + real admin service + agents,
-                                    # driven through the TS SDK: 8 tests, one full lifecycle
+                                    # driven through the TS SDK: 15 tests, two full lifecycles + a split fill
 ```
 
 What the suite does, in the dashboard's own code path: two fresh wallets join, configure

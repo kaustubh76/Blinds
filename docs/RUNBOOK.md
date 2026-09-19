@@ -47,10 +47,10 @@ posts Pyth's signed `Crypto.TSLAX/USD` update into the Pyth receiver on devnet e
 (`/tmp/window-pyth-poster-devnet.log`; ≈ 0.00001 SOL per post, ≈ 0.002 SOL rent once). Then, one time:
 
 ```bash
-./scripts/upgrade_devnet.sh                                          # if window_credit is older than A15 (solana program show … slot)
 ./target/release/window-admin --cluster devnet --profile devnet price-check   # "on-cluster Pyth account JBDgVnqW… age N s"
 ./target/release/window-admin --cluster devnet --profile devnet listing-set-source mock_tsla 4   # refuses while the account is stale
-git add deployments/devnet.json && git commit -m "devnet: TSLAx reads Pyth's account"
+python3 scripts/render_devnet_docs.py                                # DEMO §C names the new source
+git add deployments/devnet.json docs/DEMO.md && git commit -m "devnet: TSLAx reads Pyth's account"
 ```
 
 From then on TSLAx locks and seizures are priced from the receiver-owned account and the keeper posts no cache

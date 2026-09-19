@@ -544,9 +544,9 @@ Regimes: `Open`, `Closed`, `Printed`, `NoTrade` for epochs; `Attesting`, `Missed
 | Account state | sizes exist only as ciphertext byte arrays (`Bid.ciphertext`, `Loan.size_ct`, `Loan.collateral_ct`, `Loan.delta_commitment`) | same test |
 | Events | no event carries an amount | same test, over `events` |
 | Runtime, tier 1 | after a full epoch and two loans with known secret quantities, scan every program-owned account, every transaction's instruction data and every log for each secret as LE-u64, LE-u128 and ASCII decimal (and ×100, ÷10^6 variants); zero hits except the allow-listed wrap `Deposit` amounts | `tests/privacy/leak_audit.rs` (LiteSVM) |
-| Runtime, tiers 2–3 | same scan through RPC against the real validator and, after the overnight run, against devnet | `tests/integration/leak_audit.test.ts`, `scripts/leak_audit.ts --cluster devnet` |
-| Admin service | decrypted values live in a `Secret<u64>` newtype that prints `[redacted]`; tracing redaction layer; `/metrics` exposes aggregates only | `services/admin/tests/redaction.rs` |
-| Indexer | schema has no column for any size | `services/indexer/test/schema.test.ts` |
+| Runtime, tiers 2–3 | same scan through RPC against the real validator and, after the overnight run, against devnet | `tests/integration/desk.test.ts` ("leak audit" case, over RPC after the tier-2 lifecycle), `scripts/leak_audit.ts --cluster devnet` |
+| Admin service | decrypted values live in a `Secret<u64>` newtype that prints `[redacted]`; tracing redaction layer; `/metrics` exposes aggregates only | `services/admin/src/secret.rs` (`Secret<T>` prints `[redacted]`; the value never implements `Display`) |
+| Indexer | not built: the dashboard reads the chain directly (`app/src/lib/queries.ts`); there is no off-chain store to leak into | — |
 | Dashboard | ciphertexts render through one `EncryptedValue` component; decryption happens only in the wallet owner's browser with the wallet-derived key | component test + honest-claims grep |
 
 **Liveness**

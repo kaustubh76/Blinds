@@ -1,5 +1,9 @@
 # THE WINDOW for Stocks — from spec to a production-grade codebase
 
+> **Historical.** This is the plan the build started from, kept verbatim. File names, counts and the deadline
+> drifted as the build went; what exists is described by `README.md`, `docs/DEMO.md`, `docs/RUNBOOK.md`,
+> `docs/LISTINGS.md` and `docs/TRACKS.md`, and the amendments to the spec by `docs/SPEC_AMENDMENTS.md`.
+
 ## Context
 
 `/Users/apple/Desktop/Blinds/` contains exactly one file: `readme.md`, a 25-section build

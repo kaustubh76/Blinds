@@ -22,10 +22,12 @@ SOURCE = {
     "prestocks": "PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time",
     "mock": "deterministic mock walk (localnet only)",
 }
+# A listing flipped to price_source 4 is priced from Pyth's receiver-owned account on devnet, not the cache.
+PYTH_ACCOUNT_SOURCE = "Pyth `Crypto.TSLAX/USD` — **Pyth's own receiver-owned `PriceUpdateV2` account on devnet** ([`{acct}`]({url})), carried from Hermes by `services/pyth-poster`; the program reads it directly (owner, feed id, `Full`), no keeper copy"
 def hours(secs):
     return f"{secs // 3600} h" if secs >= 3600 else f"{secs // 60} min"
 listing_rows = "\n".join(
-    f"| `{l['symbol']}` | [`{l['listing']}`]({ex(l['listing'])}) | {SOURCE.get(l['source'], l['source'])} | {l['haircut_bps'] / 100:.0f} % | "
+    f"| `{l['symbol']}` | [`{l['listing']}`]({ex(l['listing'])}) | {PYTH_ACCOUNT_SOURCE.format(acct=l['price_account'], url=ex(l['price_account'])) if l.get('price_source') == 4 else SOURCE.get(l['source'], l['source'])} | {l['haircut_bps'] / 100:.0f} % | "
     f"{hours(l['max_publish_age_secs'])} quote · {l['max_price_age_slots']} slots posted | "
     f"mock [`{l['mock_mint'][:4]}…{l['mock_mint'][-4:]}`]({ex(l['mock_mint'])}) · cSTOCK-W [`{l['cstock_mint'][:4]}…{l['cstock_mint'][-4:]}`]({ex(l['cstock_mint'])}) · escrow [`{l['escrow_account'][:4]}…{l['escrow_account'][-4:]}`]({ex(l['escrow_account'])}) |"
     for l in d.get("listings", [])

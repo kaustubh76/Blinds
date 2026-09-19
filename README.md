@@ -15,7 +15,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
 | Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · Tessera · PreStocks integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule |
-| Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 19 attack cases, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
+| Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 32 attack cases in 11 files, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Runbook | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — judging day: budget, start/watch/stop, the share link, what to do when something fails |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
 
@@ -39,7 +39,7 @@ services/   admin (Rust: administrator + keeper + operator + price poster, the s
 sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated clients; transaction plans; wasm proofs; print re-verification)
 app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a developer console, a Build page)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
-config/     demo.toml · integration.toml · prod.toml — the single source of market parameters
+config/     demo.toml · integration.toml · devnet.toml · prod.toml — the single source of market parameters
 docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · PYTH.md · LISTINGS.md · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
 ```
 
@@ -103,7 +103,7 @@ The hosted dashboard is built to be hooked into, not just looked at:
 The app also deploys to Vercel as-is (`app/vercel.json`; rehearsed from a clean clone with
 `NODE_ENV=production`):
 
-1. In Vercel, **Add New → Project → Import** `kaustubh76/Blinds` (the repo is private: grant the Vercel
+1. In Vercel, **Add New → Project → Import** `kaustubh76/Blinds` (the repo is public; if you fork it private, grant the Vercel
    GitHub app access to it, or make the repo public).
 2. **Root Directory:** `app`. Framework and commands are read from `app/vercel.json` — leave them.
 3. **Environment variables** (Production):
@@ -144,7 +144,7 @@ deploy (1,252,952 B ⇒ 6.37 SOL on devnet; `make size`): that trades 11–26 % 
 ## Amendments to the specification
 
 The mechanism in `docs/SPEC.md` is frozen; §7 and §12 change only by written amendment. The
-amendments A1–A10 (transaction-size-driven print batching, bid PDAs, corrected solvency units, how
+amendments A1–A15 (transaction-size-driven print batching, bid PDAs, corrected solvency units, how
 Token-2022 confidential deposits actually work, escrow signer reality, loan ciphertext handles, the
 `ScaledUiAmount` multiplier, zero-copy accounts, the fresh-build guarantee, and the zk-sdk 7 proof line) are recorded with
 evidence in [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md).
@@ -156,7 +156,7 @@ The project must not claim any of the following.
 - **"Trustless" / "undecryptable."** The Benchmark Administrator holds the auditor key and can decrypt every individual bid, loan, and balance. The claim is *accountable* privacy: the public sees aggregates, the price, and the rate, and every published aggregate is proven.
 - **Participation privacy.** Member keys, ticks, and timing are public. Hiding *who* participates is a post-hackathon extension, not a delivered property.
 - **Mock collateral.** Devnet cSTOCK-W wraps a mock xStock mint that mirrors the real assets' Token-2022 extension layout (including the rebasing multiplier). No real xStocks are touched; mainnet wrapping of real xStocks is roadmap.
-- **Keeper-attested price.** The Pyth price enters via a keeper-posted cache attested against a named public 24/7 feed (feed id and publish time on-chain for anyone to check). An on-chain receiver read is roadmap. The multiplier is read from mock-mint state the team controls on devnet.
+- **Keeper-attested price, or Pyth's own account.** Under `price_source = 0` the Pyth price enters via a keeper-posted cache attested against a named public 24/7 feed (feed id and publish time on-chain for anyone to check). Under `price_source = 4` (A15, deployed) the program reads Pyth's receiver-owned `PriceUpdateV2` account itself — no keeper copy in the path; flipping the devnet listing to it needs a Pyth key for the poster (`docs/TRACKS.md`, Stage 4). The multiplier is read from mock-mint state the team controls on devnet.
 - **No intra-tenor margin calls.** Overnight tenor + 150% haircut + deadline seize only. The haircut is illustrative, not risk-calibrated.
 - **Funding magnitude attested.** `confirm_funding` and `repay` are administrator attestations after decrypting the transfer's auditor ciphertext; the program enforces lifecycle finality, not transfer size.
 - **Custody with the operator.** A PDA cannot generate confidential-transfer proofs, so escrow sits in the operator's confidential account. Authority on-chain; custody not.

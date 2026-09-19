@@ -75,8 +75,10 @@ wrong action.
   loans. `scripts/upgrade_devnet.sh` runs the whole devnet upgrade: extend `programdata` if needed →
   deploy `window_credit` → sync → migrate.
 - **Descriptor** (`deployments/<cluster>.json`): `listings[]` (key, symbol, source, PDA, mints, escrow,
-  feed id, limits, `price_source`, `price_account` for source 4) and `agents[].listing`; the legacy
-  top-level fields mirror `listings[0]`.
+  feed id, limits; `price_account` once a Pyth account is named, `price_source` once a listing is flipped —
+  absent means "derived from `source`") and `agents[].listing`; the legacy top-level fields mirror
+  `listings[0]`. The dashboard reads a listing's quote from the account the program reads (`fetchQuotes`),
+  which is why the descriptor, not the on-chain `Listing`, carries `price_account`.
 
 ## SDK and dashboard
 
