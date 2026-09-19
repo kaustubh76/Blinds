@@ -70,7 +70,9 @@ pub enum CreditError {
     PublishTimeAhead,
     #[msg("account is not the loan's listing")]
     WrongListing,
-    #[msg("price account is not the listing's cache, or not a fully verified Pyth receiver account")]
+    #[msg(
+        "price account is not the listing's cache, or not a fully verified Pyth receiver account"
+    )]
     BadPriceAccount,
     #[msg("price account carries another feed")]
     WrongFeed,

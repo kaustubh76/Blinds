@@ -3,11 +3,11 @@ use anchor_lang::prelude::*;
 use crate::{
     errors::CreditError,
     events::LoanStatusChanged,
-    seeds,
-    quote,
+    quote, seeds,
     state::{Config, Listing, Loan, LoanStatus},
 };
 
+/// The operator confirms a lock it has re-verified off chain; `Loan.status` moves to `Locked`.
 #[derive(Accounts)]
 pub struct ConfirmLock<'info> {
     pub operator: Signer<'info>,

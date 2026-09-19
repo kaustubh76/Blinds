@@ -21,12 +21,12 @@ use window_registry::state::Member;
 use crate::{
     errors::CreditError,
     events::LockRequested,
-    seeds,
-    quote,
+    quote, seeds,
     state::{Config, Listing, Loan, LoanStatus},
     zk,
 };
 
+/// The borrower's priced solvency proof against `listing`; `price_account` is whichever account `quote::read_quote` accepts for its source.
 #[derive(Accounts)]
 pub struct LockCollateral<'info> {
     #[account(mut)]
