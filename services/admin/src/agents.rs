@@ -38,6 +38,8 @@ pub struct Agents {
     solver: window_elgamal::bsgs::Solver,
     /// Why a pending loan was last skipped, so the reason is logged once, not every tick.
     warned: BTreeMap<Pubkey, &'static str>,
+    /// Which borrower services its loans on the next tick (round-robin), so no tick outlasts a window.
+    serve_cursor: usize,
 }
 
 /// The memory key of one agent's bid. Scoped by agent: the memory is shared by every simulated
@@ -49,6 +51,25 @@ fn bid_key(agent: usize, epoch: u64, side: u8, tick: u8) -> String {
 
 /// The key bids were stored under before agents were scoped, so loans matched from those bids
 /// still find their opening.
+/// A bid rents three proof-context accounts (~0.002 SOL, refunded when the keeper closes the bid);
+/// an agent whose wallet has drained below that stops quoting silently, so the administrator tops
+/// it up from its own wallet — the same amount `setup` funds it with.
+fn fund_if_low(chain: &dyn crate::chain::Chain, keys: &Keys, wallet: &Pubkey) -> Result<()> {
+    if chain.balance(wallet)? < 5_000_000 {
+        chain.send(
+            &keys.admin,
+            &[solana_system_interface::instruction::transfer(
+                &keys.admin.pubkey(),
+                wallet,
+                20_000_000,
+            )],
+            &[],
+        )?;
+        info!(wallet = %wallet, "agent wallet topped up (0.02 SOL)");
+    }
+    Ok(())
+}
+
 fn legacy_bid_key(epoch: u64, side: u8, tick: u8) -> String {
     format!("{epoch}/{side}/{tick}")
 }
@@ -93,6 +114,7 @@ impl Agents {
             rng: seed ^ 0x2545F4914F6CDD1D,
             solver: window_elgamal::bsgs::Solver::build(16),
             warned: BTreeMap::new(),
+            serve_cursor: 0,
         }
     }
     fn save(&self) {
@@ -108,9 +130,11 @@ impl Agents {
     }
 
     /// One tick, in two passes: every agent quotes first (a window is short and a bid is three
-    /// transactions), then the borrowers service their loans (a scan of every loan plus proofs
-    /// and up to nine transactions each — long enough to outlast a window, which is why it must
-    /// never sit between two agents' bids). One agent's failure is logged and never stops the rest.
+    /// transactions), then *one* borrower services its loans — a scan of every loan plus proofs and
+    /// up to nine transactions per loan, and at most one loan per pass. Serving every borrower's
+    /// every loan in one tick outlasted several windows on devnet (the public RPC's 429 backoffs
+    /// stretch a lock to minutes), and a window in which no agent quotes is a window in which a
+    /// judge's bid cannot match. One agent's failure is logged and never stops the rest.
     pub fn tick(&mut self, ctx: &Ctx, keys: &Keys) -> Result<()> {
         let chain = ctx.chain.as_ref();
         let Some(config) = read::<AuctionConfig>(chain, &pda::auction_config())? else {
@@ -123,24 +147,33 @@ impl Agents {
         let auditor_pk = keys.auditor().pubkey_bytes();
         let agents = ctx.deployment.agents.clone();
         for rec in &agents {
+            let wallet = keys.agent_wallet(rec.index);
+            if let Err(e) = fund_if_low(chain, keys, &wallet.pubkey()) {
+                warn!(agent = rec.index, "top-up failed: {e:#}");
+            }
             if let Err(e) = self.quote(ctx, keys, rec, &config, last_tick, &auditor_pk) {
                 warn!(agent = rec.index, "quoting failed: {e:#}");
             }
         }
-        for rec in agents.iter().filter(|r| r.role == "borrower") {
+        let borrowers: Vec<_> = agents.iter().filter(|r| r.role == "borrower").collect();
+        if borrowers.is_empty() {
+            return Ok(());
+        }
+        self.serve_cursor = (self.serve_cursor + 1) % borrowers.len();
+        if let Some(rec) = borrowers.get(self.serve_cursor).copied() {
             let i = rec.index;
             let listing = match ctx.deployment.listing_of(rec) {
                 Ok(l) => l.clone(),
                 Err(e) => {
                     warn!(agent = i, "loan service skipped: {e:#}");
-                    continue;
+                    return Ok(());
                 }
             };
             let cstock_acc: Pubkey = match rec.cstock_account.parse() {
                 Ok(k) => k,
                 Err(e) => {
                     warn!(agent = i, "loan service skipped: bad cstock account: {e}");
-                    continue;
+                    return Ok(());
                 }
             };
             let wallet = keys.agent_wallet(i);
@@ -529,6 +562,8 @@ impl Agents {
                 self.memory.available.insert(i, available - need_milli);
                 self.save();
                 info!(agent = i, loan = %key, "collateral deposited into escrow");
+                // One loan per pass: the next tick quotes again before the next loan is served.
+                return Ok(());
             }
         }
         Ok(())
