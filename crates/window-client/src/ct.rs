@@ -467,3 +467,45 @@ mod proof_self_check {
         }
     }
 }
+
+#[cfg(test)]
+mod cross_platform_fixture {
+    //! Key derivation and proof verification must agree across platforms. The fixture was made on
+    //! macOS arm64, where the real validator accepts these proofs; a platform that derives another
+    //! pubkey from the same seed, or rejects this proof, has an arithmetic problem of its own.
+    use solana_zk_sdk::zk_elgamal_proof_program::VerifyZkProof;
+
+    const SEED: [u8; 32] = [0x11; 32];
+    const LABEL: &str = "thewindow:escrow:v1";
+
+    /// Regenerates the fixture: `cargo test -p window-client print_fixture -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn print_fixture() {
+        let keys = super::ConfidentialKeys::from_seed(&SEED, LABEL);
+        let data = solana_zk_sdk::zk_elgamal_proof_program::build_pubkey_validity_proof_data(
+            &keys.elgamal,
+        )
+        .expect("proof");
+        let bytes = bytemuck::bytes_of(&data);
+        println!("PUBKEY_HEX={}", hex::encode(keys.elgamal.pubkey().to_bytes()));
+        println!("PROOF_HEX={}", hex::encode(bytes));
+    }
+
+    #[test]
+    fn escrow_pubkey_and_a_macos_proof_verify_here() {
+        let keys = super::ConfidentialKeys::from_seed(&SEED, LABEL);
+        assert_eq!(
+            hex::encode(keys.elgamal.pubkey().to_bytes()),
+            PUBKEY_HEX,
+            "pubkey derivation differs on this platform"
+        );
+        let bytes = hex::decode(PROOF_HEX).unwrap();
+        let data: &solana_zk_elgamal_proof_interface::proof_data::PubkeyValidityProofData =
+            bytemuck::from_bytes(&bytes);
+        data.verify_proof().expect("a proof the macOS validator accepts must verify here");
+    }
+
+    const PUBKEY_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e";
+    const PROOF_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e4894cef49d52a0edb9a25f979d54adb695ef43827bc08852ae5b56b6b5bb8958b7c545c51c99d2f9058d41543dedf56e6ec52c0bd24e4bf244df9ea9ab980d0d";
+}

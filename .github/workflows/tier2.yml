@@ -36,6 +36,8 @@ jobs:
       - run: ./scripts/build_wasm.sh && pnpm --filter @thewindow/solana-sdk build
       - run: anchor build
       - run: cargo build -p window-admin --release
+      # Does this platform derive the same escrow pubkey as macOS and accept a proof macOS made?
+      - run: cargo test -p window-client --release -- cross_platform_fixture proof_self_check
       - run: solana-keygen new --no-bip39-passphrase --silent --outfile ~/.config/solana/id.json
       - run: make test-integration
       - name: logs (on failure)

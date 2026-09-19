@@ -29,3 +29,6 @@ window_auction = { path = "../../programs/window_auction", features = ["no-entry
 window_oracle = { path = "../../programs/window_oracle", features = ["no-entrypoint"] }
 window_wrap = { path = "../../programs/window_wrap", features = ["no-entrypoint"] }
 window_credit = { path = "../../programs/window_credit", features = ["no-entrypoint"] }
+
+[dev-dependencies]
+hex.workspace = true
