@@ -70,6 +70,9 @@ fn fund_if_low(chain: &dyn crate::chain::Chain, keys: &Keys, wallet: &Pubkey) ->
     Ok(())
 }
 
+/// The rate the simulated members' quotes revert to: tick 12 = 4.00 % (100 bp + 25 bp per tick).
+const RESTING_TICK: i64 = 12;
+
 fn legacy_bid_key(epoch: u64, side: u8, tick: u8) -> String {
     format!("{epoch}/{side}/{tick}")
 }
@@ -239,7 +242,7 @@ impl Agents {
             info!(agent = i, "borrower wrapped collateral (simulated)");
         }
         // One bid per (epoch, side, tick) — an agent's tick is drawn from a narrow band around
-        // the last print, so over an epoch it ends up quoting a handful of adjacent ticks and
+        // the anchor below, so over an epoch it ends up quoting a handful of adjacent ticks and
         // then stops. Never in the epoch's last slots, to avoid racing the close.
         let epoch_open = config.has_open_epoch
             && chain
@@ -254,10 +257,15 @@ impl Agents {
             return Ok(());
         }
         let epoch = config.current_epoch;
+        // Quotes straddle an anchor halfway between the last print and a resting rate: lenders ask
+        // a little under it, borrowers bid a little over it. Quoting around the last print alone
+        // ratcheted the rate one tick a window (borrowers always above, lenders around) until it
+        // sat at the cap; the anchor makes the print mean-revert to ~4-4.5 % with the same spread.
+        let anchor = (last_tick as i64 + RESTING_TICK) / 2;
         let (side, tick) = if rec.role == "lender" {
-            (Side::Ask, (last_tick as i64 - 2 + self.rand(4) as i64).clamp(0, 36) as u8)
+            (Side::Ask, (anchor - 3 + self.rand(5) as i64).clamp(0, 36) as u8)
         } else {
-            (Side::Bid, (last_tick as i64 + 1 + self.rand(4) as i64).clamp(0, 36) as u8)
+            (Side::Bid, (anchor + self.rand(5) as i64).clamp(0, 36) as u8)
         };
         let key = bid_key(i, epoch, side as u8, tick);
         if !self.memory.bids.contains_key(&key)
