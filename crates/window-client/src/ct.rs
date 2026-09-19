@@ -19,7 +19,7 @@ use solana_zk_sdk::{
         derivation::derive_confidential_keys_from_ikm,
         elgamal::{ElGamalCiphertext, ElGamalKeypair, ElGamalPubkey},
     },
-    zk_elgamal_proof_program::build_pubkey_validity_proof_data,
+    zk_elgamal_proof_program::{build_pubkey_validity_proof_data, VerifyZkProof},
 };
 use solana_zk_sdk_pod::encryption::{auth_encryption::PodAeCiphertext, elgamal::PodElGamalPubkey};
 use spl_token_2022_interface::{
@@ -213,6 +213,12 @@ pub fn create_confidential_account_plan(
     rent: u64,
 ) -> Tx {
     let proof = build_pubkey_validity_proof_data(&keys.elgamal).unwrap();
+    // Verify what we are about to send with the SDK's own verifier: a proof the chain refuses is
+    // then a validator-side fact, not a question about this binary (CI's Linux tier 2 hit exactly
+    // that ambiguity). One sigma-proof verification, microseconds.
+    proof
+        .verify_proof()
+        .expect("the pubkey-validity proof this binary generated must verify locally");
     let zero: PodAeCiphertext = keys.ae.encrypt(0).into();
     let mut instructions = vec![
         solana_system_interface::instruction::create_account(
