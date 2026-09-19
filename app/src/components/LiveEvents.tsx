@@ -6,6 +6,14 @@ import { useLiveEvents } from "../lib/useLive";
 import { Card } from "./Card";
 import { Badge, ExplorerLink } from "./ui";
 
+const EVENT_TONE: Record<string, "lend" | "accent" | "borrow" | "mute"> = {
+  auction: "lend",
+  oracle: "accent",
+  credit: "borrow",
+  registry: "mute",
+  wrap: "mute",
+};
+
 function summarize(data: unknown): string {
   if (!data || typeof data !== "object") return "";
   return Object.entries(data as Record<string, unknown>)
@@ -44,9 +52,7 @@ export function LiveEvents({ limit = 6 }: { limit?: number }) {
         <ul className="grid gap-1.5">
           {shown.map((e) => (
             <li key={`${e.signature}-${e.name}`} className="flex flex-wrap items-center gap-2 text-xs">
-              <Badge tone={e.program === "auction" ? "lend" : e.program === "oracle" ? "accent" : "borrow"}>
-                {e.program}
-              </Badge>
+              <Badge tone={EVENT_TONE[e.program] ?? "mute"}>{e.program}</Badge>
               <span className="font-medium text-ink-1">{e.name}</span>
               <span className="mono min-w-0 flex-1 truncate text-ink-3">{summarize(e.data)}</span>
               {slot.data !== undefined && (

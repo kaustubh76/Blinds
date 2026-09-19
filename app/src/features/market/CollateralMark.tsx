@@ -8,7 +8,7 @@ import { Stat } from "../../components/Stat";
 import { Badge, ExplorerLink } from "../../components/ui";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
-import { useCreditConfig, useDeployment, useMultiplier, usePrice, useSlot } from "../../lib/queries";
+import { useCreditConfig, useDeployment, useMultiplier, useQuote, useSlot } from "../../lib/queries";
 
 /** Fallback quote-age limit for a descriptor without listings; otherwise listing #0's on-chain `max_publish_age_secs`. */
 export const QUOTE_STALE_AFTER_SECS = 3_600;
@@ -19,7 +19,7 @@ export function CollateralMark() {
   const dep = useDeployment();
   const credit = useCreditConfig();
   const slot = useSlot();
-  const price = usePrice(dep.data?.feedId);
+  const price = useQuote(dep.data?.listings[0]);
   const mult = useMultiplier(dep.data?.mockMint);
   const underlying = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
   const session = nyseSession();
@@ -71,7 +71,13 @@ export function CollateralMark() {
               ? `${formatSlotAge(slot.data - Number(price.data.postedSlot))} ago`
               : "—"
           }
-          hint={price.data ? `${price.data.posts.toString()} posts` : undefined}
+          hint={
+            price.data
+              ? price.data.from === "pyth"
+                ? "read from Pyth's receiver-owned account"
+                : "read from the keeper's cache"
+              : undefined
+          }
         />
         <Stat
           label="underlying · TSLA equity"

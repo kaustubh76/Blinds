@@ -17,6 +17,7 @@ import { Button, Pill } from "../../components/ui";
 import type { ListingView } from "../../lib/chain";
 import { formatPrice, formatRate, formatShares } from "../../lib/format";
 import { sourceLabel } from "../../lib/listings";
+import { useMultiplier } from "../../lib/queries";
 
 type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "postedSlot">;
 
@@ -67,8 +68,10 @@ export function BorrowCalculator({
   );
   const listing = listings[i];
   const price = prices?.[i] ?? null;
+  // The mock mint's ScaledUiAmount multiplier — the same k_c the program forms at lock (1 until a corporate action).
+  const mult = useMultiplier(listing?.mockMint);
   const usdc = Number(amount.replace(/[^0-9.]/g, ""));
-  const q = listing && price ? quoteCollateral(usdc, listing, price) : null;
+  const q = listing && price ? quoteCollateral(usdc, listing, price, mult.data?.multiplier ?? 1) : null;
   const shares = q ? formatShares(q.pledge, listing?.decimals ?? 3) : "—";
   return (
     <div className="grid gap-5 rounded-[var(--radius-xl)] border border-line bg-surface-1 p-5 sm:p-6 lg:grid-cols-[1fr_1.1fr]">

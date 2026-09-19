@@ -1,11 +1,11 @@
 /** The top-bar strip: the benchmark, the reference price, and the window phase — all from polls. */
-import { useDeployment, useOracle, usePrice } from "./queries";
+import { useDeployment, useOracle, useQuote } from "./queries";
 import { useWindowClock } from "./useWindowClock";
 
 export function useTicker() {
   const dep = useDeployment();
   const oracle = useOracle();
-  const price = usePrice(dep.data?.feedId);
+  const price = useQuote(dep.data?.listings[0]);
   const clock = useWindowClock();
   const o = oracle.data;
   return {

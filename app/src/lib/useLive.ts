@@ -61,6 +61,8 @@ export function useLiveEvents(): LiveState {
     void startLive({
       wsUrl: config.wsUrl,
       signal: ctrl.signal,
+      // All five programs' logs: registry (membership) and wrap (balances) events reach the console too.
+      programs: ["registry", "auction", "oracle", "wrap", "credit"],
       onInvalidate: (what) => {
         const keys =
           what === "auction" ? ["auctionConfig", "epoch", "print", "series", "slot"] : ["oracle", "print", "series"];
@@ -76,12 +78,15 @@ export function useLiveEvents(): LiveState {
           detail: e.data,
           at: e.at,
         });
-        // Loans and bids change on credit/auction events; membership on registry ones.
+        // Loans and bids change on credit/auction events; membership on registry ones; balances on wrap ones.
         if (e.program === "credit") void qc.invalidateQueries({ queryKey: ["loans"] });
         if (e.program === "credit" && e.name === "ListingAdded") void qc.invalidateQueries({ queryKey: ["listings"] });
         if (e.program === "credit" && e.name === "PricePosted")
-          for (const k of ["price", "prices", "build-schedule", "build-mark"])
+          for (const k of ["price", "quotes", "build-schedule", "build-mark"])
             void qc.invalidateQueries({ queryKey: [k] });
+        if (e.program === "registry") void qc.invalidateQueries({ queryKey: ["member"] });
+        if (e.program === "wrap")
+          for (const k of ["tokenAccounts", "balances", "sol"]) void qc.invalidateQueries({ queryKey: [k] });
         if (e.program === "auction" && e.name === "BidSubmitted") void qc.invalidateQueries({ queryKey: ["bids"] });
       },
       onStatus: (s) => {

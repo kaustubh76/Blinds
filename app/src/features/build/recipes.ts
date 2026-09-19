@@ -6,9 +6,10 @@
 import type { Address } from "@solana/kit";
 import type * as SDK from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
-import type { DeploymentView } from "../../lib/chain";
+import { type DeploymentView, fetchDeployment } from "../../lib/chain";
 import { startLive } from "../../lib/live";
 import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
+import { quoteAddress, quoteSourceFor } from "./quotes";
 
 export interface RecipeCtx {
   sdk: typeof SDK;
@@ -77,48 +78,57 @@ console.log(sdk.PROGRAMS, auction, credit, oracle, pdas, listings.length, "listi
       "Every Listing account, its PriceCache and the two freshness rules lock_collateral and seize apply — the same call the operator's `pnpm schedule` makes.",
     code: (ctx) => `${PRELUDE(ctx)}
 
+const descriptor = await (await fetch("${ctx.config.adminUrl || "https://<admin>"}/deployment")).json(); // = deployments/devnet.json
 const listings = await sdk.fetchListings(rpc);                       // every Listing account, sorted by symbol
-const prices   = await sdk.fetchPrices(rpc, listings.map((l) => new Uint8Array(l.data.feedId)));   // one RPC call
+const sources  = listings.map(({ address, data: l }) => ({          // where the program reads each quote:
+  feedId: new Uint8Array(l.feedId), priceSource: l.priceSource,     //   the cache PDA (sources 0-3), or the
+  priceAccount: descriptor.listings.find((d) => d.listing === address)?.price_account ?? null, // Pyth account (source 4)
+}));
+const quotes   = await sdk.fetchQuotes(rpc, sources);                // one RPC call, decoded per source
 const slot     = Number(await rpc.getSlot({ commitment: "confirmed" }).send());
 const now      = Number(await rpc.getBlockTime(BigInt(slot)).send());
 for (const [i, { address, data: l }] of listings.entries()) {
-  const price = prices[i];
-  if (!price) { console.log(sdk.symbolOf(l), "no cache yet"); continue; }
+  const price = quotes[i];
+  if (!price) { console.log(sdk.symbolOf(l), "no usable quote at", await sdk.quoteAccount(sources[i])); continue; }
   const f = sdk.quoteFreshness({ listing: l, price, slot, nowSecs: now });
   console.log(sdk.symbolOf(l), sdk.PRICE_SOURCE_NAMES[l.priceSource], sdk.isAttestedMark(l.priceSource) ? "(attested mark)" : "",
     "mark", Number(price.price) * 10 ** price.expo, "haircut", Number(l.haircutBps) / 100 + "%",
     "quote", f.quoteAgeSecs + "s old (limit " + l.maxPublishAgeSecs + ")", "posted", f.postedAgeSlots + " slots ago (limit " + l.maxPriceAge + ")",
-    f.usable ? "→ lock/seize ACCEPTED" : "→ REFUSED", "listing", address, "cache", await sdk.pda.priceCache(new Uint8Array(l.feedId)));
+    f.usable ? "→ lock/seize ACCEPTED" : "→ REFUSED", "listing", address, "read from", price.from, await sdk.quoteAccount(sources[i]));
 }`,
     run: async (ctx) => {
       const listings = await ctx.sdk.fetchListings(ctx.rpc);
-      const prices = await ctx.sdk.fetchPrices(
-        ctx.rpc,
-        listings.map((l) => new Uint8Array(l.data.feedId)),
-      );
+      const deployment = ctx.deployment ?? (await fetchDeployment());
+      const sources = listings.map(({ address, data: l }) => quoteSourceFor(l, address, deployment));
+      const quotes = await ctx.sdk.fetchQuotes(ctx.rpc, sources);
       const slot = Number(await ctx.rpc.getSlot({ commitment: "confirmed" }).send());
       const now = Number(await ctx.rpc.getBlockTime(BigInt(slot)).send());
       const rows = [];
       for (const [i, { address, data: l }] of listings.entries()) {
-        const price = prices[i];
-        const cache = await ctx.sdk.pda.priceCache(new Uint8Array(l.feedId));
+        const price = quotes[i];
+        const src = sources[i];
+        const readFrom = src ? await quoteAddress(src) : null;
         const base = {
           listing: ctx.sdk.symbolOf(l),
           source: ctx.sdk.PRICE_SOURCE_NAMES[l.priceSource] ?? l.priceSource,
           attestedMark: ctx.sdk.isAttestedMark(l.priceSource),
           haircutBps: l.haircutBps,
           listingPda: address,
-          priceCachePda: cache,
+          /** The account the program reads: the cache PDA, or Pyth's receiver-owned account for source 4. */
+          quoteAccount: readFrom,
         };
         if (!price) {
-          rows.push({ ...base, verdict: "no cache yet" });
+          rows.push({
+            ...base,
+            verdict: readFrom ? "no usable quote in that account" : "descriptor names no price account",
+          });
           continue;
         }
         const f = ctx.sdk.quoteFreshness({ listing: l, price, slot, nowSecs: now });
         rows.push({
           ...base,
+          readFrom: price.from,
           mark: Number(price.price) * 10 ** price.expo,
-          posts: price.posts,
           quoteAgeSecs: f.quoteAgeSecs,
           quoteLimitSecs: l.maxPublishAgeSecs,
           postedAgeSlots: f.postedAgeSlots,
@@ -143,8 +153,9 @@ const TSLA  = "${FEEDS["Equity.US.TSLA/USD"]}";
 const pda = async (shard, feed) => (await getProgramDerivedAddress({ programAddress: address("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT"),
   seeds: [new Uint8Array([shard & 0xff, shard >> 8]), Uint8Array.from(feed.match(/../g), (h) => parseInt(h, 16))] }))[0];
 // layout: disc(8) ‖ write_authority(32) ‖ verification_level(1|2) ‖ feed_id(32) ‖ price i64 ‖ conf u64 ‖ expo i32 ‖ publish_time i64
-// (app/src/lib/pyth.ts decodePriceUpdate mirrors services/admin/src/price.rs; the keeper posts the freshest
-//  into the listing's cache — sdk.fetchPrice(rpc, feedId) — and the chain enforces its publish_time)
+// (app/src/lib/pyth.ts decodePriceUpdate mirrors services/admin/src/price.rs. Source 0: the keeper posts the
+//  freshest into the listing's cache; source 4: the program reads Pyth's receiver-owned account itself —
+//  sdk.fetchQuote(rpc, listing) reads whichever the listing uses, and the chain enforces its publish_time)
 for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
   const accounts = await mainnet.getMultipleAccounts([await pda(0, feed), await pda(1, feed)], { encoding: "base64" }).send();
   console.log(name, accounts.value.map((a) => a && a.owner === RECEIVER ? "present" : "absent"));
@@ -231,8 +242,13 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
     code: (ctx) => `${PRELUDE(ctx)}
 
 const LOAN = 1_000_000_000n;                                       // 1,000 USDC in micro-USDC
-for (const { data: l } of await sdk.fetchListings(rpc)) {
-  const price = await sdk.fetchPrice(rpc, new Uint8Array(l.feedId));
+const descriptor = await (await fetch("${ctx.config.adminUrl || "https://<admin>"}/deployment")).json();
+for (const { address, data: l } of await sdk.fetchListings(rpc)) {
+  const price = await sdk.fetchQuote(rpc, {                          // the cache PDA, or Pyth's account for source 4
+    feedId: new Uint8Array(l.feedId), priceSource: l.priceSource,     // (price_account from deployments/devnet.json)
+    priceAccount: descriptor.listings.find((d) => d.listing === address)?.price_account ?? null,
+  });
+  if (!price) continue;
   const mult  = await sdk.fetchMultiplier(rpc, l.mockMint);        // ScaledUiAmount on the mock mint
   const s = sdk.solvencyScalars(sdk.priceCents(price.price, price.expo), sdk.multiplierScaled(mult.multiplier), l.haircutBps);
   console.log(sdk.symbolOf(l), "k_c", s.kC, "k_l", s.kL, "required", sdk.collateralRequired(LOAN, s), "pledge", sdk.collateralPledge(LOAN, s), "milli-shares");
@@ -240,9 +256,13 @@ for (const { data: l } of await sdk.fetchListings(rpc)) {
     run: async (ctx) => {
       const LOAN = 1_000_000_000n;
       const out = [];
-      for (const { data: l } of await ctx.sdk.fetchListings(ctx.rpc)) {
-        const price = await ctx.sdk.fetchPrice(ctx.rpc, new Uint8Array(l.feedId));
-        if (!price) continue;
+      const deployment = ctx.deployment ?? (await fetchDeployment());
+      for (const { address, data: l } of await ctx.sdk.fetchListings(ctx.rpc)) {
+        const price = await ctx.sdk.fetchQuote(ctx.rpc, quoteSourceFor(l, address, deployment));
+        if (!price) {
+          out.push({ listing: ctx.sdk.symbolOf(l), skipped: "no usable quote where the program reads it" });
+          continue;
+        }
         const mult = await ctx.sdk.fetchMultiplier(ctx.rpc, l.mockMint);
         const s = ctx.sdk.solvencyScalars(
           ctx.sdk.priceCents(price.price, price.expo),

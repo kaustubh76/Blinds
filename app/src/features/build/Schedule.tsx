@@ -6,10 +6,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   fetchListings,
-  fetchPrices,
+  fetchQuotes,
   isAttestedMark,
   PRICE_SOURCE_NAMES,
-  pda,
   quoteFreshness,
   symbolOf,
   withRpcRetry,
@@ -20,55 +19,69 @@ import { Skeleton } from "../../components/Skeleton";
 import { Badge, Button, ExplorerLink, type Tone } from "../../components/ui";
 import { config } from "../../config";
 import { rpc } from "../../lib/chain";
+import { useDeployment } from "../../lib/queries";
+import { quoteAddress, quoteSourceFor } from "./quotes";
 
-const SOURCE_TONE: Record<string, Tone> = { Pyth: "accent", "Tessera mark": "lend", "PreStocks mark": "borrow" };
+const SOURCE_TONE: Record<string, Tone> = {
+  Pyth: "accent",
+  "Pyth (on-chain account)": "accent",
+  "Tessera mark": "lend",
+  "PreStocks mark": "borrow",
+};
 
 const hex = (b: ArrayLike<number>) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 const age = (s: number) => (s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
 
 const CODE = `const listings = await sdk.fetchListings(rpc);
-const prices   = await sdk.fetchPrices(rpc, listings.map((l) => new Uint8Array(l.data.feedId)));
+const dep      = await fetchDeployment();                        // names each source-4 listing's Pyth account
+const sources  = listings.map(({ address, data: l }) => ({
+  feedId: new Uint8Array(l.feedId), priceSource: l.priceSource,
+  priceAccount: dep.listings.find((d) => d.listing === address)?.priceAccount ?? null,
+}));
+const quotes   = await sdk.fetchQuotes(rpc, sources);            // the cache PDA, or Pyth's account for source 4 — one RPC call
+const reads    = await Promise.all(sources.map(sdk.quoteAccount)); // the address each quote was read from
 const slot     = Number(await rpc.getSlot({ commitment: "confirmed" }).send());
 const now      = Number(await rpc.getBlockTime(BigInt(slot)).send());
 const rows = listings.map(({ address, data: l }, i) => ({
   symbol: sdk.symbolOf(l), source: sdk.PRICE_SOURCE_NAMES[l.priceSource], listing: address,
-  priceCache: sdk.pda.priceCache(new Uint8Array(l.feedId)),
-  ...(prices[i] ? sdk.quoteFreshness({ listing: l, price: prices[i], slot, nowSecs: now }) : { usable: false }),
+  readFrom: reads[i], via: quotes[i]?.from,                            // "cache" | "pyth"
+  ...(quotes[i] ? sdk.quoteFreshness({ listing: l, price: quotes[i], slot, nowSecs: now }) : { usable: false }),
 }));`;
 
 /**
- * One query for the whole schedule: listings, their caches, the slot's block time. Re-read every
- * 30 s, on every `PricePosted` event (`useLive` invalidates the key) and on the refresh button —
- * not on every slot, and the rows stay on screen while the next read is in flight.
+ * One query for the whole schedule: listings, their quotes read the way the program reads them, the
+ * slot's block time. Re-read every 30 s, on every `PricePosted` event (`useLive` invalidates the key)
+ * and on the refresh button — not on every slot, and the rows stay on screen while the next read is
+ * in flight.
  */
 function useScheduleRows() {
+  const dep = useDeployment();
   return useQuery({
-    queryKey: ["build-schedule"],
+    queryKey: ["build-schedule", dep.data ? "dep" : "chain"],
     queryFn: async () => {
       const listings = await withRpcRetry(() => fetchListings(rpc));
-      const prices = await withRpcRetry(() =>
-        fetchPrices(
-          rpc,
-          listings.map((l) => new Uint8Array(l.data.feedId)),
-        ),
-      );
+      const sources = listings.map(({ address, data: l }) => quoteSourceFor(l, address, dep.data ?? null));
+      const quotes = await withRpcRetry(() => fetchQuotes(rpc, sources));
       const s = Number(await withRpcRetry(() => rpc.getSlot({ commitment: "confirmed" }).send()));
       const now = Number(await withRpcRetry(() => rpc.getBlockTime(BigInt(s)).send()));
       return Promise.all(
         listings.map(async ({ address, data: l }, i) => {
-          const price = prices[i] ?? null;
-          const fresh = price ? quoteFreshness({ listing: l, price, slot: s, nowSecs: now }) : null;
+          const src = sources[i];
+          const quote = quotes[i] ?? null;
+          const fresh = quote ? quoteFreshness({ listing: l, price: quote, slot: s, nowSecs: now }) : null;
+          const readFrom = src ? await quoteAddress(src) : null;
           return {
             symbol: symbolOf(l),
             source: PRICE_SOURCE_NAMES[l.priceSource] ?? `source ${l.priceSource}`,
             attested: isAttestedMark(l.priceSource),
             listing: address,
-            priceCache: await pda.priceCache(new Uint8Array(l.feedId)),
+            /** The account the program reads: the cache PDA, or Pyth's receiver-owned account (source 4). */
+            readFrom,
+            via: quote?.from ?? null,
             feedId: hex(l.feedId),
             haircut: `${Number(l.haircutBps) / 100}%`,
             limits: { quoteSecs: Number(l.maxPublishAgeSecs), postedSlots: Number(l.maxPriceAge) },
-            mark: price ? Number(price.price) * 10 ** price.expo : null,
-            posts: price ? Number(price.posts) : 0,
+            mark: quote ? Number(quote.price) * 10 ** quote.expo : null,
             fresh,
           };
         }),
@@ -127,7 +140,11 @@ export function Schedule() {
                 <Badge tone={SOURCE_TONE[r.source] ?? "mute"}>{r.source}</Badge>
                 {r.attested && <Badge tone="warn">attested · publish_time = keeper fetch</Badge>}
                 <span className="num text-sm text-ink-1">
-                  {r.mark !== null ? `$${r.mark.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "no cache"}
+                  {r.mark !== null
+                    ? `$${r.mark.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+                    : r.readFrom
+                      ? "no quote"
+                      : "names no price account"}
                 </span>
                 <span className="text-xs text-ink-3">haircut {r.haircut}</span>
                 <span className="ml-auto">
@@ -136,21 +153,22 @@ export function Schedule() {
                       {r.fresh.usable ? "lock & seize accepted" : !r.fresh.quoteFresh ? "QuoteStale" : "PriceStale"}
                     </Badge>
                   ) : (
-                    <Badge>no price yet</Badge>
+                    <Badge>{r.readFrom ? "no quote yet" : "descriptor lacks price_account"}</Badge>
                   )}
                 </span>
               </div>
               {r.fresh && (
                 <div className="mt-1 text-xs text-ink-3">
                   quote {age(r.fresh.quoteAgeSecs)} old (limit {age(r.limits.quoteSecs)}) · posted{" "}
-                  {r.fresh.postedAgeSlots} slots ago (limit {r.limits.postedSlots}) · {r.posts} posts
+                  {r.fresh.postedAgeSlots} slots ago (limit {r.limits.postedSlots}) · read from{" "}
+                  {r.via === "pyth" ? "Pyth's receiver-owned account" : "the keeper's cache PDA"}
                 </div>
               )}
               <dl className="mono mt-2 grid gap-x-4 gap-y-0.5 text-[11px] sm:grid-cols-[auto_1fr_auto]">
                 {(
                   [
                     ["listing", r.listing, true],
-                    ["priceCache", r.priceCache, true],
+                    [r.via === "pyth" ? "pythAccount" : "priceCache", r.readFrom ?? "—", !!r.readFrom],
                     ["feedId", r.feedId, false],
                   ] as const
                 ).map(([k, v, link]) => (

@@ -119,9 +119,12 @@ export function Tracks() {
         <Column title="Pyth" tone="accent" sub="the mark is a coefficient in the proof">
           <p className="text-xs text-ink-2">
             Every lock proves <span className="mono">collateral × price × multiplier ≥ haircut × loan</span> over
-            ciphertexts; <span className="mono">k_c</span> is Pyth's quote in the listing's cache. The keeper reads
-            Hermes with a key, else Pyth's on-chain push account; the quote's own{" "}
-            <span className="mono">publish_time</span> is stored unmodified and enforced at lock and seize.
+            ciphertexts; <span className="mono">k_c</span> is Pyth's quote. Two paths: under{" "}
+            <span className="mono">price_source = 0</span> the keeper copies Hermes (with a key, else Pyth's on-chain
+            push account) into the listing's cache with the quote's own <span className="mono">publish_time</span>
+            {"; "}under <span className="mono">price_source = 4</span> the program reads the receiver-owned{" "}
+            <span className="mono">PriceUpdateV2</span> account our poster carries onto devnet — no keeper copy in the
+            path. Either way the quote's age is enforced at lock and seize.
           </p>
           <div className="text-xs">
             <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
@@ -171,8 +174,11 @@ export function Tracks() {
             </p>
           )}
           <Snippet>{`const l = await sdk.fetchListing(rpc, "${lp?.cstockMint ?? "<cstockMint>"}");
-const q = await sdk.fetchPrice(rpc, new Uint8Array(l.feedId));   // { price, expo, publishTime, postedSlot }
-// browser-side, Pyth's own account (see the "pyth-mainnet" recipe): fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"])`}</Snippet>
+const q = await sdk.fetchQuote(rpc, {                            // { price, expo, publishTime, postedSlot, from }
+  feedId: new Uint8Array(l.feedId), priceSource: l.priceSource,  // source 0: the cache PDA; source 4: the Pyth
+  priceAccount: ${lp?.priceAccount ? `"${lp.priceAccount}"` : "null"},${lp?.priceAccount ? "" : "                                            "} // account (descriptor price_account)
+});
+// browser-side, Pyth's own mainnet account (see the "pyth-mainnet" recipe): fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"])`}</Snippet>
           <p className="text-[11px] text-ink-3">
             <Icon name="alert" size={11} className="mr-1 inline text-status-warning" />
             Honest limit: every Pyth HTTP endpoint needs a key and this feed's only push account stopped on 12 Sep;

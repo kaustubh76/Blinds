@@ -11,8 +11,8 @@ import {
   fetchMember,
   fetchMultiplier,
   fetchOracle,
-  fetchPrice,
   fetchPrint,
+  fetchQuote,
   fetchQuotes,
   fetchSeries,
   fetchTokenAmount,
@@ -70,11 +70,12 @@ export const useSeries = (latest: bigint | null, limit = 60) =>
     refetchInterval: SLOT_MS * 3,
   });
 
-export const usePrice = (feedId: Uint8Array | undefined) =>
+/** One listing's quote, read the way the program reads it (cache PDA, or its Pyth account for source 4). */
+export const useQuote = (listing: QuoteSource | undefined) =>
   useQuery({
-    queryKey: ["price", feedId ? Array.from(feedId).join(",") : ""],
-    queryFn: () => (feedId ? fetchPrice(rpc, feedId) : null),
-    enabled: !!feedId,
+    queryKey: ["price", listing ? `${listing.priceSource}:${Array.from(listing.feedId).join(",")}` : ""],
+    queryFn: () => (listing ? fetchQuote(rpc, listing) : null),
+    enabled: !!listing,
     refetchInterval: SLOT_MS * 2,
   });
 

@@ -76,7 +76,19 @@ function RecipeCard({ r }: { r: Recipe }) {
       state: "pending",
     });
     try {
-      const v = await r.run({ ...ctx, signal: c.signal });
+      // The public devnet RPC answers 429 when the market, the agents and a browser share one IP; a
+      // recipe is idempotent, so retry the whole run a few times before showing the error.
+      let v: unknown;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          v = await r.run({ ...ctx, signal: c.signal });
+          break;
+        } catch (e) {
+          if (attempt >= 4 || c.signal.aborted || !/429/.test(e instanceof Error ? e.message : String(e))) throw e;
+          setLines((l) => [...l, `RPC answered 429 — retrying (${attempt}/3)`]);
+          await new Promise((res) => setTimeout(res, 1500 * attempt));
+        }
+      }
       setOut(jsonSafe(v));
       devConsole.update(id, { state: "confirmed", detail: v });
     } catch (e) {
@@ -91,7 +103,7 @@ function RecipeCard({ r }: { r: Recipe }) {
   };
 
   return (
-    <li className="rounded-[var(--radius-lg)] border border-line bg-surface-1 p-4">
+    <li data-recipe={r.id} className="rounded-[var(--radius-lg)] border border-line bg-surface-1 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-ink-1">{r.title}</span>
         {r.needs && <Badge tone={blocked ? "warn" : "good"}>{r.needs === "wallet" ? "wallet" : "keys"}</Badge>}
@@ -166,8 +178,8 @@ const HOOKS: Array<[string, string]> = [
   ["useAuctionConfig / useCreditConfig / useOracle", "the three config accounts, polled on the slot clock"],
   ["useEpoch(index) / usePrint(index) / useSeries(latest, n)", "one epoch's accumulators, its print, the print series"],
   [
-    "usePrice(feedId) / usePrices(feedIds) / useMultiplier(mint)",
-    "a listing's posted mark (or all of them in one call) and the mint's ScaledUiAmount multiplier",
+    "useQuote(listing) / usePrices(listings) / useMultiplier(mint)",
+    "a listing's quote read where the program reads it — the cache PDA, or its Pyth account under source 4 — and the mint's ScaledUiAmount multiplier",
   ],
   [
     "useOnChainListings() / useSelectedListing()",
@@ -311,7 +323,7 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
           </Note>
           <div className="mt-3">
             <Code>{`GET  ${adminShown}/healthz      → ok
-GET  ${adminShown}/deployment   → { cluster, programs, listings[] { key, symbol, source, listing, mock_mint, cstock_mint, escrow_account, feed_id_hex, haircut_bps, max_price_age_slots, max_publish_age_secs }, auditor_elgamal_pubkey_hex, agents[] }
+GET  ${adminShown}/deployment   → { cluster, programs, listings[] { key, symbol, source, listing, mock_mint, cstock_mint, escrow_account, feed_id_hex, haircut_bps, max_price_age_slots, max_publish_age_secs, price_source?, price_account? }, auditor_elgamal_pubkey_hex, agents[] }
 GET  ${adminShown}/faucet       → { remaining_this_hour, max_per_hour, min_balance_sol }
 GET  ${adminShown}/metrics      → prometheus text
 POST ${adminShown}/join
