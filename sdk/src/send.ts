@@ -42,7 +42,7 @@ export async function confirmSignature(
       label: "getSignatureStatuses",
     });
     const s = st.value[0];
-    if (s?.err) throw new Error(`transaction ${signature} failed: ${JSON.stringify(s.err)}`);
+    if (s?.err) throw new Error(`transaction ${signature} failed: ${describeTxError(s.err)}`);
     if (s && (s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized")) return;
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -105,6 +105,15 @@ export async function sendPlan(
     }
   }
   return sigs;
+}
+
+/**
+ * A confirmed-but-failed transaction's error, as text. `TransactionError` carries bigints
+ * (`{ InstructionError: [0n, { Custom: 6022 }] }`), which `JSON.stringify` refuses; the custom
+ * code is what callers match on (`isDeltaMismatch`).
+ */
+export function describeTxError(err: unknown): string {
+  return JSON.stringify(err, (_, v) => (typeof v === "bigint" ? Number(v) : v));
 }
 
 function describeSendError(e: unknown): string {

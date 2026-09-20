@@ -6,12 +6,14 @@ import {
   buildDepositPlan,
   buildLockPlan,
   buildOnboardPlan,
+  closeContext,
   collateralPledge,
   fetchConfidentialAccount,
   fetchEpoch,
   fetchMultiplier,
   fetchQuote,
   fetchTokenAmount,
+  isDeltaMismatch,
   multiplierScaled,
   pda,
   priceCents,
@@ -100,42 +102,69 @@ export function usePositions(account: UiWalletAccount) {
       if (!l) throw new Error("no collateral listing selected");
       steps.reset();
       const { size, opening } = await loanSecret(address, loan);
-      const [epoch, price, mult] = await Promise.all([
-        retry(() => fetchEpoch(rpc, loan.epoch)),
-        retry(() => fetchQuote(rpc, l)),
-        retry(() => fetchMultiplier(rpc, l.mockMint)),
-      ]);
-      if (!epoch || !price) throw new Error(`epoch or ${l.symbol} price missing`);
-      const pc = priceCents(price.price, price.expo);
-      const ms = multiplierScaled(mult.multiplier);
-      const need = collateralPledge(size, solvencyScalars(pc, ms, l.haircutBps));
-      const args = {
-        borrower: txSigner,
-        signature: session.memberSignature,
-        auditorPubkey: new Uint8Array(epoch.auditorPubkey),
-        loan: address,
-        loanCiphertext: new Uint8Array(loan.sizeCt),
-        loanSizeMicroUsdc: size,
-        loanOpening: opening,
-        sharesMilli: need,
-        priceCents: pc,
-        multScaled: ms,
-        haircutBps: l.haircutBps,
-        listing: l.listing,
-        feedId: l.feedId,
-        priceAccount: l.priceAccount ?? undefined,
-        mockMint: l.mockMint,
-        rent: rentFor,
-      };
-      const plan = await buildLockPlan(args);
-      return sendPlan(plan, txSigner, steps.onStep, {
-        title: "buildLockPlan → sendPlan (priced solvency proof)",
-        code: asCode("buildLockPlan", args, {
-          prelude:
-            "// collateral = collateralPledge(size, solvencyScalars(priceCents, multScaled, haircutBps)); 6 transactions",
-          result: "plan",
-        }),
-      });
+      const epoch = await retry(() => fetchEpoch(rpc, loan.epoch));
+      if (!epoch) throw new Error("epoch missing");
+      // Read the quote where the program reads it, prove, send — and if the keeper reposted between
+      // the read and the send (`DeltaMismatch`: the mock walks on every post), close the failed
+      // attempt's proof contexts, read again and prove again, once. Same rule as `sdk.lockCollateral`,
+      // routed through this app's console.
+      for (let attempt = 1; ; attempt++) {
+        const [price, mult] = await Promise.all([
+          retry(() => fetchQuote(rpc, l)),
+          retry(() => fetchMultiplier(rpc, l.mockMint)),
+        ]);
+        if (!price) throw new Error(`${l.symbol}: no usable quote where the program reads it`);
+        const pc = priceCents(price.price, price.expo);
+        const ms = multiplierScaled(mult.multiplier);
+        const need = collateralPledge(size, solvencyScalars(pc, ms, l.haircutBps));
+        const args = {
+          borrower: txSigner,
+          signature: session.memberSignature,
+          auditorPubkey: new Uint8Array(epoch.auditorPubkey),
+          loan: address,
+          loanCiphertext: new Uint8Array(loan.sizeCt),
+          loanSizeMicroUsdc: size,
+          loanOpening: opening,
+          sharesMilli: need,
+          priceCents: pc,
+          multScaled: ms,
+          haircutBps: l.haircutBps,
+          listing: l.listing,
+          feedId: l.feedId,
+          priceAccount: l.priceAccount ?? undefined,
+          mockMint: l.mockMint,
+          rent: rentFor,
+        };
+        const plan = await buildLockPlan(args);
+        try {
+          return await sendPlan(plan, txSigner, steps.onStep, {
+            title: `buildLockPlan → sendPlan (priced solvency proof${attempt > 1 ? ", quote re-read" : ""})`,
+            code: asCode("buildLockPlan", args, {
+              prelude:
+                "// collateral = collateralPledge(size, solvencyScalars(priceCents, multScaled, haircutBps)); 6 transactions",
+              result: "plan",
+            }),
+          });
+        } catch (e) {
+          if (attempt > 1 || !isDeltaMismatch(e)) throw e;
+          steps.reset();
+          const b = txSigner.address;
+          await sendPlan(
+            {
+              txs: [
+                {
+                  label: "close proof contexts (quote moved)",
+                  instructions: plan.contexts.map((c) => closeContext(c, b, b)),
+                  extraSigners: [],
+                },
+              ],
+            },
+            txSigner,
+            steps.onStep,
+            { title: "the quote moved while proving — closing the contexts and proving again" },
+          ).catch(() => undefined);
+        }
+      }
     },
     onSuccess: invalidate,
   });

@@ -129,7 +129,7 @@ export async function buildLockPlan(args: {
   priceAccount?: Address | undefined;
   mockMint: Address;
   rent: Rent;
-}): Promise<Plan & { collateralCiphertext: Uint8Array; kC: bigint; kL: bigint }> {
+}): Promise<Plan & { collateralCiphertext: Uint8Array; kC: bigint; kL: bigint; contexts: Address[] }> {
   const w = await proofs();
   const p = w.lock_proofs(
     args.signature,
@@ -181,6 +181,8 @@ export async function buildLockPlan(args: {
     collateralCiphertext: p.collateral_ciphertext,
     kC: BigInt(p.k_c),
     kL: BigInt(p.k_l),
+    /** The four proof-context accounts; `lock_collateral` closes them on success (rent back to the borrower). */
+    contexts: [cV.address, cE.address, cR32.address, cR64.address],
     txs: [
       {
         label: "verify collateral validity + delta equality",

@@ -85,7 +85,11 @@ wrong action.
 - `pda.listing(cstockMint)`, `fetchListing`, `fetchListings`, `symbolOf`, `quoteFreshness` (both rules,
   evaluated off chain for display), `feedIdForLabel`, `PriceSource`, `isAttestedMark`; `fetchQuotes` reads
   every listing's quote from whichever account the program would read (`decodePriceUpdate` for source 4);
-  `buildLockPlan` / `buildDepositPlan` take the listing (and the price account for source 4).
+  `buildLockPlan` / `buildDepositPlan` take the listing (and the price account for source 4);
+  `lockCollateral(rpc, { …, quote: { feedId, priceSource, priceAccount } })` is the lock as one call — it reads
+  the quote where the program reads it, proves, sends, and if the chain answers `DeltaMismatch` (the keeper
+  reposted between the read and the send; a mock walks on every post) closes the attempt's proof contexts and
+  proves once more against the new quote. The tier-2 tests and the dashboard lock this way.
 - **Market**: the schedule table — source (linked), mark, quote age vs limit, post age vs limit, haircut,
   and whether a lock or seize would be accepted right now.
 - **Desk**: a listing picker; the confidential account, wrap and balance follow it (one token signature

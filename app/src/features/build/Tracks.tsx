@@ -251,7 +251,8 @@ const q = await sdk.fetchPrice(rpc, feedId);
           )}
           <Snippet>{`const feedId = await sdk.feedIdForLabel("prestocks:ANTHROPIC");
 const q = await sdk.fetchPrice(rpc, feedId);
-// lock against this listing: sdk.buildLockPlan({ ..., listing: "${lps?.listing ?? "<listing>"}", feedId, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? lps.haircutBps.toString() : "20000"}n })
+// lock against this listing (reads the quote where the program does, proves, retries once if it moved):
+// sdk.lockCollateral(rpc, { ..., listing: "${lps?.listing ?? "<listing>"}", quote: { feedId, priceSource: l.priceSource }, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? lps.haircutBps.toString() : "20000"}n, rent })
 // curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`}</Snippet>
           <p className="text-[11px] text-ink-3">
             Honest limit: as for Tessera — attested by the keeper, stamped at fetch, bounded by the on-chain 48 h rule.

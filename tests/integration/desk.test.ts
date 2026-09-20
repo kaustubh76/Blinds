@@ -10,7 +10,6 @@ import {
   applyPendingBalanceInstruction,
   auction,
   buildDepositPlan,
-  buildLockPlan,
   collateralPledge,
   credit,
   fetchBid,
@@ -19,19 +18,15 @@ import {
   fetchEpoch,
   fetchLoansFor,
   fetchMember,
-  fetchMultiplier,
-  fetchPrice,
   fetchPrint,
   fetchTokenAmount,
   LoanStatus,
-  multiplierScaled,
+  lockCollateral,
   oracle,
   PROGRAMS,
   PrintStatus,
-  priceCents,
   proofs,
   sendPlan,
-  solvencyScalars,
   verifyPrint,
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -165,14 +160,12 @@ describe("desk lifecycle through the SDK", () => {
 
   it("locks collateral with a priced solvency proof, then deposits it to escrow in one transaction with the deposit", async () => {
     const credit = await fetchCreditConfig(rpc);
-    const [{ borrowed }, epoch, price, mult] = await Promise.all([
+    const [{ borrowed }, epoch] = await Promise.all([
       fetchLoansFor(rpc, borrower.address),
       fetchEpoch(rpc, epochIndex),
-      fetchPrice(rpc, feedId),
-      fetchMultiplier(rpc, mockMint),
     ]);
     const loan = borrowed[0];
-    if (!loan || !epoch || !price || !credit) throw new Error("state missing");
+    if (!loan || !epoch || !credit) throw new Error("state missing");
     const w = await proofs();
     const full = Array.from(loan.data.sizeCt).every((x, i) => x === ciphertexts.borrower[i]);
     const opening = full
@@ -191,12 +184,9 @@ describe("desk lifecycle through the SDK", () => {
           w.decrypt_small(borrower.memberSignature, new Uint8Array(loan.data.sizeCt.slice(0, 64)), BORROW.toString()) ??
             "0",
         );
-    const pc = priceCents(price.price, price.expo);
-    const multScaled = multiplierScaled(mult.multiplier);
-    const scalars = solvencyScalars(pc, multScaled, credit.haircutBps);
-    const need = collateralPledge(size, scalars);
-    expect(need).toBeLessThanOrEqual(SHARES);
-    const lock = await buildLockPlan({
+    // The lock as the desk does it: the quote is read where the program reads it, and if the keeper
+    // reposts between the read and the send (the mock walks on every post) the SDK reads again.
+    const lockResult = await lockCollateral(rpc, {
       borrower: borrower.signer,
       signature: borrower.memberSignature,
       auditorPubkey: new Uint8Array(epoch.auditorPubkey),
@@ -204,16 +194,15 @@ describe("desk lifecycle through the SDK", () => {
       loanCiphertext: new Uint8Array(loan.data.sizeCt),
       loanSizeMicroUsdc: size,
       loanOpening: opening,
-      sharesMilli: need,
-      priceCents: pc,
-      multScaled,
-      haircutBps: credit.haircutBps,
       listing,
-      feedId,
+      quote: { feedId, priceSource: 3 },
+      haircutBps: credit.haircutBps,
       mockMint,
       rent: rentFor,
     });
-    await sendPlan(rpc, lock, borrower.signer);
+    const { scalars } = lockResult;
+    const need = lockResult.sharesMilli;
+    expect(need).toBeLessThanOrEqual(SHARES);
     let l = await fetchLoansFor(rpc, borrower.address);
     expect(l.borrowed[0]?.data.status).toBe(LoanStatus.Requested);
     expect(l.borrowed[0]?.data.kC).toBe(scalars.kC);

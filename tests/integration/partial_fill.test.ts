@@ -9,20 +9,7 @@
  * the ECDH-sealed opening note, recovers the part it owes, and proves solvency for exactly that.
  */
 import { getAddressEncoder } from "@solana/kit";
-import {
-  buildLockPlan,
-  collateralPledge,
-  fetchCreditConfig,
-  fetchEpoch,
-  fetchLoansFor,
-  fetchMultiplier,
-  fetchPrice,
-  multiplierScaled,
-  priceCents,
-  proofs,
-  sendPlan,
-  solvencyScalars,
-} from "@thewindow/solana-sdk";
+import { fetchCreditConfig, fetchEpoch, fetchLoansFor, lockCollateral, proofs } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
 import { bidsTogether, SHARES, wrap } from "./flows";
 import { airdrop, feedId, listing, type Member, mockMint, newMember, onboard, rentFor, rpc, waitFor } from "./harness";
@@ -76,17 +63,12 @@ describe("a bid split across two lenders", () => {
   });
 
   it("the borrower opens the sealed note, recovers its part, and locks collateral for it", async () => {
-    const [{ borrowed }, credit, price, mult] = await Promise.all([
-      fetchLoansFor(rpc, borrower.address),
-      fetchCreditConfig(rpc),
-      fetchPrice(rpc, feedId),
-      fetchMultiplier(rpc, mockMint),
-    ]);
+    const [{ borrowed }, credit] = await Promise.all([fetchLoansFor(rpc, borrower.address), fetchCreditConfig(rpc)]);
     const loan = borrowed
       .filter((l) => l.data.epoch === epochIndex)
       .find((l) => Array.from(l.data.openingNote).some((b) => b !== 0));
     const epoch = await fetchEpoch(rpc, epochIndex);
-    if (!loan || !epoch || !price || !credit) throw new Error("partial loan state missing");
+    if (!loan || !epoch || !credit) throw new Error("partial loan state missing");
 
     const w = await proofs();
     const opening = new Uint8Array(
@@ -108,9 +90,7 @@ describe("a bid split across two lenders", () => {
     expect(size).toBeGreaterThan(0n);
     expect(size).toBeLessThan(BORROW);
 
-    const pc = priceCents(price.price, price.expo);
-    const scalars = solvencyScalars(pc, multiplierScaled(mult.multiplier), credit.haircutBps);
-    const plan = await buildLockPlan({
+    const { scalars } = await lockCollateral(rpc, {
       borrower: borrower.signer,
       signature: borrower.memberSignature,
       auditorPubkey: new Uint8Array(epoch.auditorPubkey),
@@ -118,16 +98,12 @@ describe("a bid split across two lenders", () => {
       loanCiphertext: new Uint8Array(loan.data.sizeCt),
       loanSizeMicroUsdc: size,
       loanOpening: opening,
-      sharesMilli: collateralPledge(size, scalars),
-      priceCents: pc,
-      multScaled: multiplierScaled(mult.multiplier),
-      haircutBps: credit.haircutBps,
       listing,
-      feedId,
+      quote: { feedId, priceSource: 3 },
+      haircutBps: credit.haircutBps,
       mockMint,
       rent: rentFor,
     });
-    await sendPlan(rpc, plan, borrower.signer);
     const after = await fetchLoansFor(rpc, borrower.address);
     const locked = after.borrowed.find((l) => l.address === loan.address);
     expect(locked?.data.status).toBe(2); // Requested

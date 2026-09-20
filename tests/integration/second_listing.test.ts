@@ -7,23 +7,18 @@
 import { getAddressEncoder } from "@solana/kit";
 import {
   buildDepositPlan,
-  buildLockPlan,
-  collateralPledge,
   fetchConfidentialAccount,
   fetchEpoch,
   fetchListing,
   fetchListings,
   fetchLoansFor,
-  fetchMultiplier,
   fetchPrice,
   fetchPrint,
   LoanStatus,
-  multiplierScaled,
+  lockCollateral,
   PrintStatus,
-  priceCents,
   proofs,
   sendPlan,
-  solvencyScalars,
   symbolOf,
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -98,14 +93,12 @@ describe("a second listing of the collateral schedule", () => {
   });
 
   it("locks against listing #1's price and haircut, deposits into listing #1's escrow", async () => {
-    const [{ borrowed }, epoch, price, mult] = await Promise.all([
+    const [{ borrowed }, epoch] = await Promise.all([
       fetchLoansFor(rpc, borrower.address),
       fetchEpoch(rpc, epochIndex),
-      fetchPrice(rpc, second.feedId),
-      fetchMultiplier(rpc, second.mockMint),
     ]);
     const loan = borrowed.find((x) => x.data.epoch === epochIndex);
-    if (!loan || !epoch || !price) throw new Error("state missing");
+    if (!loan || !epoch) throw new Error("state missing");
     const w = await proofs();
     const full = Array.from(loan.data.sizeCt).every((x, i) => x === ciphertext[i]);
     const size = full
@@ -124,13 +117,7 @@ describe("a second listing of the collateral schedule", () => {
             new Uint8Array(getAddressEncoder().encode(loan.address)),
           ),
         );
-    const pc = priceCents(price.price, price.expo);
-    const ms = multiplierScaled(mult.multiplier);
-    const scalars = solvencyScalars(pc, ms, second.haircutBps);
-    expect(scalars.kL).toBe(second.haircutBps / 100n);
-    const need = collateralPledge(size, scalars);
-    expect(need).toBeLessThanOrEqual(SHARES);
-    const lock = await buildLockPlan({
+    const { scalars, sharesMilli: need } = await lockCollateral(rpc, {
       borrower: borrower.signer,
       signature: borrower.memberSignature,
       auditorPubkey: new Uint8Array(epoch.auditorPubkey),
@@ -138,16 +125,14 @@ describe("a second listing of the collateral schedule", () => {
       loanCiphertext: new Uint8Array(loan.data.sizeCt),
       loanSizeMicroUsdc: size,
       loanOpening,
-      sharesMilli: need,
-      priceCents: pc,
-      multScaled: ms,
-      haircutBps: second.haircutBps,
       listing: second.listing,
-      feedId: second.feedId,
+      quote: { feedId: second.feedId, priceSource: 3 },
+      haircutBps: second.haircutBps,
       mockMint: second.mockMint,
       rent: rentFor,
     });
-    await sendPlan(rpc, lock, borrower.signer);
+    expect(scalars.kL).toBe(second.haircutBps / 100n);
+    expect(need).toBeLessThanOrEqual(SHARES);
     let l = await fetchLoansFor(rpc, borrower.address);
     let mine = l.borrowed.find((x) => x.address === loan.address);
     expect(mine?.data.status).toBe(LoanStatus.Requested);
