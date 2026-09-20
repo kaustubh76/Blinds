@@ -12,8 +12,8 @@ on:
         description: "Runner label (ubuntu-latest = x86_64; ubuntu-24.04-arm = arm64)"
         default: "ubuntu-latest"
       build_validator:
-        description: "Also build solana-test-validator from source (cargo install agave-validator) and use that"
-        default: "false"
+        description: "Build solana-test-validator from source (the prebuilt x86_64 binary refuses valid proofs)"
+        default: "true"
 
 env:
   CARGO_TERM_COLOR: always

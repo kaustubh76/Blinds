@@ -8,7 +8,7 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
 
 | Component | Version | Why this one |
 |---|---|---|
-| solana-cli / Agave | **4.2.1** | Installed; devnet runs 4.2/4.3. Ships platform-tools 1.52 (rustc 1.89 for SBF). |
+| solana-cli / Agave | **4.2.1** | Installed; devnet runs 4.2/4.3. Ships platform-tools 1.52 (rustc 1.89 for SBF). **Linux x86_64: build `solana-test-validator` from source** (`cargo install agave-validator --version 4.2.1 --bin solana-test-validator`) — the prebuilt x86_64 binaries (4.2.1–4.3.0) refuse pubkey-validity proofs the macOS build, LiteSVM and devnet accept; `window-admin zk-probe` shows it in one line. See trap 12. |
 | anchor-cli / anchor-lang / anchor-spl | **1.1.2** (exact) | Installed CLI. `anchor build` + on-chain execution verified. 1.2.0 is the same `solana-*` 3.x crate family and compiles on the host; move both CLI and crates together, then re-run the gate test. |
 | solana-zk-sdk | **7.0.1** (exact) | Proof *generation*. Carries the zk-sdk ≥ 5 transcript that the deployed ZK ElGamal program (Agave ≥ 4.2) verifies. See trap 1. |
 | solana-zk-elgamal-proof-interface / solana-zk-sdk-pod | **0.1.3 / 0.1.2** (exact) | Proof-data and context types, instruction encoding, `ProofContextState` — what the programs read. On `solana-instruction 3` (Anchor 1.x). |
@@ -64,6 +64,13 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
     `[shard_le_u16, feed_id]` (the receiver program id derives nothing). Equity feeds
     (Crypto.TSLAX/USD `0x47a15647…`, mainnet `GpoWLTd6…`) are mainnet-only and stop advancing outside
     US market hours; devnet publishes crypto feeds such as SOL/USD (`7UVimffx…`).
+
+12. **The prebuilt Linux x86_64 `solana-test-validator` refuses valid pubkey-validity proofs** (Agave 4.2.1,
+   4.2.2 and 4.3.0 from release.anza.xyz, on AMD Zen 3 and Zen 4 alike): `SigmaProof(PubkeyValidity,
+   AlgebraicRelation)` for a proof that the macOS arm64 build of the same commit, LiteSVM compiled on the same
+   machine, devnet's validators and a `cargo install`ed validator on that same machine all accept — same feature
+   set, same version string, same bytes (`window-admin zk-probe`, `./scripts/localnet.sh probe`). CI builds the
+   validator from source; on a Linux box do the same before `make test-integration`.
 
 ## Feature gates (checked live)
 

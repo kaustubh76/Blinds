@@ -7,7 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLANA_VERSION: 4.2.2
+  SOLANA_VERSION: 4.2.1
   ANCHOR_VERSION: 1.1.2
 
 jobs:
@@ -89,6 +89,21 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cargo install --git https://github.com/solana-foundation/anchor avm --locked
           avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
+      # The prebuilt x86_64 Linux solana-test-validator (4.2.1, 4.2.2, 4.3.0) refuses pubkey-validity
+      # proofs that the macOS build of the same commit, LiteSVM and devnet accept (see RUNBOOK §5 and
+      # `window-admin zk-probe`); one built from source on this runner accepts them. Cached by
+      # actions/cache, so it compiles once per version.
+      - uses: actions/cache@v4
+        id: validator-cache
+        with:
+          path: ~/agave-src
+          key: solana-test-validator-src-${{ env.SOLANA_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      - name: build solana-test-validator from source
+        if: steps.validator-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler libudev-dev libclang-dev pkg-config libssl-dev
+          cargo install agave-validator --version ${SOLANA_VERSION} --bin solana-test-validator --locked --root $HOME/agave-src
+      - run: echo "$HOME/agave-src/bin" >> $GITHUB_PATH
       - run: cargo install wasm-pack --locked
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/build_wasm.sh && pnpm --filter @thewindow/solana-sdk build
@@ -96,6 +111,7 @@ jobs:
       - run: cargo build -p window-admin --release
       # The admin service and the localnet scripts sign with the default CLI keypair.
       - run: solana-keygen new --no-bip39-passphrase --silent --outfile ~/.config/solana/id.json
+      - run: which solana-test-validator && solana-test-validator --version && WINDOW_PROFILE=integration ./scripts/localnet.sh probe
       - run: make test-integration
       - name: service and validator logs (on failure)
         if: failure()
