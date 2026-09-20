@@ -8,6 +8,9 @@ on:
       solana_version:
         description: "Agave version to install"
         default: "4.2.1"
+      runner:
+        description: "Runner label (ubuntu-latest = x86_64; ubuntu-24.04-arm = arm64)"
+        default: "ubuntu-latest"
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,7 +18,7 @@ env:
 
 jobs:
   tier2:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -30,7 +33,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cargo install --git https://github.com/solana-foundation/anchor avm --locked
           avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
-      - run: solana --version && solana-test-validator --version && lscpu | grep -E "Model name|Flags" | cut -c1-300
+      - run: solana --version && solana-test-validator --version && uname -m && (lscpu | grep -E "Model name|Flags" | cut -c1-400 || true)
       - run: cargo install wasm-pack --locked
       - run: pnpm install --frozen-lockfile
       - run: ./scripts/build_wasm.sh && pnpm --filter @thewindow/solana-sdk build
