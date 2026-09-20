@@ -160,6 +160,13 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
   (ANTHROPIC, 200 %) → deposit `fMwX…gUVs`. Agents read their collateral balance from the account (a release
   had drifted the memory file); `watch_tunnels.sh` keeps the quick tunnels alive.
 
+- Final integration pass (20 Sep evening), every check at HEAD on the hosted site: Pages == HEAD, chain == HEAD
+  (5/5 byte-identical), `price-check` answers for Pyth (refused, stale by design) / Tessera / PreStocks, all eight
+  wallet-free recipes confirmed on Pages (`verify` re-proved epoch 470 in the browser), `thewindow.schedule()`,
+  fresh public clone builds and tests green, CI green. The pass surfaced one more agents gap — a loan whose deposit
+  failed after the lock was never resumed, and the deposit itself failed on a stale owner-side balance cache
+  (`InconsistentInput`) — fixed (`4946808`): 9 stranded deposits resumed in one window, 0 failures after.
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a
