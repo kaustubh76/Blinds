@@ -148,6 +148,18 @@ reload (`530f109`); Positions sent the borrower back to the Desk for a signature
 page, the Market's Pyth card and the header read the keeper's cache even for a source-4 listing
 (`1a4373a`: every reader resolves the account the program reads).
 
+## 20 Sep: hosting back, CI green on Linux, one more lock rule
+
+- GitHub Pages recreated and live again; CI runs. The Linux tier-2 failure was the **prebuilt x86_64
+  `solana-test-validator`** refusing valid pubkey-validity proofs (`window-admin zk-probe`: the macOS-made proof
+  is refused there too; a source-built validator on the same runner accepts both) — CI builds it from source.
+- `sdk.lockCollateral`: read the quote where the program reads it, prove, send, and on `DeltaMismatch` (the keeper
+  reposted mid-lock) close the attempt's contexts and prove once more. Tier 2 3/3 green after it; the tests and
+  the dashboard lock this way. `confirmSignature` no longer crashes on a confirmed-but-failed transaction.
+- Judge path on Pages, third listing: burner `Eqso…wiLZ` → Autopilot → matched epoch 470 → lock at $1,030.63
+  (ANTHROPIC, 200 %) → deposit `fMwX…gUVs`. Agents read their collateral balance from the account (a release
+  had drifted the memory file); `watch_tunnels.sh` keeps the quick tunnels alive.
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a
