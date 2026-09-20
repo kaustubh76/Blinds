@@ -51,6 +51,8 @@ make build              # anchor build + freeze IDLs into sdk/idl
 pnpm install && ./scripts/build_wasm.sh && pnpm -r build   # SDK (codama clients + wasm proofs) and the dashboard
 make test               # tier 1: crates + programs on LiteSVM (Agave's real runtime, in-process)
 make test-integration   # tier 2: real solana-test-validator, real admin service + agents, driven through the TS SDK
+                        # Linux x86_64: build the validator from source first (docs/toolchain.md, trap 12) — the
+                        # prebuilt one refuses valid ZK proofs; `./scripts/localnet.sh probe` tells you in 30 s
 make demo               # one full epoch on localnet with the DEMO profile
 cd app && pnpm dev      # dashboard against localnet (docs/DEMO.md)
 ```
