@@ -28,6 +28,9 @@ struct AgentMemory {
     /// tracked confidential available balance per agent index
     available: BTreeMap<usize, u64>,
     wrapped_once: BTreeMap<usize, bool>,
+    /// loan → milli-shares pledged at lock, so a deposit that failed after the lock can be resumed
+    #[serde(default)]
+    pledged: BTreeMap<String, u64>,
 }
 
 pub struct Agents {
@@ -51,21 +54,22 @@ fn bid_key(agent: usize, epoch: u64, side: u8, tick: u8) -> String {
 
 /// The key bids were stored under before agents were scoped, so loans matched from those bids
 /// still find their opening.
-/// A bid rents three proof-context accounts (~0.002 SOL, refunded when the keeper closes the bid);
-/// an agent whose wallet has drained below that stops quoting silently, so the administrator tops
-/// it up from its own wallet — the same amount `setup` funds it with.
+/// A bid rents three proof-context accounts, a lock four and a deposit three (~0.002 SOL each,
+/// refunded on close — but a failed attempt leaves them open); an agent whose wallet has drained
+/// below a lock-plus-deposit's worth stops silently ("insufficient funds for rent"), so the
+/// administrator tops it up from its own wallet.
 fn fund_if_low(chain: &dyn crate::chain::Chain, keys: &Keys, wallet: &Pubkey) -> Result<()> {
-    if chain.balance(wallet)? < 5_000_000 {
+    if chain.balance(wallet)? < 20_000_000 {
         chain.send(
             &keys.admin,
             &[solana_system_interface::instruction::transfer(
                 &keys.admin.pubkey(),
                 wallet,
-                20_000_000,
+                50_000_000,
             )],
             &[],
         )?;
-        info!(wallet = %wallet, "agent wallet topped up (0.02 SOL)");
+        info!(wallet = %wallet, "agent wallet topped up (0.05 SOL)");
     }
     Ok(())
 }
@@ -349,7 +353,9 @@ impl Agents {
         let now = chain.unix_timestamp()?;
         let slot = chain.slot()?;
         let price = crate::quote::read_quote(chain, listing)?;
-        let price_usable = price.as_ref().is_some_and(|p| p.usable(listing, now, slot));
+        // A lock is six transactions: only start one the quote will still be fresh for (§quote.rs).
+        let price_usable =
+            price.as_ref().is_some_and(|p| p.usable_for(listing, now, slot, 90, 200));
         if !price_usable {
             let quote_age = price.as_ref().map(|p| now.saturating_sub(p.publish_time));
             let post_age = price.as_ref().map(|p| slot.saturating_sub(p.posted_slot));
@@ -362,6 +368,71 @@ impl Agents {
             let Some(loan) = accounts::decode::<Loan>(&data) else { continue };
             if loan.borrower != wallet.pubkey() {
                 continue;
+            }
+            if loan.status == LoanStatus::Requested as u8 {
+                // Locked, but the deposit did not land (a failed proof, a dropped connection):
+                // the loan would sit here until it matured and the keeper seized nothing. Resume
+                // with the pledge recorded at lock; without a record, the collateral ciphertext
+                // is ours to open (bounded by what the agent ever wrapped).
+                let pledged = match self.memory.pledged.get(&key.to_string()).copied() {
+                    Some(v) => v,
+                    None => {
+                        let ct =
+                            window_elgamal::GroupedCiphertext2::from_bytes(&loan.collateral_ct)
+                                .to_ciphertext(0)
+                                .ok_or_else(|| anyhow!("collateral ct"))?;
+                        self.solver
+                            .decrypt(eg, &ct, 40_000_000)
+                            .ok_or_else(|| anyhow!("collateral size"))?
+                    }
+                };
+                // Under the loan's own listing (`Loan.listing`), which may differ from the agent's
+                // current one: loans from before the schedule are bound to listing #0. The agent
+                // holds a confidential account on every listing (setup), funded or not.
+                let loan_listing = match ctx.deployment.listing_by_pda(&loan.listing) {
+                    Some(l) => l.clone(),
+                    None => {
+                        if self.warned.insert(key, "unknown listing") != Some("unknown listing") {
+                            warn!(agent = i, loan = %key, listing = %loan.listing, "loan is bound to a listing this descriptor does not know; skipping");
+                        }
+                        continue;
+                    }
+                };
+                let loan_acc = if loan_listing.listing_pda()? == listing.listing_pda()? {
+                    *cstock_acc
+                } else {
+                    match chain
+                        .token_accounts(&wallet.pubkey(), &loan_listing.cstock_mint()?)?
+                        .first()
+                    {
+                        Some(a) => *a,
+                        None => {
+                            if self.warned.insert(key, "no account") != Some("no account") {
+                                warn!(agent = i, loan = %key, listing = %loan_listing.symbol, "no confidential account on the loan's listing; skipping");
+                            }
+                            continue;
+                        }
+                    }
+                };
+                match self.deposit(
+                    ctx,
+                    keys,
+                    i,
+                    wallet,
+                    tkeys,
+                    &loan_acc,
+                    &loan_listing,
+                    &key,
+                    pledged,
+                ) {
+                    Ok(()) => return Ok(()),
+                    Err(e) => {
+                        if self.warned.insert(key, "deposit failed") != Some("deposit failed") {
+                            warn!(agent = i, loan = %key, pledged, "deposit after lock failed; retrying next pass: {e:#}");
+                        }
+                        continue;
+                    }
+                }
             }
             if loan.status == LoanStatus::Pending as u8 {
                 if !price_usable {
@@ -426,7 +497,7 @@ impl Agents {
                 let price =
                     crate::quote::read_quote(chain, listing)?.ok_or_else(|| anyhow!("price"))?;
                 let now = chain.unix_timestamp()?;
-                if !price.usable(listing, now, chain.slot()?) {
+                if !price.usable_for(listing, now, chain.slot()?, 90, 200) {
                     continue;
                 }
                 self.warned.remove(&listing_pda);
@@ -566,57 +637,124 @@ impl Agents {
                 )?;
                 self.warned.remove(&key);
                 info!(agent = i, loan = %key, "collateral locked (priced proof)");
-                // deposit: confidential transfer into escrow + deposit_collateral
-                let escrow: Pubkey = listing.escrow()?;
-                let cstock: Pubkey = listing.cstock_mint()?;
-                let state = ct::confidential_state(
-                    &chain.account_data(cstock_acc)?.ok_or_else(|| anyhow!("acc"))?,
-                )
-                .ok_or_else(|| anyhow!("ext"))?;
-                let escrow_state = ct::confidential_state(
-                    &chain.account_data(&escrow)?.ok_or_else(|| anyhow!("escrow"))?,
-                )
-                .ok_or_else(|| anyhow!("ext"))?;
-                let dest_pk = escrow_state.elgamal_pubkey.try_into().map_err(|_| anyhow!("key"))?;
-                let auditor = keys.auditor();
-                let rent = |space: usize| chain.rent(space).unwrap_or(0);
-                let plan = ct::transfer_plan(
-                    &wallet.pubkey(),
-                    cstock_acc,
-                    &state,
-                    tkeys,
-                    available,
-                    &cstock,
-                    &escrow,
-                    &dest_pk,
-                    Some(auditor.pubkey()),
-                    need_milli,
-                    &rent,
-                )
-                .map_err(|e| anyhow!(e))?;
-                for tx in &plan.setup {
-                    chain.send(
-                        wallet,
-                        &tx.instructions,
-                        &tx.extra_signers.iter().collect::<Vec<_>>(),
-                    )?;
-                }
-                chain.send(
-                    wallet,
-                    &[
-                        plan.transfer,
-                        ix::deposit_collateral(&wallet.pubkey(), &key, &listing_pda, cstock_acc),
-                    ],
-                    &[],
-                )?;
-                chain.send(wallet, &plan.close, &[])?;
-                self.memory.available.insert(i, available - need_milli);
+                self.memory.pledged.insert(key.to_string(), need_milli);
                 self.save();
-                info!(agent = i, loan = %key, "collateral deposited into escrow");
+                self.deposit(ctx, keys, i, wallet, tkeys, cstock_acc, listing, &key, need_milli)?;
                 // One loan per pass: the next tick quotes again before the next loan is served.
                 return Ok(());
             }
         }
+        Ok(())
+    }
+
+    /// The confidential transfer of `need_milli` into the listing's escrow plus `deposit_collateral`,
+    /// over the balance the account holds now. Called right after a lock, and again for a loan
+    /// found `Requested` on a later pass.
+    #[allow(clippy::too_many_arguments)]
+    fn deposit(
+        &mut self,
+        ctx: &Ctx,
+        keys: &Keys,
+        i: usize,
+        wallet: &Keypair,
+        tkeys: &ct::ConfidentialKeys,
+        cstock_acc: &Pubkey,
+        listing: &ListingRecord,
+        key: &Pubkey,
+        need_milli: u64,
+    ) -> Result<()> {
+        let chain = ctx.chain.as_ref();
+        let listing_pda = listing.listing_pda()?;
+        let key = *key;
+        let state0 =
+            ct::confidential_state(&chain.account_data(cstock_acc)?.ok_or_else(|| anyhow!("acc"))?)
+                .ok_or_else(|| anyhow!("ext"))?;
+        let (cached, pending) = ct::balances(&state0, tkeys).ok_or_else(|| anyhow!("balances"))?;
+        // The AE "decryptable" balance is the owner's own cache of the ElGamal balance, rewritten
+        // by every ApplyPendingBalance; once it is wrong (an apply with a stale total — seen after
+        // a memory reset re-wrapped onto an existing balance) every transfer proof fails with
+        // InconsistentInput. The ElGamal balance is the truth and this key can open it (bounded
+        // discrete log), so re-derive it and let the next apply rewrite the cache.
+        let truth = {
+            let bytes: [u8; 64] = bytemuck::bytes_of(&state0.available_balance)
+                .try_into()
+                .map_err(|_| anyhow!("ct"))?;
+            let ct = window_elgamal::ciphertext::Ciphertext::from_bytes(&bytes);
+            let kp = window_elgamal::keys::Keypair(tkeys.elgamal.clone());
+            self.solver
+                .decrypt(&kp, &ct, 200_000_000)
+                .ok_or_else(|| anyhow!("available balance out of range"))?
+        };
+        let mut available = truth;
+        if pending > 0 || truth != cached {
+            if truth != cached {
+                warn!(
+                    agent = i,
+                    cached,
+                    truth,
+                    "decryptable balance cache was wrong; resyncing it from the ElGamal balance"
+                );
+            }
+            chain.send(
+                wallet,
+                &[ct::apply_pending_balance(
+                    cstock_acc,
+                    &wallet.pubkey(),
+                    &state0,
+                    tkeys,
+                    truth + pending,
+                )],
+                &[],
+            )?;
+            available += pending;
+        }
+        self.memory.available.insert(i, available);
+        if need_milli > available {
+            return Err(anyhow!("needs {need_milli} milli-shares, holds {available}"));
+        }
+        // deposit: confidential transfer into escrow + deposit_collateral
+        let escrow: Pubkey = listing.escrow()?;
+        let cstock: Pubkey = listing.cstock_mint()?;
+        let state =
+            ct::confidential_state(&chain.account_data(cstock_acc)?.ok_or_else(|| anyhow!("acc"))?)
+                .ok_or_else(|| anyhow!("ext"))?;
+        let escrow_state =
+            ct::confidential_state(&chain.account_data(&escrow)?.ok_or_else(|| anyhow!("escrow"))?)
+                .ok_or_else(|| anyhow!("ext"))?;
+        let dest_pk = escrow_state.elgamal_pubkey.try_into().map_err(|_| anyhow!("key"))?;
+        let auditor = keys.auditor();
+        let rent = |space: usize| chain.rent(space).unwrap_or(0);
+        let plan = ct::transfer_plan(
+            &wallet.pubkey(),
+            cstock_acc,
+            &state,
+            tkeys,
+            available,
+            &cstock,
+            &escrow,
+            &dest_pk,
+            Some(auditor.pubkey()),
+            need_milli,
+            &rent,
+        )
+        .map_err(|e| anyhow!(e))?;
+        for tx in &plan.setup {
+            chain.send(wallet, &tx.instructions, &tx.extra_signers.iter().collect::<Vec<_>>())?;
+        }
+        chain.send(
+            wallet,
+            &[
+                plan.transfer,
+                ix::deposit_collateral(&wallet.pubkey(), &key, &listing_pda, cstock_acc),
+            ],
+            &[],
+        )?;
+        chain.send(wallet, &plan.close, &[])?;
+        self.memory.available.insert(i, available - need_milli);
+        self.save();
+        info!(agent = i, loan = %key, "collateral deposited into escrow");
+        self.memory.pledged.remove(&key.to_string());
+        self.save();
         Ok(())
     }
 }

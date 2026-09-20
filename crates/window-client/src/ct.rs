@@ -327,7 +327,7 @@ pub fn transfer_plan(
         destination_elgamal,
         auditor,
     )
-    .map_err(|e| format!("transfer proofs: {e}"))?;
+    .map_err(|e| format!("transfer proofs: {e} — {e:?}"))?;
     let eq_ctx = Keypair::new();
     let val_ctx = Keypair::new();
     let range_ctx = Keypair::new();

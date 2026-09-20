@@ -22,8 +22,23 @@ pub struct Quote {
 impl Quote {
     /// Whether the program would accept this quote right now, under the listing's two rules.
     pub fn usable(&self, rec: &ListingRecord, now: i64, slot: u64) -> bool {
-        now.saturating_sub(self.publish_time) <= rec.max_publish_age_secs
-            && slot.saturating_sub(self.posted_slot) <= rec.max_price_age_slots
+        self.usable_for(rec, now, slot, 0, 0)
+    }
+
+    /// `usable` with room for what happens between the check and the instruction that reads the
+    /// quote: a lock is six transactions (~150 slots on devnet behind a rate-limited RPC), and a
+    /// quote that passes the check by less than that lands `PriceStale` — leaving the proof
+    /// contexts of the failed attempt open, rent and all.
+    pub fn usable_for(
+        &self,
+        rec: &ListingRecord,
+        now: i64,
+        slot: u64,
+        secs: i64,
+        slots: u64,
+    ) -> bool {
+        now.saturating_sub(self.publish_time) + secs <= rec.max_publish_age_secs
+            && slot.saturating_sub(self.posted_slot) + slots <= rec.max_price_age_slots
     }
 }
 
