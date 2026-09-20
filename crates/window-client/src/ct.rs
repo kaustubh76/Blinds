@@ -468,15 +468,21 @@ mod proof_self_check {
     }
 }
 
+/// A pubkey-validity proof made on macOS arm64 for the escrow keys derived from a seed of 32 × 0x11
+/// (label `thewindow:escrow:v1`) — the real validator accepts it there. Any platform that derives
+/// another pubkey from that seed, or refuses this proof, has an arithmetic difference of its own
+/// (`window-admin zk-probe` sends it; the test below verifies it in-process).
+pub mod fixture {
+    pub const SEED: [u8; 32] = [0x11; 32];
+    pub const LABEL: &str = "thewindow:escrow:v1";
+    pub const PUBKEY_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e";
+    pub const PROOF_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e4894cef49d52a0edb9a25f979d54adb695ef43827bc08852ae5b56b6b5bb8958b7c545c51c99d2f9058d41543dedf56e6ec52c0bd24e4bf244df9ea9ab980d0d";
+}
+
 #[cfg(test)]
 mod cross_platform_fixture {
-    //! Key derivation and proof verification must agree across platforms. The fixture was made on
-    //! macOS arm64, where the real validator accepts these proofs; a platform that derives another
-    //! pubkey from the same seed, or rejects this proof, has an arithmetic problem of its own.
+    use super::fixture::{LABEL, PROOF_HEX, PUBKEY_HEX, SEED};
     use solana_zk_sdk::zk_elgamal_proof_program::VerifyZkProof;
-
-    const SEED: [u8; 32] = [0x11; 32];
-    const LABEL: &str = "thewindow:escrow:v1";
 
     /// Regenerates the fixture: `cargo test -p window-client print_fixture -- --ignored --nocapture`.
     #[test]
@@ -505,7 +511,4 @@ mod cross_platform_fixture {
             bytemuck::from_bytes(&bytes);
         data.verify_proof().expect("a proof the macOS validator accepts must verify here");
     }
-
-    const PUBKEY_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e";
-    const PROOF_HEX: &str = "1e526727854eb5fef02fe5a9e52990fbc9c9b15ebe2097e4b192bcbc21372f1e4894cef49d52a0edb9a25f979d54adb695ef43827bc08852ae5b56b6b5bb8958b7c545c51c99d2f9058d41543dedf56e6ec52c0bd24e4bf244df9ea9ab980d0d";
 }

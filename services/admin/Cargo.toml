@@ -22,6 +22,7 @@ solana-rpc-client-api = "3.1"
 solana-account-decoder-client-types = "3.1"
 solana-commitment-config = "3"
 solana-keypair.workspace = true
+bytemuck.workspace = true
 solana-signer.workspace = true
 solana-transaction.workspace = true
 solana-message.workspace = true

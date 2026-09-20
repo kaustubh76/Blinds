@@ -39,6 +39,8 @@ jobs:
       # Does this platform derive the same escrow pubkey as macOS and accept a proof macOS made?
       - run: cargo test -p window-client --release -- cross_platform_fixture proof_self_check
       - run: solana-keygen new --no-bip39-passphrase --silent --outfile ~/.config/solana/id.json
+      # Two proof-only transactions against this runner's validator: ours, and one macOS made.
+      - run: WINDOW_PROFILE=integration ./scripts/localnet.sh probe
       - run: make test-integration
       - name: logs (on failure)
         if: failure()

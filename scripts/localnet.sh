@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs a real Agave validator with the five programs preloaded and drives either the tier-2
-# integration suite or the demo against it. Usage: WINDOW_PROFILE=<profile> ./scripts/localnet.sh {test|demo|up}
+# integration suite or the demo against it. Usage: WINDOW_PROFILE=<profile> ./scripts/localnet.sh {test|demo|up|probe}
+# `probe` starts the validator and runs `window-admin zk-probe` only (no setup, no services).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 MODE="${1:-up}"
@@ -49,6 +50,11 @@ if [ "${LOCALNET_DEPLOY:-0}" = "1" ]; then
 fi
 
 export WINDOW_AUDITOR_SEED_HEX="${WINDOW_AUDITOR_SEED_HEX:-1111111111111111111111111111111111111111111111111111111111111111}"
+if [ "$MODE" = probe ]; then
+  solana airdrop 2 -u "$WINDOW_RPC_URL" >/dev/null 2>&1 || true
+  cargo run -q -p window-admin --release -- --cluster localnet --profile "$PROFILE" zk-probe
+  exit $?
+fi
 cargo run -q -p window-admin --release -- --cluster localnet --profile "$PROFILE" setup --agents "${WINDOW_AGENTS:-6}"
 
 case "$MODE" in
@@ -63,5 +69,5 @@ case "$MODE" in
     AGENTS_PID=$!
     wait "$ADMIN_PID"; kill "$AGENTS_PID" 2>/dev/null || true
     grep -E "printed|matches posted|collateral" admin.log agents.log | tail -20 ;;
-  *) echo "usage: localnet.sh {up|test|demo}"; exit 2 ;;
+  *) echo "usage: localnet.sh {up|test|demo|probe}"; exit 2 ;;
 esac

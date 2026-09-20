@@ -20,6 +20,7 @@ pub mod price;
 pub mod quote;
 pub mod secret;
 pub mod setup;
+pub mod zkprobe;
 
 pub use chain::{Chain, RpcChain};
 pub use deployment::Deployment;

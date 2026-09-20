@@ -81,6 +81,10 @@ enum Cmd {
         key: String,
         source: u8,
     },
+    /// Send two transactions that carry nothing but a pubkey-validity proof — one this binary makes,
+    /// one made on macOS — and report which the cluster's ZK ElGamal program accepts. Diagnoses a
+    /// machine on which `setup` fails with `SigmaProof(PubkeyValidity, AlgebraicRelation)`.
+    ZkProbe,
     /// Run the simulated members
     Agents {
         /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
@@ -313,6 +317,12 @@ fn main() -> Result<()> {
                     break;
                 }
                 std::thread::sleep(Duration::from_millis(tick_ms));
+            }
+        }
+        Cmd::ZkProbe => {
+            let v = window_admin::zkprobe::run(&chain, &keys.admin)?;
+            if v.own_proof_chain.is_err() || v.fixture_proof_chain.is_err() {
+                std::process::exit(3);
             }
         }
         Cmd::PriceCheck => {
