@@ -97,7 +97,7 @@ pnpm leak-audit --cluster devnet
 
 ### The dashboard
 
-Hosted: <https://kaustubh76.github.io/Blinds/>
+Hosted: <https://kaustubh76.github.io/Blinds/> — if that answers 404 (GitHub Pages is tied to the account's billing state), the fallback is the link `./scripts/serve_app.sh status` prints on the operator's machine.
 
 ```bash
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev

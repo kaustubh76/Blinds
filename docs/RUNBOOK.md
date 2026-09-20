@@ -45,6 +45,12 @@ If GitHub Pages is unavailable (see §5): `./scripts/serve_app.sh start` serves 
 machine through its own tunnel and prints `<url>/?admin=<faucet>`; that URL rotates per start, and it dies
 the same way — check it before sharing.
 
+For a judging window longer than a coffee: `./scripts/watch_tunnels.sh start` probes both tunnels every
+minute (through 1.1.1.1, past the local resolver's cache), replaces a dead one (`market.sh tunnel`,
+`serve_app.sh` restart), re-copies the faucet pointer into the served build (`serve_app.sh refresh`) and logs
+the current share link to `/tmp/window-tunnels.log`; `WINDOW_PUBLISH=1` also commits the pointer for the
+Pages site. Start it with the same `WINDOW_APP_DIST` you gave `serve_app.sh`, if any.
+
 ### 2a. The Pyth listing on Pyth's own account (Stage 4, needs `PYTH_API_KEY` in `.env`)
 
 With the key present, `market.sh start` also launches `services/pyth-poster` (`pnpm install` once), which

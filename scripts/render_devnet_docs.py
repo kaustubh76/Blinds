@@ -78,7 +78,7 @@ pnpm leak-audit --cluster devnet
 
 ### The dashboard
 
-{f'Hosted: <{hosted}>' if hosted else 'Run it locally (see below); a hosted URL is published in `deployments/app-url.txt` when it is up.'}
+{f'Hosted: <{hosted}> — if that answers 404 (GitHub Pages is tied to the account'"'"'s billing state), the fallback is the link `./scripts/serve_app.sh status` prints on the operator'"'"'s machine.' if hosted else 'Run it locally (see below); a hosted URL is published in `deployments/app-url.txt` when it is up.'}
 
 ```bash
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev

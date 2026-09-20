@@ -52,6 +52,7 @@ open_tunnel() {
     echo "  faucet  $url  (tunnel log $TUNNEL_LOG)"
     echo "  share   ${APP_URL}?admin=$url"
     echo "  publish ./scripts/publish_admin_url.sh   # optional: lets the hosted app find it without the link"
+    echo "  watch   ./scripts/watch_tunnels.sh start   # keeps this tunnel (and serve_app.sh's) alive"
   else
     echo "  tunnel: cloudflared gave no URL in 30 s — see $TUNNEL_LOG"
   fi
