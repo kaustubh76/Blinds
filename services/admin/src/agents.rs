@@ -442,7 +442,36 @@ impl Agents {
                 let need_milli = ((loan_size as u128 * scalars.k_l as u128 * 16 / 10)
                     / scalars.k_c as u128) as u64
                     + 1;
-                let available = self.memory.available.get(&i).copied().unwrap_or(0);
+                // The available balance as the account holds it (AE-decrypted with the agent's own
+                // key), not the memory file's running total: releases after repay/seize land as
+                // pending credits the memory never saw, and a transfer proof over a wrong balance
+                // fails to generate. Pending credits are applied first when there are any.
+                let acc_state = ct::confidential_state(
+                    &chain.account_data(cstock_acc)?.ok_or_else(|| anyhow!("acc"))?,
+                )
+                .ok_or_else(|| anyhow!("ext"))?;
+                let (mut available, pending) =
+                    ct::balances(&acc_state, tkeys).ok_or_else(|| anyhow!("balances"))?;
+                if pending > 0 {
+                    chain.send(
+                        wallet,
+                        &[ct::apply_pending_balance(
+                            cstock_acc,
+                            &wallet.pubkey(),
+                            &acc_state,
+                            tkeys,
+                            available + pending,
+                        )],
+                        &[],
+                    )?;
+                    available += pending;
+                    info!(
+                        agent = i,
+                        applied = pending,
+                        "pending collateral credited (release or wrap)"
+                    );
+                }
+                self.memory.available.insert(i, available);
                 if need_milli > available {
                     if self.warned.insert(key, "not enough collateral")
                         != Some("not enough collateral")
