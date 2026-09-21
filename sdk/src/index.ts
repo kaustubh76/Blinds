@@ -1,4 +1,5 @@
 export * from "./accounts.js";
+export * from "./dbc.js";
 export * as auction from "./generated/window_auction/index.js";
 export * as credit from "./generated/window_credit/index.js";
 export * as oracle from "./generated/window_oracle/index.js";

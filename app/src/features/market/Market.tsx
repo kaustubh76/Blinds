@@ -15,6 +15,7 @@ import { popcount, useWindowClock } from "../../lib/useWindowClock";
 import { DepthChart } from "../explorer/DepthChart";
 import { CollateralMark } from "./CollateralMark";
 import { CollateralSchedule } from "./CollateralSchedule";
+import { LenderAgent } from "./LenderAgent";
 import { SeriesChart } from "./SeriesChart";
 
 export function Market() {
@@ -173,6 +174,7 @@ export function Market() {
       {/* The collateral schedule, then listing #0's mark beside the underlying equity feed. */}
       <CollateralSchedule />
       <CollateralMark />
+      <LenderAgent />
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">
