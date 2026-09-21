@@ -119,17 +119,23 @@ pnpm --filter @thewindow/launch launch             # createConfigAndPool: the po
 pnpm --filter @thewindow/launch status             # progress, raised vs threshold (quote and USD), spot, fees
 pnpm --filter @thewindow/launch buy 5              # devnet only: swap 5 twin-quote into WLEND to move the curve
 pnpm --filter @thewindow/launch graduate           # once the threshold is met: migrate to DAMM v2, LP locked
-CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent   # the lender's Clawpump identity + wallet
+CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent             # the lender's Clawpump identity: reuse + rename, or create
+CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its identity coin on pump.fun, paired with TSLAx (agent pays)
 ```
 
 - **Which price.** The plan is priced from Pyth's own mainnet account for `Crypto.TSLAX/USD`; when that account
   is older than a day (its only push account died on 12 Sep) the underlying `Equity.US.TSLA/USD` prices it and
   the record says so (`quote.feed`). A mainnet launch refuses a quote older than 3 days.
-- **Mainnet.** `WINDOW_LAUNCH_KEYPAIR` must hold ~0.5 SOL; the quote is TSLAx
-  (`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, Meteora-badged). Set `LAUNCH_CREATOR` to the Clawpump agent
-  wallet first (run `agent`), or the payer becomes the fee wallet. The dashboard prefers
-  `deployments/launch-mainnet.json` the moment it exists (`app/src/lib/launch.ts`); commit it and re-render
-  `docs/DEMO.md`.
+- **Mainnet, in order.** (1) `agent` — needs only the key; records the agent wallet. (2) Fund two addresses:
+  the launch key `WINDOW_LAUNCH_KEYPAIR` with **~0.05 SOL** (the pool cost 0.0266 on devnet; `launch` refuses
+  below 0.04 and sends nothing) and the **agent wallet with ~0.02 SOL** (Clawpump's TSLAx-paired launch costs
+  0.0092 and the agent pays it). (3) `LAUNCH_CLUSTER=mainnet launch` — the quote is TSLAx
+  (`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, Meteora-badged); the creator and fee claimer default to the
+  recorded agent wallet (`LAUNCH_CREATOR` overrides). (4) `clawpump-launch` — a 402 means the agent wallet is
+  not funded yet; nothing is retried blindly. (5) `status`, commit `deployments/launch-mainnet.json` (the
+  dashboard prefers it the moment it exists, `app/src/lib/launch.ts`), `python3 scripts/render_devnet_docs.py`.
+- **Two coins, two roles.** `WLEND` (Meteora DBC, the desk-configured capital curve) and the identity coin
+  `LENDER` (pump.fun via Clawpump, TSLAx pair). Clawpump cannot launch on Meteora; the card says so.
 - **Devnet.** The quote is a plain 8-dp twin mint the tool creates and funds (1,000 units to the payer);
   `LAUNCH_NEW_QUOTE=1` mints a fresh one. The pool is a rehearsal — same program, same config, same code path.
 - Nothing here touches the desk's programs, the keeper or the market; it can run while the market is stopped.

@@ -1,0 +1,79 @@
+import { describe, expect, it, vi } from "vitest";
+import { clawpump, describe402, launchBody, pickAgent, TSLAX_MINT } from "../src/clawpump.js";
+
+const agent = (id: string, name: string) => ({ id, name, walletAddress: `${id}wallet` });
+
+describe("which Clawpump agent is the lender", () => {
+  it("reuses the account's only agent, renamed later by the caller", () => {
+    expect(pickAgent([agent("a", "Blinds")], undefined, false)).toEqual({
+      action: "update",
+      agent: agent("a", "Blinds"),
+    });
+  });
+  it("needs an explicit id once there are several, and honours it", () => {
+    const two = [agent("a", "Blinds"), agent("b", "Other")];
+    expect(() => pickAgent(two, undefined, false)).toThrow(/CLAWPUMP_AGENT_ID/);
+    expect(pickAgent(two, "b", false)).toEqual({ action: "update", agent: agent("b", "Other") });
+    expect(() => pickAgent(two, "zzz", false)).toThrow(/not an agent of this key/);
+  });
+  it("creates when there is none, or when asked to", () => {
+    expect(pickAgent([], undefined, false)).toEqual({ action: "create" });
+    expect(pickAgent([agent("a", "Blinds")], undefined, true)).toEqual({ action: "create" });
+  });
+});
+
+describe("the stock-paired launch body", () => {
+  const ok = {
+    agentId: "a",
+    name: "The Window Lender",
+    symbol: "LENDER",
+    description: "The identity coin of THE WINDOW's lender agent, paired with TSLAx.",
+    imageUrl: "https://kaustubh76.github.io/Blinds/launch/lender.png",
+    quoteMint: TSLAX_MINT,
+    creatorFeeBps: 100,
+  };
+  it("pairs with TSLAx, is paid by the agent's wallet, and buys nothing itself", () => {
+    expect(launchBody(ok)).toMatchObject({
+      pumpQuoteMint: TSLAX_MINT,
+      pumpCreatorFeeBps: 100,
+      selfFunded: true,
+      initialBuySol: 0,
+    });
+    expect(launchBody(ok)).not.toHaveProperty("twitter");
+  });
+  it("refuses what the API would refuse, before any call", () => {
+    expect(() => launchBody({ ...ok, symbol: "TOOLONGSYMBOL" })).toThrow(/symbol/);
+    expect(() => launchBody({ ...ok, description: "short" })).toThrow(/description/);
+    expect(() => launchBody({ ...ok, imageUrl: "http://x" })).toThrow(/https/);
+    expect(() => launchBody({ ...ok, creatorFeeBps: 50 })).toThrow(/100–300/);
+  });
+});
+
+describe("the API call", () => {
+  it("carries the request id and turns a 402 into guidance, never logging the key", async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBe("Bearer cpk_test");
+      return new Response(
+        JSON.stringify({ error: "payment_required", guidance: { fund: "0.0092 SOL" }, meta: { requestId: "req-1" } }),
+        { status: 402 },
+      );
+    }) as unknown as typeof fetch;
+    await expect(clawpump("cpk_test", "POST", "/launch", {}, 1000, fetchImpl)).rejects.toMatchObject({
+      status: 402,
+      requestId: "req-1",
+    });
+    const err = await clawpump("cpk_test", "POST", "/launch", {}, 1000, fetchImpl).catch((e) => e);
+    expect(describe402(err.body)).toContain("payment_required");
+    expect(describe402(err.body)).toContain("0.0092 SOL");
+    expect(String(err.message)).not.toContain("cpk_test");
+  });
+  it("returns the parsed body on success", async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ agents: [], meta: { requestId: "r2" } }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    const r = await clawpump<{ agents: unknown[] }>("cpk_test", "GET", "/agents", undefined, 1000, fetchImpl);
+    expect(r.data.agents).toEqual([]);
+    expect(r.requestId).toBe("r2");
+  });
+});

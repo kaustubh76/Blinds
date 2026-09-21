@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { dbcPrice, decodeDbcConfig, decodeDbcPool } from "../src/dbc.js";
+import { dbcFeeAt, dbcPrice, decodeDbcConfig, decodeDbcPool } from "../src/dbc.js";
 
 // The lender agent's devnet pool (EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg) after one 5-quote buy,
 // captured 2026-09-21; expected values are what Meteora's own SDK decoded (`window-launch status`).
@@ -19,6 +19,42 @@ describe("Meteora DBC accounts, decoded from raw bytes", () => {
     expect(p.isMigrated).toBe(false);
     expect(p.migrationProgress).toBe(0);
     expect(p.sqrtPrice).toBeGreaterThan(0n);
+    expect(Number(p.activationPoint)).toBe(1789970389); // 2026-09-21T05:59:49Z, the launch minute
+    expect(p.finishCurveTimestamp).toBe(0n);
+    expect(p.hasSwap).toBe(true);
+  });
+
+  it("reads the fee schedule the plan asked for: 300 → 30 bp over 48 periods of 300 s", () => {
+    const c = decodeDbcConfig(b64("dbc_config_devnet.b64"));
+    expect(c.feeClaimer).toBe("8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5");
+    expect(c.baseFee).toEqual({
+      cliffBps: 300,
+      mode: 1,
+      numberOfPeriod: 48,
+      periodFrequency: 300,
+      reductionFactor: 468,
+    });
+    const start = 1789970389;
+    const at0 = dbcFeeAt(c.baseFee, start, start + 10);
+    expect(at0).toMatchObject({ bps: 300, period: 0, periodsLeft: 48, secsToNext: 290 });
+    expect(at0.restingBps).toBeCloseTo(30, 0);
+    const mid = dbcFeeAt(c.baseFee, start, start + 7 * 300 + 5);
+    expect(mid.period).toBe(7);
+    expect(mid.bps).toBeCloseTo(300 * 0.9532 ** 7, 6);
+    expect(mid.secsToNext).toBe(295);
+    const done = dbcFeeAt(c.baseFee, start, start + 5 * 3600);
+    expect(done).toMatchObject({ period: 48, periodsLeft: 0, secsToNext: 0 });
+    expect(done.bps).toBeCloseTo(done.restingBps, 9);
+    // before activation the cliff applies
+    expect(dbcFeeAt(c.baseFee, start, start - 100).bps).toBe(300);
+  });
+
+  it("evaluates a linear schedule and clamps at zero", () => {
+    const fee = { cliffBps: 100, mode: 0, numberOfPeriod: 10, periodFrequency: 60, reductionFactor: 15 };
+    expect(dbcFeeAt(fee, 0, 0).bps).toBe(100);
+    expect(dbcFeeAt(fee, 0, 3 * 60).bps).toBe(55);
+    expect(dbcFeeAt(fee, 0, 3600).bps).toBe(0);
+    expect(dbcFeeAt({ ...fee, numberOfPeriod: 0 }, 0, 3600)).toMatchObject({ bps: 100, periodsLeft: 0 });
   });
 
   it("reads the config's threshold and price bounds", () => {

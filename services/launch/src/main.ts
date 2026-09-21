@@ -7,7 +7,8 @@
  *   pnpm --filter @thewindow/launch status    # progress to graduation, price in quote and USD, fees
  *   pnpm --filter @thewindow/launch buy 5     # buy with 5 quote tokens (moves the curve; devnet test balance)
  *   pnpm --filter @thewindow/launch graduate  # migrate to DAMM v2 once the threshold is met
- *   pnpm --filter @thewindow/launch agent     # create the Clawpump agent (CLAWPUMP_API_KEY) → wallet
+ *   pnpm --filter @thewindow/launch agent     # the Clawpump agent (CLAWPUMP_API_KEY): reuse + rename, or create → wallet
+ *   pnpm --filter @thewindow/launch clawpump-launch   # the agent's identity coin on pump.fun, paired with TSLAx (agent pays)
  *
  * Cluster: LAUNCH_CLUSTER=mainnet|devnet (default devnet). On devnet the quote is a plain SPL mint this
  * tool creates (xStocks exist on mainnet only); on mainnet it is TSLAx, a Meteora-badged quote.
@@ -23,6 +24,16 @@ import {
 import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, type Transaction } from "@solana/web3.js";
 import BN from "bn.js";
+import {
+  type ClawpumpAgent,
+  type ClawpumpError,
+  clawpump,
+  describe402,
+  LENDER_PERSONA,
+  launchBody,
+  pickAgent,
+  TSLAX_MINT,
+} from "./clawpump.js";
 import { buildPlan, DEFAULTS, type LaunchPlan } from "./plan.js";
 import { fetchQuoteUsd } from "./pyth.js";
 
@@ -89,8 +100,26 @@ interface LaunchFile extends PlanFile {
   feeClaimer: string;
   txs: Record<string, string>;
   agent?: { id: string; walletAddress: string; name: string };
+  clawpump?: {
+    agentId: string;
+    symbol: string;
+    mint: string;
+    txHash: string;
+    pumpUrl: string;
+    explorerUrl?: string;
+    quoteMint: string;
+    launchedAt: string;
+    requestId?: string;
+  };
   graduated?: { tx: string; at: string };
 }
+
+/** The recorded agent (from `agent`), wherever it was written: the launch file first, else the plan file. */
+const recordedAgent = () =>
+  readJson<LaunchFile>(LAUNCH_FILE)?.agent ?? readJson<PlanFile & { agent?: LaunchFile["agent"] }>(PLAN_FILE)?.agent;
+const LAMPORTS = 1_000_000_000;
+/** Pool creation cost 0.0266 SOL on devnet (tx 5aadUBpt…); this leaves room for fees and a retry. */
+const LAUNCH_MIN_SOL = 0.04;
 
 async function quoteForCluster(conn: Connection, payer: Keypair | null) {
   const mainnet = new Connection(MAINNET_RPC, "confirmed");
@@ -156,11 +185,24 @@ async function launch(conn: Connection, payer: Keypair) {
       `the Pyth ${file.quote.feed} quote is ${file.quote.ageSecs} s old — refuse to price a mainnet launch on it`,
     );
   }
+  const balance = (await conn.getBalance(payer.publicKey)) / LAMPORTS;
+  if (balance < LAUNCH_MIN_SOL) {
+    throw new Error(
+      `the launch key ${payer.publicKey.toBase58()} holds ${balance} SOL on ${CLUSTER}; the pool needs ~${LAUNCH_MIN_SOL} — send ${(LAUNCH_MIN_SOL - balance).toFixed(3)} SOL and run again (nothing was sent)`,
+    );
+  }
   const client = DynamicBondingCurveClient.create(conn, "confirmed");
   const config = Keypair.generate();
   const baseMint = Keypair.generate();
   const quoteMint = new PublicKey(file.quote.mint);
-  const creator = process.env.LAUNCH_CREATOR ? new PublicKey(process.env.LAUNCH_CREATOR) : payer.publicKey;
+  // The creator is the agent: fees and the migration fee go to its wallet. LAUNCH_CREATOR overrides;
+  // the recorded Clawpump wallet is the default; the payer only when there is neither.
+  const agent = recordedAgent();
+  const creator = process.env.LAUNCH_CREATOR
+    ? new PublicKey(process.env.LAUNCH_CREATOR)
+    : agent
+      ? new PublicKey(agent.walletAddress)
+      : payer.publicKey;
   const badge = deriveTokenBadgeAddress(quoteMint);
   const badgeInfo = await conn.getAccountInfo(badge);
   log("creating config + pool", {
@@ -173,8 +215,8 @@ async function launch(conn: Connection, payer: Keypair) {
   const tx = await client.partner.createConfigAndPool({
     payer: payer.publicKey,
     config: config.publicKey,
-    feeClaimer: payer.publicKey,
-    leftoverReceiver: payer.publicKey,
+    feeClaimer: creator,
+    leftoverReceiver: creator,
     quoteMint,
     ...(badgeInfo ? { tokenBadge: badge } : {}),
     ...p.config,
@@ -193,7 +235,7 @@ async function launch(conn: Connection, payer: Keypair) {
     commitment: "confirmed",
   });
   const pool = deriveDbcPoolAddress(quoteMint, baseMint.publicKey, config.publicKey);
-  const existingAgent = readJson<LaunchFile>(LAUNCH_FILE)?.agent;
+  const existing = readJson<LaunchFile>(LAUNCH_FILE);
   const out: LaunchFile = {
     ...file,
     config: config.publicKey.toBase58(),
@@ -201,9 +243,10 @@ async function launch(conn: Connection, payer: Keypair) {
     baseMint: baseMint.publicKey.toBase58(),
     payer: payer.publicKey.toBase58(),
     creator: creator.toBase58(),
-    feeClaimer: payer.publicKey.toBase58(),
+    feeClaimer: creator.toBase58(),
     txs: { createConfigAndPool: sig },
-    ...(existingAgent ? { agent: existingAgent } : {}),
+    ...(agent ? { agent } : {}),
+    ...(existing?.clawpump ? { clawpump: existing.clawpump } : {}),
   };
   writeJson(LAUNCH_FILE, out);
   log("launched", { pool: out.pool, tx: sig, file: LAUNCH_FILE });
@@ -248,7 +291,21 @@ async function status(conn: Connection) {
     agent: l.agent ?? null,
     at: new Date().toISOString(),
   };
-  console.log(JSON.stringify(out, null, 2));
+  // The agent: its wallet's SOL (it pays its own Clawpump launch) and the identity coin, when there is one.
+  const a = l.agent;
+  const agentSol = a ? (await conn.getBalance(new PublicKey(a.walletAddress))) / LAMPORTS : null;
+  console.log(
+    JSON.stringify(
+      {
+        ...out,
+        feeClaimer: l.feeClaimer,
+        agent: a ? { ...a, sol: agentSol, isCreator: l.creator === a.walletAddress } : null,
+        clawpump: l.clawpump ?? null,
+      },
+      null,
+      2,
+    ),
+  );
   return out;
 }
 
@@ -293,30 +350,107 @@ async function buy(conn: Connection, payer: Keypair, amount: number) {
   log("bought", { quoteIn: amount, tx: sig });
 }
 
-/** A Clawpump agent: the lender's identity and revenue wallet. Bearer `cpk_…` key from clawpump.tech/developers. */
-async function agent() {
+/** The Clawpump key, or a clear refusal. Never printed. */
+function clawpumpKey(): string {
   const key = process.env.CLAWPUMP_API_KEY;
   if (!key) throw new Error("CLAWPUMP_API_KEY is not set (clawpump.tech/developers → API keys)");
-  const base = process.env.CLAWPUMP_API_URL ?? "https://clawpump.tech/api/v1";
+  return key;
+}
+
+/**
+ * The lender's Clawpump identity: the account's one agent is reused and renamed (an explicit
+ * CLAWPUMP_AGENT_ID wins; `--new` creates another). Its wallet becomes the pool's creator and fee wallet.
+ */
+async function agent(forceNew: boolean) {
+  const key = clawpumpKey();
   const name = process.env.CLAWPUMP_AGENT_NAME ?? "The Window Lender";
-  const body = {
-    name,
-    persona:
-      "An autonomous lender on THE WINDOW for Stocks, a private margin desk for tokenized stocks on Solana: it lends USDC every overnight window against tokenized-stock collateral proven solvent in zero knowledge, and earns the xONIA overnight rate. Its token trades on a TSLAx-quoted Meteora DBC pool.",
-    skills: ["solana"],
-  };
-  const res = await fetch(`${base}/agents`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  const fields = { name, persona: LENDER_PERSONA, skills: ["solana"] };
+  const list = await clawpump<{ agents: ClawpumpAgent[] }>(key, "GET", "/agents");
+  const pick = pickAgent(list.data.agents ?? [], process.env.CLAWPUMP_AGENT_ID, forceNew);
+  let a: ClawpumpAgent;
+  if (pick.action === "update") {
+    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "POST", `/agents/${pick.agent.id}`, fields);
+    const got = "agent" in r.data ? r.data.agent : r.data;
+    a = { ...pick.agent, ...got, name: got?.name ?? name };
+    log("Clawpump agent updated", { id: a.id, from: pick.agent.name, to: a.name, requestId: r.requestId });
+  } else {
+    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "POST", "/agents", fields);
+    a = "agent" in r.data ? r.data.agent : r.data;
+    log("Clawpump agent created", { id: a.id, requestId: r.requestId });
+  }
+  if (!a.walletAddress) throw new Error("Clawpump returned an agent without a walletAddress");
+  const record = { id: a.id, walletAddress: a.walletAddress, name: a.name };
+  const l = readJson<LaunchFile>(LAUNCH_FILE);
+  if (l) writeJson(LAUNCH_FILE, { ...l, agent: record });
+  else {
+    const p = readJson<PlanFile>(PLAN_FILE);
+    if (p) writeJson(PLAN_FILE, { ...p, agent: record });
+  }
+  log("the lender agent", { ...record, recordedIn: l ? LAUNCH_FILE : PLAN_FILE });
+}
+
+/**
+ * The agent's identity coin, launched by Clawpump on pump.fun and paired with TSLAx; the agent's own
+ * wallet pays (`selfFunded`), so it must hold the launch cost (0.0092 SOL for a custom pair, 21 Sep).
+ */
+async function clawpumpLaunch(again: boolean) {
+  const key = clawpumpKey();
+  const a = recordedAgent();
+  if (!a) throw new Error("no Clawpump agent recorded — run `agent` first");
+  const l = readJson<LaunchFile>(LAUNCH_FILE);
+  if (l?.clawpump?.mint && !again)
+    throw new Error(
+      `already launched: ${l.clawpump.symbol} ${l.clawpump.mint} (${l.clawpump.pumpUrl}); pass --again to launch another`,
+    );
+  const body = launchBody({
+    agentId: a.id,
+    name: process.env.CLAWPUMP_TOKEN_NAME ?? "The Window Lender",
+    symbol: process.env.CLAWPUMP_TOKEN_SYMBOL ?? "LENDER",
+    description:
+      process.env.CLAWPUMP_TOKEN_DESCRIPTION ??
+      "The identity coin of THE WINDOW's lender agent: an autonomous lender on a private margin desk for tokenized stocks on Solana, earning the xONIA overnight rate on loans proven solvent in zero knowledge. Paired with TSLAx. Its capital token WLEND runs on a Meteora DBC pool. Not investment advice.",
+    imageUrl: process.env.CLAWPUMP_TOKEN_IMAGE_URL ?? "https://kaustubh76.github.io/Blinds/launch/lender.png",
+    quoteMint: process.env.CLAWPUMP_QUOTE_MINT ?? TSLAX_MINT,
+    creatorFeeBps: Number(process.env.CLAWPUMP_CREATOR_FEE_BPS ?? 100),
+    website: "https://kaustubh76.github.io/Blinds/#/market",
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Clawpump ${res.status}: ${text.slice(0, 300)}`);
-  const a = JSON.parse(text) as { id: string; walletAddress: string };
-  const l = readJson<LaunchFile>(LAUNCH_FILE) ?? readJson<PlanFile>(PLAN_FILE);
-  const record = { id: a.id, walletAddress: a.walletAddress, name };
-  writeJson(LAUNCH_FILE, { ...(l ?? {}), agent: record });
-  log("Clawpump agent created", record);
+  log("launching the identity coin through Clawpump", {
+    agent: a.id,
+    wallet: a.walletAddress,
+    symbol: body.symbol,
+    quote: body.pumpQuoteMint,
+  });
+  let r: Awaited<ReturnType<typeof clawpump<Record<string, unknown>>>>;
+  try {
+    r = await clawpump<Record<string, unknown>>(key, "POST", "/launch", body);
+  } catch (e) {
+    const err = e as ClawpumpError;
+    if (err.status === 402)
+      throw new Error(
+        `Clawpump 402 (request ${err.requestId ?? "?"}): ${describe402(err.body)} — the agent wallet ${a.walletAddress} pays; fund it and run again`,
+      );
+    throw e;
+  }
+  const d = r.data;
+  const mint = String(d.mintAddress ?? d.mint ?? "");
+  if (!mint) throw new Error(`Clawpump answered without a mint: ${JSON.stringify(d).slice(0, 400)}`);
+  const rec: NonNullable<LaunchFile["clawpump"]> = {
+    agentId: a.id,
+    symbol: body.symbol,
+    mint,
+    txHash: String(d.txHash ?? ""),
+    pumpUrl: String(d.pumpUrl ?? `https://pump.fun/coin/${mint}`),
+    ...(d.explorerUrl ? { explorerUrl: String(d.explorerUrl) } : {}),
+    quoteMint: body.pumpQuoteMint,
+    launchedAt: new Date().toISOString(),
+    ...(r.requestId ? { requestId: r.requestId } : {}),
+  };
+  if (l) writeJson(LAUNCH_FILE, { ...l, agent: l.agent ?? a, clawpump: rec });
+  else {
+    const p = readJson<PlanFile>(PLAN_FILE);
+    writeJson(PLAN_FILE, { ...(p ?? {}), agent: a, clawpump: rec });
+  }
+  log("identity coin launched", { ...rec, status: d.status ?? null });
 }
 
 const cmd = process.argv[2];
@@ -329,9 +463,10 @@ try {
   else if (cmd === "status") await status(conn);
   else if (cmd === "graduate") await graduate(conn, payer as Keypair);
   else if (cmd === "buy") await buy(conn, payer as Keypair, Number(process.argv[3]));
-  else if (cmd === "agent") await agent();
+  else if (cmd === "agent") await agent(process.argv.includes("--new"));
+  else if (cmd === "clawpump-launch") await clawpumpLaunch(process.argv.includes("--again"));
   else {
-    console.error("usage: main.ts plan|launch|status|buy <quote>|graduate|agent");
+    console.error("usage: main.ts plan|launch|status|buy <quote>|graduate|agent [--new]|clawpump-launch [--again]");
     process.exit(2);
   }
 } catch (e) {

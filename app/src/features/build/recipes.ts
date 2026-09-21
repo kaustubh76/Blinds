@@ -251,6 +251,8 @@ const { pool, config, progress } = await sdk.fetchDbc(rpc, address("${LAUNCH.poo
 const dec = 10 ** ${LAUNCH.quote.decimals};                                                     // the quote's decimals (TSLAx: 8)
 console.log("progress", progress, "raised", Number(pool.quoteReserve) / dec, "of", Number(config.migrationQuoteThreshold) / dec, "quote");
 console.log("spot", sdk.dbcPrice(pool.sqrtPrice, 6, ${LAUNCH.quote.decimals}), "quote per ${LAUNCH.token.symbol}", "migrated", pool.isMigrated);
+const fee = sdk.dbcFeeAt(config.baseFee, pool.activationPoint, Math.floor(Date.now() / 1000));  // the schedule, evaluated now
+console.log("fee now", fee.bps, "bp · period", fee.period, "of", config.baseFee.numberOfPeriod, "· resting", fee.restingBps, "bp");
 console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Number(pool.partnerQuoteFee) / dec, "total traded", Number(pool.totalTradingQuoteFee) / dec);
 // the quote stock's USD price, the way the desk reads it (the "pyth-mainnet" recipe): fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"])`,
     run: async (ctx) => {
@@ -273,6 +275,18 @@ console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Numb
         raisedQuote: Number(d.pool.quoteReserve) / dec,
         thresholdQuote: Number(d.config.migrationQuoteThreshold) / dec,
         spotQuotePerToken: ctx.sdk.dbcPrice(d.pool.sqrtPrice, 6, LAUNCH.quote.decimals),
+        activationPoint: new Date(Number(d.pool.activationPoint) * 1000).toISOString(),
+        feeNow: (() => {
+          const f = ctx.sdk.dbcFeeAt(d.config.baseFee, d.pool.activationPoint, Math.floor(Date.now() / 1000));
+          return {
+            bps: Number(f.bps.toFixed(2)),
+            period: f.period,
+            of: d.config.baseFee.numberOfPeriod,
+            restingBps: Number(f.restingBps.toFixed(2)),
+          };
+        })(),
+        hasSwap: d.pool.hasSwap,
+        feeClaimer: d.config.feeClaimer,
         isMigrated: d.pool.isMigrated,
         fees: {
           creator: Number(d.pool.creatorQuoteFee) / dec,

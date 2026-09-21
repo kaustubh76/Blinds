@@ -109,15 +109,15 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 |---|---|
 | Originality of the DBC use case | A **stock-quoted** curve for an agent whose yield comes from loans against that stock class; the raise target and the fee horizon are the desk's own (USD lending capital priced through Pyth, one tenor). Not a memecoin launcher and not a Pyth-anchored stock/stock pool. |
 | Technical soundness | `createConfigAndPool` from the SDK (`@meteora-ag/dynamic-bonding-curve-sdk` 1.5.12) with the token badge passed when the quote has one; `tokenSupply` left to the program when a migration fee is set (the program's `InvalidTokenSupply` rule); creator-fee percentage tied to the migration fee (the program's other rule). The dashboard reads the pool **without** the SDK: `sdk.fetchDbc` decodes `VirtualPool` / `PoolConfig` from bytes (owner-checked against `dbcij3LW…`), with fixtures captured from the devnet pool. |
-| Working code on mainnet | Devnet rehearsal done end to end (below). The mainnet launch is one command once the launch key holds ~0.5 SOL — the tool refuses to price it on a Pyth quote older than 3 days. |
+| Working code on mainnet | Devnet rehearsal done end to end (below). The mainnet launch is one command once the launch key holds ~0.05 SOL (`launch` checks the balance first and sends nothing below 0.04) — the tool refuses to price it on a Pyth quote older than 3 days. |
 | Life after the hackathon | `status`/`graduate` are operator commands; the Market card and the `launch-status` recipe follow whichever cluster the record names; the fee stream and the locked LP outlive the event. |
 
 ### Clawpump — criteria → what answers them
 
 | Judged on | Where it is answered |
 |---|---|
-| An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` creates its Clawpump identity (`POST /api/v1/agents`) and records `id` + `walletAddress`; that wallet is the pool's creator and fee claimer (`LAUNCH_CREATOR`). The stock-paired pool is the Meteora one above. |
-| Honest venue note | Clawpump's documented launch venue is pump.fun (its `/pump-pairs` lists TSLAx and 21 other xStocks as quote assets). Whether a stock-paired Clawpump launch can land on Meteora is confirmed by `preflight: true` on `/launch/self-funded`, which needs the API key; until then Clawpump is the identity and the fee wallet, Meteora is the pool — stated as such everywhere. |
+| An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` gives it its Clawpump identity — the key's one agent is reused and renamed (`POST /agents/{id}`), else created — and records `id` + `walletAddress`; that wallet is the Meteora pool's **creator and fee claimer** by default, and the card checks the chain agrees ("fees flow to the agent"). `services/launch clawpump-launch` has Clawpump launch the agent's **identity coin `LENDER` on pump.fun, paired with TSLAx** (`POST /launch`, `pumpQuoteMint` = TSLAx, `selfFunded` — the agent's own wallet pays 0.0092 SOL). |
+| Two coins, two roles | Clawpump's launch venue is pump.fun (confirmed 21 Sep from its developer reference: `/launch`, `/launch/self-funded`; `/pump-pairs` lists TSLAx and 21 other xStocks); it cannot create a Meteora pool, and a DBC pool mints its own token. So the agent has an identity coin (Clawpump → pump.fun, TSLAx pair) and a capital token (WLEND on Meteora, configured from the desk). One agent, one revenue wallet; the card and the docs say which is which. |
 
 ### Verified on devnet, 21 Sep 2026
 
@@ -129,8 +129,9 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 | the same numbers from raw bytes | `sdk/test/dbc.test.ts` (3) against the captured accounts; the Market card and the Build page's `launch-status` recipe on the dev server show 2.9 % / 4.85 of 168.50 quote / $28k fully diluted |
 | unit tests | `services/launch/test/plan.test.ts` (6): USD → quote conversion, the raise scales with the quote price, fee/lock/agent slice, refuses nonsense, and which Pyth read prices the quote |
 
-Still open (needs inputs, not code): ~0.5 mainnet SOL to the launch keypair and a Clawpump `cpk_` key. Then:
-`agent` → `LAUNCH_CLUSTER=mainnet launch` → commit `deployments/launch-mainnet.json` → re-render DEMO.
+Still open (needs inputs, not code): ~0.05 mainnet SOL to the launch keypair and ~0.02 to the Clawpump agent
+wallet (the key is in place). Then: `agent` → `LAUNCH_CLUSTER=mainnet launch` → `clawpump-launch` → commit
+`deployments/launch-mainnet.json` → re-render DEMO (`docs/RUNBOOK.md` §6).
 
 ## Honest limits (also in the UI)
 
