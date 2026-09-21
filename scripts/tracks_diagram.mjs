@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates docs/tracks.excalidraw — the track-integration diagram (Pyth · PreStocks).
+// Generates docs/tracks.excalidraw — the track-integration diagram (Pyth · PreStocks · the lender agent on Meteora DBC + Clawpump).
 // Run `node scripts/tracks_diagram.mjs` after changing the layout below; app/src/lib/excalidraw.test.ts
 // checks that every arrow and label binding in the emitted file points at a real element.
 import { writeFileSync } from "node:fs";
@@ -17,6 +17,7 @@ const C = {
   app: { stroke: "#0f766e", bg: "#ccfbf1" },
   frame: { stroke: "#9ca3af", bg: "transparent" },
   stage4: { stroke: "#7c3aed", bg: "#faf5ff" },
+  launch: { stroke: "#b45309", bg: "#fef3c7" },
 };
 
 let seed = 1;
@@ -185,7 +186,7 @@ note(
   40,
   20,
   1200,
-  "THE WINDOW for Stocks — track integration: one xONIA rate, a collateral schedule (Pyth · PreStocks)",
+  "THE WINDOW for Stocks — track integration: one xONIA rate, a collateral schedule (Pyth · PreStocks) · the lender agent (Meteora DBC · Clawpump)",
   { fontSize: 22 },
 );
 note(
@@ -460,7 +461,7 @@ box(
   850,
   520,
   220,
-  "LEGEND\nviolet = Pyth track · orange = PreStocks track\ngreen = enforced on chain · teal = dashboard · grey = unchanged desk\ndashed frames = trust boundaries · dashed arrows = fallback / stretch\n\nHonest limits: the PreStocks mark is a keeper-attested copy of a public API;\n-mock mints are devnet twins; the administrator can decrypt individual amounts\n(accountable privacy, unchanged).",
+  "LEGEND\nviolet = Pyth track · orange = PreStocks track · amber = the lender agent (Part B)\ngreen = enforced on chain · teal = dashboard · grey = unchanged desk\ndashed frames = trust boundaries · dashed arrows = fallback / stretch\n\nHonest limits: the PreStocks mark is a keeper-attested copy of a public API;\n-mock mints are devnet twins; the administrator can decrypt individual amounts\n(accountable privacy, unchanged).",
   { ...C.desk, align: "left", fontSize: 12 },
 );
 
@@ -529,6 +530,67 @@ arrow("e.rule.guards", "x.rule", "d.guards", "④ read Pyth's account directly",
   ...C.stage4,
   strokeWidth: 2,
 });
+
+// ───────────────────────────── Part B: the lender agent ─────────────────────────────
+frame(
+  "tb.launch",
+  20,
+  1120,
+  2420,
+  330,
+  "PART B (21 Sep) — THE LENDER AGENT: its token on a stock-quoted Meteora Dynamic Bonding Curve, configured from the desk's numbers; its identity on Clawpump. services/launch · sdk/src/dbc.ts · LenderAgent.tsx",
+  { stroke: C.launch.stroke },
+);
+box(
+  "b.agent",
+  40,
+  1170,
+  400,
+  120,
+  "The lender agent (services/admin, the simulated lenders)\nquotes every window · lends USDC against cSTOCK collateral\nproven solvent in ZK · earns xONIA\n→ Clawpump identity: POST /api/v1/agents → { id, walletAddress }",
+  C.launch,
+);
+box(
+  "b.plan",
+  500,
+  1170,
+  520,
+  120,
+  "services/launch plan (buildCurveWithMarketCap)\n$25,000 → $250,000 fully diluted ÷ Pyth price of the quote stock\n(Crypto.TSLAX/USD while fresh, else Equity.US.TSLA/USD — recorded)\nfee 300 → 30 bp over one tenor (4 h) · fees in quote · creator = the agent's wallet",
+  C.launch,
+);
+box(
+  "b.pool",
+  1160,
+  1170,
+  660,
+  120,
+  "Meteora DBC pool — program dbcij3LW… (mainnet + devnet)\ncreateConfigAndPool: the pool mints WLEND (1e9, 6 dp)\nquote = TSLAx XsDoVfqe… (Meteora-badged) on mainnet · twin GY41SK2W… on devnet\ngraduation → DAMM v2, both LP positions locked · 10 % of the raise + 50 % of fees → the agent",
+  C.launch,
+);
+box(
+  "b.card",
+  1900,
+  1170,
+  520,
+  120,
+  "Market: the lender agent card · Build: launch-status recipe\nsdk.fetchDbc — VirtualPool + PoolConfig decoded from raw bytes\n(owner-checked, fixtures from the devnet pool) · progress, raise vs\nthreshold in quote and USD (Pyth), fully diluted value, fees, spot",
+  C.app,
+);
+box(
+  "b.evidence",
+  40,
+  1330,
+  1780,
+  90,
+  "Verified on devnet 21 Sep: pool EZyMqXWB…6BTg · config HsfeZeTw…GPZr · WLEND 72QJmsn4…ZL1m · launch tx 5aadUBpt…AmmP · buy 5 → 2.9 % of 168.50 quote raised · fees 0.06 / 0.06\nMainnet launch is one command once the launch key holds ~0.5 SOL; the Clawpump agent needs a cpk_ key. Honest: the pool and fees are real on the named cluster; the lending loop is the devnet desk; Clawpump's own venue is pump.fun.",
+  { ...C.launch, align: "left", fontSize: 12 },
+);
+arrow("e.pyth.plan", "s.pyth.accounts", "b.plan", "the same Pyth read", { ...C.pyth, dashed: true });
+arrow("e.agent.plan", "b.agent", "b.plan", "creator · fee wallet", C.launch);
+arrow("e.plan.pool", "b.plan", "b.pool", "config + pool, one tx", C.launch);
+arrow("e.pool.card", "b.pool", "b.card", "raw account bytes", C.app);
+arrow("e.card.evidence", "b.pool", "b.evidence", null, { ...C.launch, dashed: true });
 
 const file = {
   type: "excalidraw",
