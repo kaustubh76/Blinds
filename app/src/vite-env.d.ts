@@ -18,5 +18,7 @@ interface Window {
     queryClient: import("@tanstack/react-query").QueryClient;
     /** Every listing with its mark, both freshness verdicts and PDAs — `await thewindow.schedule()`. */
     schedule: () => Promise<unknown>;
+    /** The lender agent's Meteora DBC pool from raw bytes: progress, fee now, fees — `await thewindow.launch()`. */
+    launch: () => Promise<unknown>;
   };
 }

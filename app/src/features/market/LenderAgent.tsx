@@ -6,8 +6,8 @@
  * chain (yet), and the numbers.
  */
 
-import { dbcFeeAt } from "@thewindow/solana-sdk";
-import { useEffect, useState } from "react";
+import { type DbcBaseFee, dbcFeeAt } from "@thewindow/solana-sdk";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { Skeleton } from "../../components/Skeleton";
@@ -28,6 +28,52 @@ function useNowSecs() {
     return () => clearInterval(t);
   }, []);
   return now;
+}
+
+/**
+ * The fee schedule as a picture: one line, fee by period, a dot at the period in force. Thin marks,
+ * the accent token, no legend — the number beside it is the label.
+ */
+function FeeCurve({ fee, period }: { fee: DbcBaseFee; period: number }) {
+  const n = Math.max(1, fee.numberOfPeriod);
+  const pts = Array.from({ length: n + 1 }, (_, k) => dbcFeeAt(fee, 0, k * Math.max(1, fee.periodFrequency)).bps);
+  const max = Math.max(...pts, 1);
+  const min = Math.min(...pts, 0);
+  const w = 120;
+  const h = 32;
+  const x = (k: number) => 2 + (k / n) * (w - 4);
+  const y = (v: number) => h - 3 - ((v - min) / Math.max(1e-9, max - min)) * (h - 6);
+  const d = pts.map((v, k) => `${k === 0 ? "M" : "L"}${x(k).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const k = Math.min(n, Math.max(0, period));
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className="mt-1 block text-accent"
+      role="img"
+      aria-label={`fee schedule, period ${k} of ${n}`}
+    >
+      <line
+        x1={2}
+        x2={w - 2}
+        y1={y(pts[n] ?? 0)}
+        y2={y(pts[n] ?? 0)}
+        stroke="currentColor"
+        strokeOpacity={0.25}
+        strokeDasharray="2 3"
+      />
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <circle
+        cx={x(k)}
+        cy={y(pts[k] ?? 0)}
+        r={4}
+        fill="currentColor"
+        stroke="var(--color-surface-1, #fff)"
+        strokeWidth={2}
+      />
+    </svg>
+  );
 }
 
 function Stats({ s }: { s: LaunchState }) {
@@ -57,7 +103,12 @@ function Stats({ s }: { s: LaunchState }) {
         <Stat
           label="fee now"
           value={bp(fee.bps)}
-          hint={feeHint}
+          hint={
+            <>
+              <FeeCurve fee={s.config.baseFee} period={fee.period} />
+              {feeHint}
+            </>
+          }
           delta={fee.periodsLeft === 0 ? undefined : { value: `→ ${bp(fee.restingBps)}`, good: null }}
         />
         <Stat
@@ -72,12 +123,19 @@ function Stats({ s }: { s: LaunchState }) {
         />
       </div>
       <div className="mt-3">
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
+        <div
+          className="h-2 w-full overflow-hidden rounded-full bg-surface-2"
+          role="progressbar"
+          aria-label="progress to graduation"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(s.progress * 100)}
+        >
           <div className="h-2 rounded-full bg-accent" style={{ width: `${Math.round(s.progress * 100)}%` }} />
         </div>
-        <div className="mono mt-1 flex justify-between text-[10px] uppercase tracking-[0.14em] text-ink-3">
-          <span>opened {formatAge(s.pool.activationPoint, now * 1000)}</span>
-          <span>
+        <div className="mono mt-1 flex flex-wrap justify-between gap-x-4 gap-y-0.5 text-[10px] uppercase tracking-[0.14em] text-ink-3">
+          <span className="whitespace-nowrap">opened {formatAge(s.pool.activationPoint, now * 1000)}</span>
+          <span className="whitespace-nowrap">
             graduates at {q(s.thresholdQuote)} · {usd(s.thresholdQuote * s.quoteUsd)}
           </span>
         </div>
@@ -130,10 +188,22 @@ function AgentBlock({ s }: { s: LaunchState | null }) {
   );
 }
 
-export function LenderAgent() {
+export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
   const l = useLaunch();
   const s = l.data?.kind === "ok" ? l.data.state : null;
   const rehearsal = LAUNCH.cluster !== "mainnet";
+  // `#/market/lender`: scroll here once and lift the card for a moment, so the link from Home lands on it.
+  const ref = useRef<HTMLDivElement>(null);
+  const [lifted, setLifted] = useState(focus);
+  // Re-anchor once the pool has loaded: the cards above fill in after the first paint and push this one down.
+  const loaded = s !== null;
+  useEffect(() => {
+    if (!focus || !loaded) return;
+    setLifted(true);
+    ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    const t = setTimeout(() => setLifted(false), 4000);
+    return () => clearTimeout(t);
+  }, [focus, loaded]);
   const title = s
     ? s.pool.isMigrated
       ? "graduated · liquidity now on DAMM v2"
@@ -147,110 +217,117 @@ export function LenderAgent() {
           : "pool unreadable";
 
   return (
-    <Card
-      eyebrow={`the lender agent · ${LAUNCH.token.symbol} on Meteora DBC · ${LAUNCH.cluster}`}
-      title={title}
-      right={
-        <span className="flex flex-wrap items-center gap-2">
-          {s &&
-            (s.pool.isMigrated ? (
-              <Badge tone="good" icon="check">
-                graduated to DAMM v2
+    <div ref={ref} id="lender-agent" className="scroll-mt-20">
+      <Card
+        tone={lifted ? "accent" : "default"}
+        eyebrow={`the lender agent · ${LAUNCH.token.symbol} on Meteora DBC · ${LAUNCH.cluster}`}
+        title={title}
+        right={
+          <span className="flex flex-wrap items-center gap-2">
+            {s &&
+              (s.pool.isMigrated ? (
+                <Badge tone="good" icon="check">
+                  graduated to DAMM v2
+                </Badge>
+              ) : s.pool.hasSwap ? (
+                <Badge tone="accent">on the curve</Badge>
+              ) : (
+                <Badge tone="mute">on the curve · no trade yet</Badge>
+              ))}
+            {l.isError && (
+              <Badge tone="warn" icon="alert">
+                rpc busy
               </Badge>
-            ) : s.pool.hasSwap ? (
-              <Badge tone="accent">on the curve</Badge>
-            ) : (
-              <Badge tone="mute">on the curve · no trade yet</Badge>
-            ))}
-          {l.isError && (
-            <Badge tone="warn" icon="alert">
-              rpc busy
-            </Badge>
-          )}
-          {rehearsal && <Badge tone="warn">devnet rehearsal · a twin quote, not TSLAx</Badge>}
-          <ExplorerLink address={LAUNCH.pool} cluster={launchCluster}>
-            pool
-          </ExplorerLink>
-          <ExplorerLink address={LAUNCH.baseMint} cluster={launchCluster}>
-            {LAUNCH.token.symbol} mint
-          </ExplorerLink>
-          {tradeUrl && (
-            <a
-              href={tradeUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-accent hover:underline"
-              title="swap the quote stock for the token on Jupiter"
-            >
-              trade →
-            </a>
-          )}
-          {(l.isError || l.data?.kind === "missing") && (
-            <Button variant="ghost" size="sm" icon="refresh" onClick={() => void l.refetch()} loading={l.isFetching}>
-              refresh
-            </Button>
-          )}
-        </span>
-      }
-      footer={
-        <>
-          The desk&apos;s lender is an autonomous agent: it lends every overnight window against tokenized-stock
-          collateral proven solvent in zero knowledge and earns the xONIA rate. Its token launches on a Dynamic Bonding
-          Curve quoted in a tokenized stock, and the curve is set from the desk&apos;s numbers — the raise target is{" "}
-          {usd(LAUNCH.numbers.migrationUsd)} of fully diluted value converted into the quote stock through Pyth&apos;s
-          read of the stock, the fee decays {LAUNCH.numbers.feeBps.open} → {LAUNCH.numbers.feeBps.rest} bp over one
-          tenor ({LAUNCH.numbers.feeBps.durationSecs / 3600} h), every graduated LP position is locked for good, and{" "}
-          {LAUNCH.numbers.creatorFeePct} % of the trading fee plus {LAUNCH.numbers.raiseToAgentPct} % of the raise go to
-          the agent&apos;s wallet.
-          {LAUNCH.clawpump
-            ? " Clawpump's own launch venue is pump.fun, which is where the agent's identity coin lives; the Meteora pool is ours."
-            : ""}{" "}
-          Honest limit: the pool and its fees are real on the cluster named above; the lending loop the agent earns from
-          is the devnet desk.
-          {rehearsal ? " On devnet, `pnpm --filter @thewindow/launch buy 5` moves the curve." : ""}
-        </>
-      }
-    >
-      {s ? (
-        <Stats s={s} />
-      ) : l.isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {["raised", "threshold", "fee", "fdv", "fees"].map((k) => (
-            <div key={k} className="grid gap-2">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-7 w-28" />
-              <Skeleton className="h-3 w-32" />
-            </div>
-          ))}
-        </div>
-      ) : l.isError ? (
-        <EmptyState icon="alert" title="the RPC did not answer">
-          The pool is read from {launchCluster} in this browser; the endpoint is rate-limited or down. Refresh, or set
-          another RPC in Settings.
-        </EmptyState>
-      ) : l.data?.kind === "missing" ? (
-        <EmptyState icon="clock" title="the pool is not on chain yet">
-          The launch record names <span className="mono">{LAUNCH.pool}</span> on {launchCluster}, and no Meteora DBC
-          account lives there. Either the launch has not run or this record is ahead of the chain.
-        </EmptyState>
-      ) : (
-        <EmptyState icon="alert" title="the pool's numbers do not add up">
-          The account decoded, but a threshold, a price or a reserve is not a finite positive number — check the launch
-          record against the chain before trusting anything here.
-        </EmptyState>
-      )}
-      <AgentBlock s={s} />
-      <p className="mono mt-2 text-[11px] text-ink-3">
-        config <ExplorerLink address={LAUNCH.config} cluster={launchCluster} /> · creator{" "}
-        <ExplorerLink address={LAUNCH.creator} cluster={launchCluster} /> · quote{" "}
-        <ExplorerLink address={LAUNCH.quote.mint} cluster={launchCluster} />
-        {LAUNCH.txs.createConfigAndPool && (
+            )}
+            {rehearsal && <Badge tone="warn">devnet rehearsal · a twin quote, not TSLAx</Badge>}
+            <span className="whitespace-nowrap">
+              <ExplorerLink address={LAUNCH.pool} cluster={launchCluster}>
+                pool
+              </ExplorerLink>
+            </span>
+            <span className="whitespace-nowrap">
+              <ExplorerLink address={LAUNCH.baseMint} cluster={launchCluster}>
+                {LAUNCH.token.symbol} mint
+              </ExplorerLink>
+            </span>
+            {tradeUrl && (
+              <a
+                href={tradeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-accent hover:underline"
+                title="swap the quote stock for the token on Jupiter"
+              >
+                trade →
+              </a>
+            )}
+            {(l.isError || l.data?.kind === "missing") && (
+              <Button variant="ghost" size="sm" icon="refresh" onClick={() => void l.refetch()} loading={l.isFetching}>
+                refresh
+              </Button>
+            )}
+          </span>
+        }
+        footer={
           <>
-            {" "}
-            · launch tx <ExplorerLink address={LAUNCH.txs.createConfigAndPool} cluster={launchCluster} kind="tx" />
+            The desk&apos;s lender is an autonomous agent: it lends every overnight window against tokenized-stock
+            collateral proven solvent in zero knowledge and earns the xONIA rate. Its token launches on a Dynamic
+            Bonding Curve quoted in a tokenized stock, and the curve is set from the desk&apos;s numbers — the raise
+            target is {usd(LAUNCH.numbers.migrationUsd)} of fully diluted value converted into the quote stock through
+            Pyth&apos;s read of the stock, the fee decays {LAUNCH.numbers.feeBps.open} → {LAUNCH.numbers.feeBps.rest} bp
+            over one tenor ({LAUNCH.numbers.feeBps.durationSecs / 3600} h), every graduated LP position is locked for
+            good, and {LAUNCH.numbers.creatorFeePct} % of the trading fee plus {LAUNCH.numbers.raiseToAgentPct} % of the
+            raise go to the agent&apos;s wallet.
+            {LAUNCH.clawpump
+              ? " Clawpump's own launch venue is pump.fun, which is where the agent's identity coin lives; the Meteora pool is ours."
+              : ""}{" "}
+            Honest limit: the pool and its fees are real on the cluster named above; the lending loop the agent earns
+            from is the devnet desk.
+            {rehearsal ? " On devnet, `pnpm --filter @thewindow/launch buy 5` moves the curve." : ""}
           </>
+        }
+      >
+        {s ? (
+          <Stats s={s} />
+        ) : l.isLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {["raised", "threshold", "fee", "fdv", "fees"].map((k) => (
+              <div key={k} className="grid gap-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-28" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            ))}
+          </div>
+        ) : l.isError ? (
+          <EmptyState icon="alert" title="the RPC did not answer">
+            The pool is read from {launchCluster} in this browser; the endpoint is rate-limited or down. Refresh, or set
+            another RPC in Settings.
+          </EmptyState>
+        ) : l.data?.kind === "missing" ? (
+          <EmptyState icon="clock" title="the pool is not on chain yet">
+            The launch record names <span className="mono">{LAUNCH.pool}</span> on {launchCluster}, and no Meteora DBC
+            account lives there. Either the launch has not run or this record is ahead of the chain.
+          </EmptyState>
+        ) : (
+          <EmptyState icon="alert" title="the pool's numbers do not add up">
+            The account decoded, but a threshold, a price or a reserve is not a finite positive number — check the
+            launch record against the chain before trusting anything here.
+          </EmptyState>
         )}
-      </p>
-    </Card>
+        <AgentBlock s={s} />
+        <p className="mono mt-2 text-[11px] text-ink-3">
+          config <ExplorerLink address={LAUNCH.config} cluster={launchCluster} /> · creator{" "}
+          <ExplorerLink address={LAUNCH.creator} cluster={launchCluster} /> · quote{" "}
+          <ExplorerLink address={LAUNCH.quote.mint} cluster={launchCluster} />
+          {LAUNCH.txs.createConfigAndPool && (
+            <>
+              {" "}
+              · launch tx <ExplorerLink address={LAUNCH.txs.createConfigAndPool} cluster={launchCluster} kind="tx" />
+            </>
+          )}
+        </p>
+      </Card>
+    </div>
   );
 }

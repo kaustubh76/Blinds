@@ -10,7 +10,8 @@ export interface Route {
 }
 
 export function parseHash(hash: string): Route {
-  const [tab = "home", param] = hash.replace(/^#\/?/, "").split("/");
+  // `#/market?theme=dark` is still the Market: a query inside the hash is not part of the route.
+  const [tab = "home", param] = (hash.replace(/^#\/?/, "").split("?")[0] ?? "").split("/");
   const t = (TABS as readonly string[]).includes(tab) ? (tab as Tab) : "home";
   return param ? { tab: t, param } : { tab: t };
 }

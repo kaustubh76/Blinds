@@ -34,10 +34,16 @@ window.thewindow = {
   console: devConsole,
   queryClient,
   // The collateral schedule as the chain would judge it now (the Build page's "schedule" recipe).
-  schedule: async () => {
+  schedule: () => runRecipe("schedule"),
+  // The lender agent's DBC pool, decoded from raw bytes (the Build page's "launch-status" recipe).
+  launch: () => runRecipe("launch-status"),
+};
+
+async function runRecipe(id: string) {
+  {
     const { RECIPES } = await import("./features/build/recipes");
-    const r = RECIPES.find((x) => x.id === "schedule");
-    if (!r) throw new Error("schedule recipe missing");
+    const r = RECIPES.find((x) => x.id === id);
+    if (!r) throw new Error(`${id} recipe missing`);
     return r.run({
       sdk,
       rpc,
@@ -49,8 +55,8 @@ window.thewindow = {
       signal: new AbortController().signal,
       log: (line) => devConsole.push({ kind: "note", title: line }),
     });
-  },
-};
+  }
+}
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");

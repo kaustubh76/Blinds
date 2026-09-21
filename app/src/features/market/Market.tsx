@@ -18,7 +18,8 @@ import { CollateralSchedule } from "./CollateralSchedule";
 import { LenderAgent } from "./LenderAgent";
 import { SeriesChart } from "./SeriesChart";
 
-export function Market() {
+/** `focus` is the route's parameter: `#/market/lender` scrolls to the lender agent's card. */
+export function Market({ focus }: { focus?: string | undefined } = {}) {
   const dep = useDeployment();
   const oracle = useOracle();
   const slot = useSlot();
@@ -174,7 +175,7 @@ export function Market() {
       {/* The collateral schedule, then listing #0's mark beside the underlying equity feed. */}
       <CollateralSchedule />
       <CollateralMark />
-      <LenderAgent />
+      <LenderAgent focus={focus === "lender"} />
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">

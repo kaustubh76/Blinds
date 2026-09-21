@@ -148,7 +148,7 @@ export function Home() {
         <p className="mt-4 text-sm text-ink-3">
           The lender on the other side of every window is an autonomous agent; its token,{" "}
           <span className="mono">{LAUNCH.token.symbol}</span>, is on a stock-quoted Meteora bonding curve —{" "}
-          <a href="#/market" className="text-accent hover:underline">
+          <a href="#/market/lender" className="text-accent hover:underline">
             the curve →
           </a>
         </p>

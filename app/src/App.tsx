@@ -23,7 +23,7 @@ export function App() {
         }
       >
         {route.tab === "home" && <Home />}
-        {route.tab === "market" && <Market />}
+        {route.tab === "market" && <Market focus={route.param} />}
         {route.tab === "explorer" && <Explorer epochParam={route.param} />}
         {route.tab === "desk" && <Desk />}
         {route.tab === "positions" && <Positions />}

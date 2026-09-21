@@ -98,6 +98,9 @@ describe("the lender agent card", () => {
     expect(t).toContain("fee now2.14 %"); // 300 bp × 0.9532⁷
     expect(t).toContain("period 7 of 48 · next step in 4m 55s");
     expect(t).toContain("opened 35 min ago");
+    const bar = container.querySelector('[role="progressbar"]');
+    expect(bar?.getAttribute("aria-valuenow")).toBe("3");
+    expect(container.querySelector('svg[aria-label="fee schedule, period 7 of 48"]')).not.toBeNull();
     expect(t).toContain("fees flow to the agent");
     expect(t).toContain("Pyth Equity.US.TSLA/USD");
     expect(t).toContain("devnet rehearsal");
@@ -121,5 +124,14 @@ describe("the lender agent card", () => {
     expect(t).toContain("resting fee");
     expect(t).toContain("graduated · liquidity now on DAMM v2");
     expect(t).toContain("graduated to DAMM v2");
+  });
+
+  it("lifts the card and scrolls to it when the route asks for it", () => {
+    query.mockReturnValue({ ...base, data: { kind: "ok", state } });
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { container } = render(<LenderAgent focus />);
+    expect(scroll).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+    expect(container.querySelector("#lender-agent section")?.className).toContain("border-accent");
   });
 });

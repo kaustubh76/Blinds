@@ -15,6 +15,7 @@ import { config } from "../../config";
 import { rpc } from "../../lib/chain";
 import { basisBps, FEEDS, fetchFreshest, formatBasis, mainnetRpc, nyseSession } from "../../lib/pyth";
 import { useDeployment } from "../../lib/queries";
+import { LenderTrack } from "./LenderTrack";
 
 const age = (s: number) => (s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
 const REPO = "https://github.com/kaustubh76/Blinds/blob/main";
@@ -93,7 +94,7 @@ export function Tracks() {
 
   return (
     <Card
-      eyebrow="the two tracks · how to integrate against each"
+      eyebrow="the tracks · how to integrate against each"
       title="One rate, two ways a mark reaches the chain"
       footer={
         <span>
@@ -113,7 +114,7 @@ export function Tracks() {
         </span>
       }
     >
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         <Column title="Pyth" tone="accent" sub="the mark is a coefficient in the proof">
           <p className="text-xs text-ink-2">
             Every lock proves <span className="mono">collateral × price × multiplier ≥ haircut × loan</span> over
@@ -222,6 +223,7 @@ const q = await sdk.fetchPrice(rpc, feedId);
             new locks on this listing.
           </p>
         </Column>
+        <LenderTrack />
       </div>
     </Card>
   );

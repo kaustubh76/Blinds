@@ -9,6 +9,10 @@ describe("hash route", () => {
     expect(toHash("explorer", "16")).toBe("#/explorer/16");
     expect(toHash("market")).toBe("#/market");
   });
+  it("ignores a query inside the hash", () => {
+    expect(parseHash("#/market?theme=dark")).toEqual({ tab: "market" });
+    expect(parseHash("#/market/lender?rpc=x")).toEqual({ tab: "market", param: "lender" });
+  });
   it("falls back to home", () => {
     expect(parseHash("")).toEqual({ tab: "home" });
     expect(parseHash("#/")).toEqual({ tab: "home" });
