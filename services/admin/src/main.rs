@@ -73,7 +73,7 @@ enum Cmd {
     ListingsSync,
     /// Resize every pre-listing Loan (32 bytes shorter) to the current layout, bound to listing #0.
     MigrateLoans,
-    /// Change one listing's price source on chain (0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock ·
+    /// Change one listing's price source on chain (0 Pyth cache · 1 reserved · 2 PreStocks · 3 mock ·
     /// 4 Pyth's own receiver account on this cluster). Source 4 is refused until that account holds
     /// a fresh quote.
     ListingSetSource {
@@ -85,6 +85,13 @@ enum Cmd {
     /// one made on macOS — and report which the cluster's ZK ElGamal program accepts. Diagnoses a
     /// machine on which `setup` fails with `SigmaProof(PubkeyValidity, AlgebraicRelation)`.
     ZkProbe,
+    /// Retire a listing that stays on chain: refuse every future lock and seize on it (absurd
+    /// haircut, one-second quote limit, symbol `RETIRED`), drop it from the descriptor so the keeper
+    /// and the dashboard forget it, and move its agents to listing #0. Open loans still repay.
+    ListingRetire {
+        /// The descriptor key (`tessera_openai`).
+        key: String,
+    },
     /// Run the simulated members
     Agents {
         /// Loop period. Defaults to 3 s on localnet and 8 s on devnet (public-RPC rate limits).
@@ -105,17 +112,13 @@ fn join_funding_lamports() -> u64 {
 
 /// The price source one listing asks for. Pyth: Hermes when `PYTH_API_KEY` is set, with Pyth's
 /// on-chain price-update accounts as the fallback (and as the only source without a key).
-/// Tessera / PreStocks: the sponsor's public mark, attested by the keeper. Mock: the documented
+/// PreStocks: the sponsor's public mark, attested by the keeper. Mock: the documented
 /// walk (localnet/CI). `Profile::validate` guarantees a mock never borrows a real feed id (A11).
 fn price_source(l: &window_config::ListingCfg) -> Result<PriceSource> {
     use window_config::PriceSourceKind as K;
     match l.source {
         K::Mock => Ok(PriceSource::mock(40_012)),
-        K::Tessera => Ok(PriceSource::tessera(
-            l.source_url.clone(),
-            l.source_mint.clone(),
-            l.price_field.clone(),
-        )),
+        K::Reserved1 => Err(anyhow::anyhow!("{}: price source 1 is reserved (retired)", l.key)),
         K::Prestocks => Ok(PriceSource::prestocks(
             l.source_url.clone(),
             l.source_mint.clone(),
@@ -373,6 +376,14 @@ fn main() -> Result<()> {
             for l in &deployment.listings {
                 println!("{} {} listing {} feed {}", l.key, l.symbol, l.listing, l.feed_id_hex);
             }
+        }
+        Cmd::ListingRetire { key } => {
+            let mut deployment = Deployment::load(&root, &cli.cluster)?;
+            setup::retire_listing(&chain, &keys, &mut deployment, &root, &key)?;
+            println!(
+                "retired {key}; remove its [[listings]] block from config/{}.toml too",
+                cli.profile
+            );
         }
         Cmd::ListingSetSource { key, source } => {
             let mut deployment = Deployment::load(&root, &cli.cluster)?;

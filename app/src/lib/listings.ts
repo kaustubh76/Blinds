@@ -58,7 +58,7 @@ export function sourceLabel(source: string | number | Pick<ListingView, "source"
     return source.priceSource === PriceSource.PythAccount ? "Pyth · on-chain" : sourceLabel(source.source);
   }
   if (typeof source === "number") return PRICE_SOURCE_NAMES[source] ?? `source ${source}`;
-  return { pyth: "Pyth", tessera: "Tessera mark", prestocks: "PreStocks mark", mock: "mock walk" }[source] ?? source;
+  return { pyth: "Pyth", reserved: "retired mark", prestocks: "PreStocks mark", mock: "mock walk" }[source] ?? source;
 }
 
 /** The schedule as the chain has it (PDA + account), refreshed each minute. */

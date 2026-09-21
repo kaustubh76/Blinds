@@ -195,20 +195,18 @@ for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
   },
   {
     id: "marks",
-    title: "The attested marks: Tessera and PreStocks, as posted on chain",
+    title: "The attested mark: PreStocks, as posted on chain",
     blurb:
-      "A mark listing's feed id is sha256(\"<source>:<symbol>\") — a label, never a Pyth id — and its publish_time is the keeper's fetch time. The public APIs send no CORS headers, so a browser reads the on-chain cache; the curl is what the keeper does.",
+      "A mark listing's feed id is sha256(\"<source>:<symbol>\") — a label, never a Pyth id — and its publish_time is the keeper's fetch time. PreStocks' API sends no CORS headers, so a browser reads the on-chain cache; the curl is what the keeper does.",
     code: (ctx) => `${PRELUDE(ctx)}
 
-// feed id = sha256("tessera:T-OpenAI") / sha256("prestocks:ANTHROPIC"): a label under which the keeper posts
-const tessera   = await sdk.fetchPrice(rpc, await sdk.feedIdForLabel("tessera:T-OpenAI"));
-const prestocks = await sdk.fetchPrice(rpc, await sdk.feedIdForLabel("prestocks:ANTHROPIC"));
-console.log("cache", await sdk.pda.priceCache(await sdk.feedIdForLabel("tessera:T-OpenAI")));   // ["price", feed_id] under window_credit
-console.log(Number(tessera.price) * 10 ** tessera.expo, "USD, fetched", new Date(Number(tessera.publishTime) * 1000));
+// feed id = sha256("prestocks:ANTHROPIC"): a label under which the keeper posts, never a Pyth id
+const feedId    = await sdk.feedIdForLabel("prestocks:ANTHROPIC");
+const prestocks = await sdk.fetchPrice(rpc, feedId);
+console.log("cache", await sdk.pda.priceCache(feedId));   // ["price", feed_id] under window_credit
 console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new Date(Number(prestocks.publishTime) * 1000));
 
-// what the keeper reads (server side — these APIs answer no CORS preflight):
-//   curl -s https://rest-api.tessera.pe/v1/public/token-details | jq '.[] | select(.mint=="oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ") | .markPrice'
+// what the keeper reads (server side — the API answers no CORS preflight); markPrice is the mark, tokenPrice the implied price:
 //   curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`,
     run: async (ctx) => {
       const one = async (label: string, api: string) => {
@@ -228,9 +226,8 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
         };
       };
       return {
-        tessera: await one("tessera:T-OpenAI", "https://rest-api.tessera.pe/v1/public/token-details"),
         prestocks: await one("prestocks:ANTHROPIC", "https://prestocks.com/api/prestocks"),
-        note: "attested marks: publish_time is the keeper's fetch time; the on-chain limit for these listings is 48 h",
+        note: "an attested mark: publish_time is the keeper's fetch time; the on-chain limit for this listing is 48 h",
       };
     },
   },

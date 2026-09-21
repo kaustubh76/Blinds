@@ -1420,7 +1420,7 @@
           {
             "name": "price_source",
             "docs": [
-              "0 = Pyth (keeper cache) · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk ·",
+              "0 = Pyth (keeper cache) · 1 = reserved (a retired mark) · 2 = PreStocks mark · 3 = mock walk ·",
               "4 = a Pyth receiver-owned `PriceUpdateV2` account read directly."
             ],
             "type": "u8"

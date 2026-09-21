@@ -5,20 +5,18 @@ const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "
 
 describe("collateral schedule helpers", () => {
   it("labels a non-Pyth listing's feed id exactly as crates/window-config does", async () => {
-    // Same vectors as `devnet_lists_tessera_and_prestocks_marks_under_labels_not_pyth_ids`.
-    expect(hex(await feedIdForLabel("tessera:T-OpenAI"))).toBe(
-      "a217fe4a7ea1f0fcc0c7c5100e749940ab3c0478eefdeefac438b62f4956f13a",
-    );
+    // Same vector as `devnet_lists_the_prestocks_mark_under_a_label_not_a_pyth_id`.
     expect(hex(await feedIdForLabel("prestocks:ANTHROPIC"))).toBe(
       "8bd733112c944281b9caeefc1728d935b10b95a8809bb70c11214a86fb6a89eb",
     );
-    expect(hex(await feedIdForLabel("tessera:T-OpenAI"))).not.toBe(hex(await feedIdForLabel("prestocks:ANTHROPIC")));
+    expect(hex(await feedIdForLabel("prestocks:ANTHROPIC"))).not.toBe(hex(await feedIdForLabel("prestocks:SPACEX")));
   });
 
   it("names sources and knows which are attested marks", () => {
     expect(PRICE_SOURCE_NAMES[PriceSource.Pyth]).toBe("Pyth");
-    expect(isAttestedMark(PriceSource.Tessera)).toBe(true);
     expect(isAttestedMark(PriceSource.PreStocks)).toBe(true);
+    expect(isAttestedMark(PriceSource.Reserved1)).toBe(false);
+    expect(PRICE_SOURCE_NAMES[PriceSource.Reserved1]).toBe("retired mark");
     expect(isAttestedMark(PriceSource.Pyth)).toBe(false);
     expect(isAttestedMark(PriceSource.Mock)).toBe(false);
   });

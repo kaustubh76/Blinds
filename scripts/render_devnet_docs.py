@@ -18,9 +18,9 @@ if app_url.exists():
 
 SOURCE = {
     "pyth": "Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's on-chain push account (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY), the only shard that exists for this feed); the quote's own `publish_time`",
-    "tessera": "Tessera public API `markPrice` (`T-OpenAI`, mint `oPAiAikW…`) — an attested mark: `publish_time` is the keeper's fetch time",
     "prestocks": "PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time",
     "mock": "deterministic mock walk (localnet only)",
+    "reserved": "retired listing (price source 1); refuses every lock and seize",
 }
 # A listing flipped to price_source 4 is priced from Pyth's receiver-owned account on devnet, not the cache.
 PYTH_ACCOUNT_SOURCE = "Pyth `Crypto.TSLAX/USD` — **Pyth's own receiver-owned `PriceUpdateV2` account on devnet** ([`{acct}`]({url})), carried from Hermes by `services/pyth-poster`; the program reads it directly (owner, feed id, `Full`), no keeper copy"

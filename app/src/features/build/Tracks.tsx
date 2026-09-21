@@ -1,5 +1,5 @@
 /**
- * The three price tracks as a developer meets them: what each source is, how its quote reaches
+ * The two price tracks as a developer meets them: what each source is, how its quote reaches
  * the chain, what to call, and the honest limit. The Pyth column reads Pyth's own mainnet
  * accounts from this browser; the mark columns read the on-chain caches (their public APIs answer
  * no CORS preflight, so the keeper is the only thing that can read them).
@@ -85,18 +85,16 @@ function useMark(label: string) {
 export function Tracks() {
   const dep = useDeployment();
   const pyth = usePythMainnet();
-  const tessera = useMark("tessera:T-OpenAI");
   const prestocks = useMark("prestocks:ANTHROPIC");
   const by = (source: string) => dep.data?.listings.find((l) => l.source === source);
   const lp = by("pyth");
-  const lt = by("tessera");
   const lps = by("prestocks");
   const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
   return (
     <Card
-      eyebrow="the three tracks · how to integrate against each"
-      title="One rate, three ways a mark reaches the chain"
+      eyebrow="the two tracks · how to integrate against each"
+      title="One rate, two ways a mark reaches the chain"
       footer={
         <span>
           Record and evidence:{" "}
@@ -115,7 +113,7 @@ export function Tracks() {
         </span>
       }
     >
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Column title="Pyth" tone="accent" sub="the mark is a coefficient in the proof">
           <p className="text-xs text-ink-2">
             Every lock proves <span className="mono">collateral × price × multiplier ≥ haircut × loan</span> over
@@ -187,45 +185,9 @@ const q = await sdk.fetchQuote(rpc, {                            // { price, exp
           </p>
         </Column>
 
-        <Column title="Tessera" tone="lend" sub="T-OpenAI · pre-IPO, an attested mark">
-          <p className="text-xs text-ink-2">
-            A confidential borrow line against a pre-IPO token: wrap into the confidential mint, prove solvency at 200 %
-            against Tessera's mark, borrow at the print. The keeper copies <span className="mono">markPrice</span> from
-            the public API and posts it with its <em>fetch time</em> as <span className="mono">publish_time</span>;{" "}
-            <span className="mono">price_source = 1</span> says so on chain.
-          </p>
-          <div className="text-xs">
-            <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">on-chain cache now</div>
-            {tessera.data ? (
-              <p className="mt-1 text-ink-2">
-                <span className="num text-ink-1">{usd(tessera.data.mark)}</span> · fetched {age(tessera.data.ageSecs)}{" "}
-                ago · {tessera.data.posts} posts · limit 48 h
-              </p>
-            ) : tessera.data === null ? (
-              <p className="mt-1 text-ink-3">no cache yet</p>
-            ) : (
-              <p className="mt-1 text-ink-3">reading…</p>
-            )}
-          </div>
-          {lt && (
-            <p className="text-xs text-ink-3">
-              listing <ExplorerLink address={lt.listing} cluster={config.cluster} /> · escrow{" "}
-              <ExplorerLink address={lt.escrow} cluster={config.cluster} /> · haircut {Number(lt.haircutBps) / 100}%
-            </p>
-          )}
-          <Snippet>{`const feedId = await sdk.feedIdForLabel("tessera:T-OpenAI");   // sha256 label, never a Pyth id
-const q = await sdk.fetchPrice(rpc, feedId);
-// the keeper's side (no CORS on the API — a browser cannot fetch it):
-// curl -s https://rest-api.tessera.pe/v1/public/token-details | jq '.[] | select(.mint=="oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ").markPrice'`}</Snippet>
-          <p className="text-[11px] text-ink-3">
-            Honest limit: a copy of a public mark, not a signed feed. If the API stops, the last good mark is re-posted
-            for 6 h, then the 48 h rule halts new locks on this listing.
-          </p>
-        </Column>
-
         <Column title="PreStocks" tone="borrow" sub="ANTHROPIC · pre-IPO, an attested mark">
           <p className="text-xs text-ink-2">
-            The same desk lists ANTHROPIC next to a listed stock and a Tessera token under one rate — a collateral
+            The same desk lists ANTHROPIC, a pre-IPO token, next to a listed stock under one rate — a collateral
             schedule. PreStocks publishes a <span className="mono">markPrice</span> and a{" "}
             <span className="mono">tokenPrice</span>; the keeper posts the mark (
             <span className="mono">price_source = 2</span>) and the Market shows the implied-vs-mark basis.
@@ -255,7 +217,9 @@ const q = await sdk.fetchPrice(rpc, feedId);
 // sdk.lockCollateral(rpc, { ..., listing: "${lps?.listing ?? "<listing>"}", quote: { feedId, priceSource: l.priceSource }, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? lps.haircutBps.toString() : "20000"}n, rent })
 // curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`}</Snippet>
           <p className="text-[11px] text-ink-3">
-            Honest limit: as for Tessera — attested by the keeper, stamped at fetch, bounded by the on-chain 48 h rule.
+            Honest limit: a copy of a public mark, not a signed feed — attested by the keeper, stamped at fetch, bounded
+            by the on-chain 48 h rule. If the API stops, the last good mark is re-posted for 6 h, then the rule halts
+            new locks on this listing.
           </p>
         </Column>
       </div>

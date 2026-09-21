@@ -11,7 +11,7 @@ const dep = { listings: [{ listing: listingPda, priceAccount: pythAccount }] } a
 
 describe("quoteSourceFor / quoteAddress", () => {
   it("reads a cache-priced listing from its PriceCache PDA, whatever the descriptor names", async () => {
-    const src = quoteSourceFor({ feedId, priceSource: PriceSource.Tessera }, listingPda, dep);
+    const src = quoteSourceFor({ feedId, priceSource: PriceSource.PreStocks }, listingPda, dep);
     expect(await quoteAddress(src)).toBe(await pda.priceCache(feedId));
   });
 

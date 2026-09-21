@@ -78,7 +78,7 @@ pub struct Listing {
     /// A Pyth feed id for a Pyth-marked listing; `sha256("<source>:<symbol>")` for an attested
     /// mark — a label, never a Pyth id; all-zero for the documented local mock walk.
     pub feed_id: [u8; 32],
-    /// 0 = Pyth (keeper cache) · 1 = Tessera mark · 2 = PreStocks mark · 3 = mock walk ·
+    /// 0 = Pyth (keeper cache) · 1 = reserved (a retired mark) · 2 = PreStocks mark · 3 = mock walk ·
     /// 4 = a Pyth receiver-owned `PriceUpdateV2` account read directly.
     pub price_source: u8,
     /// Collateral value must cover this many bps of the loan.

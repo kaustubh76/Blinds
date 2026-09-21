@@ -544,3 +544,70 @@ pub fn set_listing_source(
     dep.save(root)?;
     Ok(())
 }
+
+/// Retires a listing that stays on chain (there is no instruction to close one): `update_listing`
+/// with a one-second quote limit and an absurd haircut, so `lock_collateral` and `seize` refuse it
+/// (`QuoteStale` / no coverage) while repay → release still settles its open loans; the symbol
+/// becomes `RETIRED`. Then the descriptor forgets it — the keeper stops posting under its feed id,
+/// the dashboard stops listing it — and the agents that held accounts on it move to listing #0
+/// (setup gave every agent an account on every listing). Idempotent on the descriptor side.
+pub fn retire_listing(
+    chain: &dyn Chain,
+    keys: &Keys,
+    dep: &mut Deployment,
+    root: &std::path::Path,
+    key: &str,
+) -> Result<()> {
+    let pos = dep
+        .listings
+        .iter()
+        .position(|r| r.key == key)
+        .ok_or_else(|| anyhow!("no listing {key} in the descriptor"))?;
+    if pos == 0 {
+        bail!("listing #0 mirrors Config's own collateral and cannot be retired");
+    }
+    let rec = dep.listings[pos].clone();
+    let mut symbol = [0u8; 16];
+    symbol[..7].copy_from_slice(b"RETIRED");
+    let params = window_client::ListingParams {
+        feed_id: rec.feed_id(),
+        price_source: rec.price_source(),
+        haircut_bps: 100_000_000,
+        max_price_age: rec.max_price_age_slots,
+        max_publish_age_secs: 1,
+        symbol,
+    };
+    chain.send(
+        &keys.admin,
+        &[ix::update_listing(&keys.admin.pubkey(), &rec.listing_pda()?, params)],
+        &[],
+    )?;
+    info!(listing = %rec.symbol, pda = %rec.listing_pda()?, "listing retired on chain (haircut 1,000,000 %, quote limit 1 s)");
+    dep.listings.remove(pos);
+    for a in dep.agents.iter_mut() {
+        if a.listing == pos {
+            // Its accounts on the retired listing stay; the ones on listing #0 were created by setup.
+            let l0 = &dep.listings[0];
+            let wallet: Pubkey = a.wallet.parse()?;
+            let cstock: Pubkey = l0.cstock_mint()?;
+            let mock: Pubkey = l0.mock_mint()?;
+            let cs = chain.token_accounts(&wallet, &cstock)?.first().copied().ok_or_else(|| {
+                anyhow!(
+                    "agent {} has no confidential account on listing #0; run listings-sync",
+                    a.index
+                )
+            })?;
+            let ms = chain.token_accounts(&wallet, &mock)?.first().copied().ok_or_else(|| {
+                anyhow!("agent {} has no mock account on listing #0; run listings-sync", a.index)
+            })?;
+            a.cstock_account = cs.to_string();
+            a.mock_account = ms.to_string();
+            a.listing = 0;
+            info!(agent = a.index, "moved to listing #0");
+        } else if a.listing > pos {
+            a.listing -= 1;
+        }
+    }
+    dep.save(root)?;
+    Ok(())
+}

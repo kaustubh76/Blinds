@@ -55,7 +55,7 @@ export interface RawListing {
 export interface ListingView {
   key: string;
   symbol: string;
-  /** `pyth` | `tessera` | `prestocks` | `mock` */
+  /** `pyth` | `prestocks` | `mock` (`reserved`: a retired source) */
   source: string;
   listing: Address;
   mockMint: Address;
@@ -66,7 +66,7 @@ export interface ListingView {
   haircutBps: bigint;
   maxPriceAgeSlots: number;
   maxPublishAgeSecs: number;
-  /** `Listing.price_source`: 0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth's own account. */
+  /** `Listing.price_source`: 0 Pyth cache · 1 reserved (retired) · 2 PreStocks · 3 mock · 4 Pyth's own account. */
   priceSource: number;
   /** The Pyth account the program reads when `priceSource` is 4; `null` otherwise. */
   priceAccount: Address | null;

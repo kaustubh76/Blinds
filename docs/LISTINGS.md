@@ -10,7 +10,7 @@ untouched by which collateral a borrower pledges. (Amendment A14; track record i
 Listing  ["listing", cstock_mint]
   mock_mint · cstock_mint · escrow_account       the public twin, its confidential wrapper, the operator's escrow
   feed_id[32]                                    Pyth id · sha256("<source>:<symbol>") label · all-zero (mock)
-  price_source                                   0 Pyth (keeper cache) · 1 Tessera mark · 2 PreStocks mark · 3 mock walk
+  price_source                                   0 Pyth (keeper cache) · 1 reserved (a retired mark) · 2 PreStocks mark · 3 mock walk
                                                  4 Pyth's own receiver-owned account, read by the program
   haircut_bps                                    collateral value ≥ haircut × loan
   max_price_age                                  slots since the keeper posted (liveness)
@@ -38,13 +38,12 @@ instruction prices from them any more.
 | Listing | Source | `feed_id` | Haircut | Quote limit | What the timestamp means |
 |---|---|---|---|---|---|
 | `TSLAx-mock` | Pyth `Crypto.TSLAX/USD`: Hermes with `PYTH_API_KEY`, Pyth's on-chain accounts as fallback; with the poster running, source 4 — Pyth's own account on devnet (`pyth_shard = 7001` → `JBDgVnqW…`) | `0x47a15647…a362` | 150 % | 1 h | the publisher's own `publish_time` |
-| `T-OpenAI-mock` | Tessera `GET /v1/public/token-details`, element `mint = oPAiAikW…`, field `markPrice` | `sha256("tessera:T-OpenAI")` | 200 % | 48 h | the keeper's fetch time (attested) |
 | `ANTHROPIC-mock` | PreStocks `GET /api/prestocks`, element `contract_address = Pren1FvF…`, field `markPrice` | `sha256("prestocks:ANTHROPIC")` | 200 % | 48 h | the keeper's fetch time (attested) |
 
 The `-mock` mints are devnet twins: Token-2022 `ScaledUiAmount` + `PermanentDelegate`, wrapped 1:1 by
 `window_wrap` into a confidential mint under the desk's auditor key. No mainnet token is touched.
 
-**Attested marks, honestly.** Tessera and PreStocks publish a mark, not a signed feed. The keeper copies
+**Attested marks, honestly.** PreStocks publishes a mark, not a signed feed. The keeper copies
 it and stamps it with the fetch time, and says so three times: `price_source` on chain, `source` in the
 profile, "attested" in the dashboard. The on-chain quote-age rule therefore bounds *how long ago the keeper
 last fetched*, and the 48 h limit is the keeper's liveness promise for those listings. A source that stops
@@ -99,7 +98,7 @@ wrong action.
 - **Build** (`#/build`, for developers): *The collateral schedule · live* — one row per listing with the
   listing PDA, price-cache PDA and feed id (copy / explorer), the mark, the haircut and the verdict the chain
   would give right now (`lock & seize accepted` / `QuoteStale` / `PriceStale`), with the SDK calls that produced
-  it; *The three tracks* — a Pyth, a Tessera and a PreStocks column with what to call, the public-API `curl`,
+  it; *The two tracks* — a Pyth and a PreStocks column with what to call, the public-API `curl`,
   and each track's honest limit; recipes `schedule`, `pyth-mainnet`, `marks`, `solvency` run in the tab and
   print their output; `listing(cstockMint)` in the PDA table; `await thewindow.schedule()` in DevTools. The
   console names the listing on every `PricePosted` / `LockRequested` / `ListingAdded` event.
@@ -116,3 +115,11 @@ wrong action.
   `privacy/idl_surface` allow-lists the listing's numeric fields.
 - Tier 2 (real validator): `integration/second_listing.test.ts` — a member on listing #1 wraps, bids, locks
   against listing #1's price and haircut, deposits into its escrow, and the operator confirms.
+
+## Retiring a listing
+
+A `Listing` cannot be closed. `window-admin listing-retire <key>` sets it to haircut 1,000,000 %, quote limit 1 s and
+symbol `RETIRED` (every future lock and seize is refused; repay → release needs no price), removes it from the
+descriptor (the keeper stops posting under its feed id, the dashboard stops listing it; on-chain readers show it as
+retired) and moves its agents to listing #0. Delete its `[[listings]]` block from the profile too, or `listings-sync`
+re-creates it. Done on devnet on 2026-09-21 for `tessera_openai` (`BAUiqw…`); price-source tag 1 is reserved since.

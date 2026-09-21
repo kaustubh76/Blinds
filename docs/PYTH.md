@@ -98,7 +98,7 @@ account died, not the feed.
   signatures; what it does not do is verify a VAA itself (that is the receiver's job, on the same cluster).
   The desk's poster is still the party that *carries* the update onto devnet, and can only be late, never
   wrong: a stale account fails rule 2. Status of the devnet flip: `docs/TRACKS.md`, Stage 4.
-- Tessera and PreStocks listings are marked by their public APIs, not by Pyth, and their `publish_time`
+- The PreStocks listing is marked by its public API, not by Pyth, and its `publish_time`
   is the keeper's fetch time — attested, and labelled as such everywhere.
 - `Equity.US.TSLA/USD` is read in the browser from a browser-friendly mainnet RPC (`solana-rpc.publicnode.com`
   by default); the public `api.mainnet-beta` answers 403 to browser origins.

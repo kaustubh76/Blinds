@@ -6,12 +6,13 @@ import type { Address } from "@solana/kit";
 import type { Listing, PriceCache } from "./generated/window_credit/index.js";
 
 /** `Listing.price_source` tags. */
-export const PriceSource = { Pyth: 0, Tessera: 1, PreStocks: 2, Mock: 3, PythAccount: 4 } as const;
+/** Tag 1 is reserved: a second attested-mark source retired from the desk on 2026-09-21; its devnet listing stays on chain, refusing every lock. */
+export const PriceSource = { Pyth: 0, Reserved1: 1, PreStocks: 2, Mock: 3, PythAccount: 4 } as const;
 export type PriceSourceTag = (typeof PriceSource)[keyof typeof PriceSource];
 
 export const PRICE_SOURCE_NAMES: Record<number, string> = {
   [PriceSource.Pyth]: "Pyth",
-  [PriceSource.Tessera]: "Tessera mark",
+  [PriceSource.Reserved1]: "retired mark",
   [PriceSource.PreStocks]: "PreStocks mark",
   [PriceSource.Mock]: "mock walk",
   [PriceSource.PythAccount]: "Pyth (on-chain account)",
@@ -19,9 +20,12 @@ export const PRICE_SOURCE_NAMES: Record<number, string> = {
 
 /** The tag a descriptor's `source` label maps to when it carries no explicit `price_source`. */
 export const priceSourceTag = (label: string): number =>
-  ({ pyth: PriceSource.Pyth, tessera: PriceSource.Tessera, prestocks: PriceSource.PreStocks, mock: PriceSource.Mock })[
-    label
-  ] ?? PriceSource.Mock;
+  ({
+    pyth: PriceSource.Pyth,
+    reserved: PriceSource.Reserved1,
+    prestocks: PriceSource.PreStocks,
+    mock: PriceSource.Mock,
+  })[label] ?? PriceSource.Mock;
 
 /** Whether `lock_collateral` / `seize` read Pyth's own receiver-owned account rather than the keeper's cache. */
 export const readsPythAccount = (tag: number): boolean => tag === PriceSource.PythAccount;
@@ -41,11 +45,11 @@ export interface Quote {
 }
 
 /** Whether the quote's `publish_time` is the publisher's own (Pyth) or the keeper's fetch time (an attested mark). */
-export const isAttestedMark = (tag: number): boolean => tag === PriceSource.Tessera || tag === PriceSource.PreStocks;
+export const isAttestedMark = (tag: number): boolean => tag === PriceSource.PreStocks;
 
 /**
  * The 32-byte id a non-Pyth listing's `PriceCache` is seeded on: `sha256("<source>:<symbol>")`,
- * e.g. `tessera:T-OpenAI`. A label, never a Pyth feed id — mirrors `ListingCfg::feed_id` in
+ * e.g. `prestocks:ANTHROPIC`. A label, never a Pyth feed id — mirrors `ListingCfg::feed_id` in
  * `crates/window-config`.
  */
 export async function feedIdForLabel(label: string): Promise<Uint8Array> {

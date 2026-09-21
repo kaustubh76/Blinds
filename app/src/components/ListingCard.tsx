@@ -11,7 +11,6 @@ type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "
 
 const SOURCE_TONE: Record<string, "accent" | "lend" | "borrow" | "mute"> = {
   pyth: "accent",
-  tessera: "lend",
   prestocks: "borrow",
   mock: "mute",
 };
@@ -40,7 +39,7 @@ export function ListingCard({
           nowSecs: Math.floor(Date.now() / 1000),
         })
       : null;
-  const attested = l.source === "tessera" || l.source === "prestocks";
+  const attested = l.source === "prestocks";
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">

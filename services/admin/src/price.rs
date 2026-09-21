@@ -47,7 +47,7 @@ pub enum Source {
     /// Pyth `PriceUpdateV2` accounts, read over RPC from `rpc_url` (may be a different cluster);
     /// the freshest of `candidates` wins.
     OnChainPyth { rpc_url: String, candidates: Vec<String>, feed_id: [u8; 32] },
-    /// A public API's USD mark (Tessera `token-details`, PreStocks `/api/prestocks`): the element
+    /// A public API's USD mark (PreStocks `/api/prestocks`): the element
     /// whose `match_field` equals `match_value`, read at `price_field`. An attested copy — the keeper
     /// stamps it with the fetch time — never a signed feed. The last good value is kept for the
     /// `keep_last` window so a transient 5xx does not halt the desk.
@@ -102,21 +102,6 @@ impl PriceSource {
         let base = base.trim_end_matches('/').to_string();
         Self {
             source: Source::Hermes { base, key, feed_id, fallback: Box::new(fallback.source) },
-            last: None,
-        }
-    }
-
-    /// Tessera's public `token-details`: the element with `mint == source_mint`.
-    pub fn tessera(url: String, mint: String, price_field: String) -> Self {
-        Self {
-            source: Source::Mark {
-                name: "tessera",
-                url,
-                match_field: "mint",
-                match_value: mint,
-                price_field,
-                last_ok: None,
-            },
             last: None,
         }
     }
@@ -509,16 +494,10 @@ mod tests {
         ));
     }
 
-    const TESSERA: &str = include_str!("../tests/fixtures/tessera.json");
     const PRESTOCKS: &str = include_str!("../tests/fixtures/prestocks.json");
 
     #[test]
-    fn parses_tessera_and_prestocks_marks_by_mint() {
-        let t =
-            parse_mark(TESSERA, "mint", "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ", "markPrice")
-                .unwrap();
-        assert_eq!(t, 81_279_000_000); // $812.79
-        assert_eq!(window_proofs::scalar::price_scaled(t, -8), Some(81_279));
+    fn parses_prestocks_marks_by_contract_address() {
         let a = parse_mark(
             PRESTOCKS,
             "contract_address",
@@ -535,10 +514,16 @@ mod tests {
         )
         .unwrap();
         assert_ne!(implied, a, "tokenPrice (implied) and markPrice differ — the PreStocks basis");
-        assert!(parse_mark(TESSERA, "mint", "nope", "markPrice").is_err());
+        assert!(parse_mark(PRESTOCKS, "contract_address", "nope", "markPrice").is_err());
+        assert_eq!(window_proofs::scalar::price_scaled(a, -8), Some(100_826));
         assert!(
-            parse_mark(TESSERA, "mint", "oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ", "holders")
-                .is_ok(),
+            parse_mark(
+                PRESTOCKS,
+                "contract_address",
+                "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+                "tokenPrice"
+            )
+            .is_ok(),
             "any positive number parses; the field name is the profile's responsibility"
         );
         assert!(parse_mark("{\"statusCode\":500}", "mint", "x", "markPrice").is_err());
@@ -549,9 +534,8 @@ mod tests {
 
     #[test]
     fn a_mark_source_is_described_as_attested() {
-        let s = PriceSource::tessera("https://t/x".into(), "m".into(), "markPrice".into());
-        assert!(s.describe().contains("attested"));
         let s = PriceSource::prestocks("https://p/x".into(), "c".into(), "markPrice".into());
+        assert!(s.describe().contains("attested"));
         assert!(s.describe().starts_with("prestocks mark markPrice for c"));
     }
 

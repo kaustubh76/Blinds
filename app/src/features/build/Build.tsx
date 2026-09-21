@@ -261,7 +261,7 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
 
       <Card
         eyebrow="the collateral schedule · live"
-        title="Three listings, one rate — what the chain would accept right now"
+        title="The listings, one rate — what the chain would accept right now"
         footer="Two rules per listing at lock_collateral and seize: the keeper must have posted within max_price_age slots, and the quote's own publish_time must be within max_publish_age. Attested marks carry the keeper's fetch time; the Pyth quote carries the publisher's."
       >
         <Schedule />
@@ -349,7 +349,7 @@ WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule`}</Code>
 await sdk.fetchAuctionConfig(rpc);
 await sdk.verifyPrint(rpc, 31n);
 await thewindow.schedule();                       // every listing: source, mark, both freshness verdicts, PDAs
-await sdk.fetchListing(rpc, "GRDt32Vp2BNEJPe1CFzSZaAFhCRw5bymWXH7tJrRZZhs");   // T-OpenAI-mock by its cSTOCK mint
+await sdk.fetchListing(rpc, "DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo");   // ANTHROPIC-mock by its cSTOCK mint
 thewindow.console.push({ kind: "note", title: "hello from DevTools" });
 thewindow.queryClient.invalidateQueries();`}</Code>
           </div>

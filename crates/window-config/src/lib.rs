@@ -53,8 +53,9 @@ pub enum PriceSourceKind {
     /// A Pyth feed: Hermes with a key, Pyth's on-chain accounts otherwise. The quote carries the
     /// publisher's own `publish_time`.
     Pyth = 0,
-    /// Tessera's public `token-details` mark price, copied by the keeper and timestamped at fetch.
-    Tessera = 1,
+    /// Tag 1 is reserved: it was a second attested-mark source, retired from the desk on
+    /// 2026-09-21 (its devnet listing stays on chain, refusing every lock). No profile may use it.
+    Reserved1 = 1,
     /// PreStocks' public `/api/prestocks` mark price, copied by the keeper and timestamped at fetch.
     Prestocks = 2,
     /// The documented deterministic walk; localnet/CI only.
@@ -69,7 +70,7 @@ impl PriceSourceKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Pyth => "pyth",
-            Self::Tessera => "tessera",
+            Self::Reserved1 => "reserved",
             Self::Prestocks => "prestocks",
             Self::Mock => "mock",
         }
@@ -104,17 +105,17 @@ pub struct ListingCfg {
     /// different cluster from the one the desk runs on.
     #[serde(default)]
     pub price_rpc_url: String,
-    /// Tessera / PreStocks: the public endpoint returning the token array.
+    /// PreStocks: the public endpoint returning the token array.
     #[serde(default)]
     pub source_url: String,
-    /// Tessera / PreStocks: the mainnet mint (Tessera `mint`, PreStocks `contract_address`) that
+    /// PreStocks: the mainnet mint (`contract_address`) that
     /// identifies the element to read.
     #[serde(default)]
     pub source_mint: String,
-    /// Tessera / PreStocks: the sponsor's symbol, part of the feed-id label.
+    /// PreStocks: the sponsor's symbol, part of the feed-id label.
     #[serde(default)]
     pub source_symbol: String,
-    /// Tessera / PreStocks: the JSON field carrying the USD mark (`markPrice`).
+    /// PreStocks: the JSON field carrying the USD mark (`markPrice`).
     #[serde(default)]
     pub price_field: String,
     /// Pyth: the push-oracle shard the desk's own poster (`services/pyth-poster`) writes this feed
@@ -137,7 +138,8 @@ impl ListingCfg {
         match self.source {
             PriceSourceKind::Pyth => hex_32(self.pyth_feed_id.trim_start_matches("0x")),
             PriceSourceKind::Mock => Some([0u8; 32]),
-            PriceSourceKind::Tessera | PriceSourceKind::Prestocks => {
+            PriceSourceKind::Reserved1 => None,
+            PriceSourceKind::Prestocks => {
                 use sha2::Digest as _;
                 let label = format!("{}:{}", self.source.label(), self.source_symbol);
                 Some(sha2::Sha256::digest(label.as_bytes()).into())
@@ -268,7 +270,10 @@ impl Profile {
                         return bad(&format!("{name}: pyth needs price_account and price_rpc_url"));
                     }
                 }
-                PriceSourceKind::Tessera | PriceSourceKind::Prestocks => {
+                PriceSourceKind::Reserved1 => {
+                    return bad(&format!("{name}: price source 1 is reserved (retired)"));
+                }
+                PriceSourceKind::Prestocks => {
                     if l.source_url.is_empty()
                         || l.source_mint.is_empty()
                         || l.source_symbol.is_empty()
@@ -342,28 +347,32 @@ mod tests {
     }
 
     #[test]
-    fn devnet_lists_tessera_and_prestocks_marks_under_labels_not_pyth_ids() {
+    fn devnet_lists_the_prestocks_mark_under_a_label_not_a_pyth_id() {
         let p = Profile::load("devnet").unwrap();
-        let t = p.listing("tessera_openai").unwrap();
+        assert!(
+            p.listing("tessera_openai").is_none(),
+            "retired on 2026-09-21 (PreStocks eligibility)"
+        );
         let a = p.listing("prestocks_anthropic").unwrap();
-        assert_eq!(t.source, PriceSourceKind::Tessera);
         assert_eq!(a.source, PriceSourceKind::Prestocks);
         // The same vector is asserted by sdk/test/listings.test.ts.
         use sha2::Digest as _;
         assert_eq!(
-            hex::encode(t.feed_id().unwrap()),
-            hex::encode(sha2::Sha256::digest(b"tessera:T-OpenAI"))
-        );
-        assert_eq!(
             hex::encode(a.feed_id().unwrap()),
             hex::encode(sha2::Sha256::digest(b"prestocks:ANTHROPIC"))
         );
-        assert!(
-            t.haircut_bps >= 20_000 && a.haircut_bps >= 20_000,
-            "pre-IPO marks carry a bigger haircut"
-        );
-        assert_eq!(t.symbol_bytes()[..13], *b"T-OpenAI-mock");
-        assert_eq!(t.symbol_bytes()[13..], [0u8; 3]);
+        assert!(a.haircut_bps >= 20_000, "pre-IPO marks carry a bigger haircut");
+        assert_eq!(a.symbol_bytes()[..14], *b"ANTHROPIC-mock");
+        assert_eq!(a.symbol_bytes()[14..], [0u8; 2]);
+    }
+
+    #[test]
+    fn price_source_1_is_reserved_and_refused() {
+        let mut p = Profile::load("devnet").unwrap();
+        p.listings[1].source = PriceSourceKind::Reserved1;
+        assert!(matches!(p.validate(), Err(ConfigError::Invalid(_))));
+        assert_eq!(PriceSourceKind::Reserved1.tag(), 1);
+        assert_eq!(PriceSourceKind::Prestocks.tag(), 2);
     }
 
     #[test]

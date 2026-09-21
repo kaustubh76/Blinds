@@ -1,7 +1,7 @@
 /**
  * The collateral schedule: one row per listed collateral with its source, mark, both on-chain
  * freshness rules (keeper post age in slots, quote age in seconds) and haircut. Attested marks
- * (Tessera, PreStocks) are labelled as such — their `publish_time` is the keeper's fetch time.
+ * (PreStocks) are labelled as such — their `publish_time` is the keeper's fetch time.
  */
 import type { credit as creditNs } from "@thewindow/solana-sdk";
 import { isAttestedMark, PriceSource, quoteFreshness, symbolOf } from "@thewindow/solana-sdk";
@@ -18,7 +18,6 @@ import { sourceLabel, useOnChainListings } from "../../lib/listings";
 import { useDeployment, usePrices, useSlot } from "../../lib/queries";
 
 const SOURCE_URL: Record<string, string> = {
-  tessera: "https://rest-api.tessera.pe/v1/public/token-details",
   prestocks: "https://prestocks.com/api/prestocks",
   pyth: "https://www.pyth.network/price-feeds/crypto-tslax-usd",
 };
@@ -40,13 +39,13 @@ export function CollateralSchedule() {
           freshness limits, both enforced at <span className="mono">lock_collateral</span> and{" "}
           <span className="mono">seize</span>: the keeper must have posted within{" "}
           <span className="mono">max_price_age</span> slots, and the quote&apos;s own timestamp must be within{" "}
-          <span className="mono">max_publish_age</span>. Tessera and PreStocks marks are copies of public APIs,
-          timestamped when the keeper fetched them — attested, not signed; the Pyth quote carries the publisher&apos;s
-          own timestamp. Devnet twins of the tokens; nothing on mainnet is touched.
+          <span className="mono">max_publish_age</span>. The PreStocks mark is a copy of a public API, timestamped when
+          the keeper fetched it — attested, not signed; the Pyth quote carries the publisher&apos;s own timestamp.
+          Devnet twins of the tokens; nothing on mainnet is touched.
         </>
       }
     >
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
         {listings.map((l, i) => (
           <ListingCard
             key={l.key}
@@ -96,7 +95,9 @@ export function CollateralSchedule() {
             ? ` — ${onChain.data
                 .filter((c) => !listings.some((l) => l.listing === c.address))
                 .map((c) => symbolOf(c.data))
-                .join(", ")} not yet in this build's descriptor.`
+                .join(
+                  ", ",
+                )}: retired (a listing cannot be closed; it refuses every lock and seize and is not part of this deployment).`
             : "; this descriptor is ahead of the chain (sync pending)."}
         </p>
       )}

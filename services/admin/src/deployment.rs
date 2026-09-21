@@ -29,10 +29,10 @@ pub struct Deployment {
 /// One `Listing` account and what it was made from.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListingRecord {
-    /// The profile key (`mock_tsla`, `tessera_openai`, …).
+    /// The profile key (`mock_tsla`, `prestocks_anthropic`, …).
     pub key: String,
     pub symbol: String,
-    /// `pyth` | `tessera` | `prestocks` | `mock`.
+    /// `pyth` | `prestocks` | `mock` (`reserved` = a retired source).
     pub source: String,
     /// The `Listing` PDA.
     pub listing: String,
@@ -44,7 +44,7 @@ pub struct ListingRecord {
     pub haircut_bps: u64,
     pub max_price_age_slots: u64,
     pub max_publish_age_secs: i64,
-    /// `Listing.price_source` on chain (0 Pyth · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth
+    /// `Listing.price_source` on chain (0 Pyth · 1 reserved · 2 PreStocks · 3 mock · 4 Pyth
     /// receiver account). Absent in older descriptors: derived from `source`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price_source: Option<u8>,
@@ -61,7 +61,7 @@ impl ListingRecord {
     pub fn price_source(&self) -> u8 {
         self.price_source.unwrap_or(match self.source.as_str() {
             "pyth" => window_client::PRICE_SOURCE_PYTH,
-            "tessera" => 1,
+            "reserved" => 1,
             "prestocks" => 2,
             _ => window_client::PRICE_SOURCE_MOCK,
         })

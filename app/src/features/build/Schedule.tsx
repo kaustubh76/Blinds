@@ -25,7 +25,7 @@ import { quoteAddress, quoteSourceFor } from "./quotes";
 const SOURCE_TONE: Record<string, Tone> = {
   Pyth: "accent",
   "Pyth (on-chain account)": "accent",
-  "Tessera mark": "lend",
+  "retired mark": "mute",
   "PreStocks mark": "borrow",
 };
 
@@ -72,6 +72,8 @@ function useScheduleRows() {
           const readFrom = src ? await quoteAddress(src) : null;
           return {
             symbol: symbolOf(l),
+            /** On chain but not in this deployment's descriptor: retired (a listing cannot be closed). */
+            retired: !!dep.data && !dep.data.listings.some((d) => d.listing === address),
             source: PRICE_SOURCE_NAMES[l.priceSource] ?? `source ${l.priceSource}`,
             attested: isAttestedMark(l.priceSource),
             listing: address,
@@ -101,7 +103,7 @@ export function Schedule() {
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-ink-3">
           {rows.data
-            ? `${rows.data.length} listings · ${rows.data.filter((r) => r.fresh?.usable).length} usable for lock & seize right now`
+            ? `${rows.data.filter((r) => !r.retired).length} listings · ${rows.data.filter((r) => r.fresh?.usable).length} usable for lock & seize right now${rows.data.some((r) => r.retired) ? ` · ${rows.data.filter((r) => r.retired).length} retired` : ""}`
             : "reading the schedule…"}
         </span>
         <span className="ml-auto flex gap-1">
@@ -137,6 +139,7 @@ export function Schedule() {
             <li key={r.listing} className="rounded-[var(--radius-md)] border border-line bg-surface-0 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-ink-1">{r.symbol}</span>
+                {r.retired && <Badge tone="mute">retired · not in this deployment</Badge>}
                 <Badge tone={SOURCE_TONE[r.source] ?? "mute"}>{r.source}</Badge>
                 {r.attested && <Badge tone="warn">attested · publish_time = keeper fetch</Badge>}
                 <span className="num text-sm text-ink-1">

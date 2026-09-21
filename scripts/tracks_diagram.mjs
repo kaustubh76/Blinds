@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generates docs/tracks.excalidraw — the track-integration diagram (Pyth · Tessera · PreStocks).
+// Generates docs/tracks.excalidraw — the track-integration diagram (Pyth · PreStocks).
 // Run `node scripts/tracks_diagram.mjs` after changing the layout below; app/src/lib/excalidraw.test.ts
 // checks that every arrow and label binding in the emitted file points at a real element.
 import { writeFileSync } from "node:fs";
@@ -11,7 +11,6 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "docs", "tracks.
 // One colour per track; the desk is grey.
 const C = {
   pyth: { stroke: "#6d28d9", bg: "#ede9fe" },
-  tessera: { stroke: "#1d4ed8", bg: "#dbeafe" },
   prestocks: { stroke: "#c2410c", bg: "#ffedd5" },
   desk: { stroke: "#1f2937", bg: "#f3f4f6" },
   chain: { stroke: "#065f46", bg: "#d1fae5" },
@@ -186,7 +185,7 @@ note(
   40,
   20,
   1200,
-  "THE WINDOW for Stocks — track integration: one xONIA rate, a collateral schedule (Pyth · Tessera · PreStocks)",
+  "THE WINDOW for Stocks — track integration: one xONIA rate, a collateral schedule (Pyth · PreStocks)",
   { fontSize: 22 },
 );
 note(
@@ -257,15 +256,6 @@ box(
   C.pyth,
 );
 box(
-  "s.tessera",
-  40,
-  480,
-  300,
-  110,
-  "③ Tessera public API\nrest-api.tessera.pe/v1/public/token-details\nT-OpenAI · mint oPAiAikW… · markPrice\n(retry ×3, keep-last on 5xx)",
-  C.tessera,
-);
-box(
   "s.prestocks",
   40,
   610,
@@ -302,15 +292,6 @@ box(
   60,
   "① window-admin price-check\nfetch + print price/expo/publish_time/age, no transaction",
   C.pyth,
-);
-box(
-  "k.tessera",
-  620,
-  480,
-  440,
-  90,
-  "③ PriceSource · T-OpenAI-mock\nmarkPrice → price = round(v·1e8), expo −8\npublish_time = fetch time (attested, not a feed)",
-  C.tessera,
 );
 box(
   "k.prestocks",
@@ -361,15 +342,6 @@ box(
   C.pyth,
 );
 box(
-  "d.listing.openai",
-  1160,
-  380,
-  300,
-  110,
-  '③ Listing ["listing", cstock_mint]\nT-OpenAI-mock · price_source Tessera (1)\nhaircut 200 % · max_price_age 1200 slots\nmax_publish_age 172 800 s',
-  C.tessera,
-);
-box(
   "d.listing.anthropic",
   1160,
   510,
@@ -387,15 +359,6 @@ box(
   110,
   'PriceCache ["price", feed_id]\nfeed_id 0x47a15647…a362 (Pyth id)\nprice · expo · publish_time (unmodified) · posted_slot\nsame PDA as before the upgrade — history continues',
   C.pyth,
-);
-box(
-  "d.cache.openai",
-  1500,
-  380,
-  320,
-  110,
-  'PriceCache ["price", feed_id]\nfeed_id = sha256("tessera:T-OpenAI") — a label\nprice · expo · publish_time = fetch time · posted_slot',
-  C.tessera,
 );
 box(
   "d.cache.anthropic",
@@ -497,7 +460,7 @@ box(
   850,
   520,
   220,
-  "LEGEND\nviolet = Pyth track · blue = Tessera track · orange = PreStocks track\ngreen = enforced on chain · teal = dashboard · grey = unchanged desk\ndashed frames = trust boundaries · dashed arrows = fallback / stretch\n\nHonest limits: Tessera & PreStocks marks are keeper-attested copies of public APIs;\n-mock mints are devnet twins; the administrator can decrypt individual amounts\n(accountable privacy, unchanged).",
+  "LEGEND\nviolet = Pyth track · orange = PreStocks track\ngreen = enforced on chain · teal = dashboard · grey = unchanged desk\ndashed frames = trust boundaries · dashed arrows = fallback / stretch\n\nHonest limits: the PreStocks mark is a keeper-attested copy of a public API;\n-mock mints are devnet twins; the administrator can decrypt individual amounts\n(accountable privacy, unchanged).",
   { ...C.desk, align: "left", fontSize: 12 },
 );
 
@@ -533,18 +496,14 @@ box(
 // Arrows — sources → keeper
 arrow("e.hermes.k", "s.hermes", "k.pyth", "parsed price, id checked", C.pyth);
 arrow("e.accounts.k", "s.pyth.accounts", "k.pyth", "fallback: freshest shard", { ...C.pyth, dashed: true });
-arrow("e.tessera.k", "s.tessera", "k.tessera", "markPrice", C.tessera);
 arrow("e.prestocks.k", "s.prestocks", "k.prestocks", "markPrice", C.prestocks);
 // keeper → post → caches
 arrow("e.kpyth.post", "k.pyth", "k.post", null, C.pyth);
-arrow("e.ktess.post", "k.tessera", "k.post", null, C.tessera);
 arrow("e.kpre.post", "k.prestocks", "k.post", null, C.prestocks);
 arrow("e.post.tsla", "k.post", "d.cache.tsla", "post_price", C.pyth);
-arrow("e.post.openai", "k.post", "d.cache.openai", "post_price", C.tessera);
 arrow("e.post.anthropic", "k.post", "d.cache.anthropic", "post_price", C.prestocks);
 // listing ↔ cache seeds
 arrow("e.l.tsla", "d.listing.tsla", "d.cache.tsla", "seeds on listing.feed_id", C.pyth);
-arrow("e.l.openai", "d.listing.openai", "d.cache.openai", "seeds on listing.feed_id", C.tessera);
 arrow("e.l.anthropic", "d.listing.anthropic", "d.cache.anthropic", "seeds on listing.feed_id", C.prestocks);
 // admin
 arrow("e.admin.listing", "d.admin", "d.listing.tsla", "add_listing (TSLAx first, same feed id)", C.chain);

@@ -1,4 +1,4 @@
-# Track integration — Pyth · Tessera · PreStocks
+# Track integration — Pyth · PreStocks (· Meteora DBC · Clawpump, from 21 Sep)
 
 Diagram: [`docs/tracks.excalidraw`](tracks.excalidraw) (open at excalidraw.com or with the VS Code Excalidraw
 extension). Deadline: **Fri 26 Sep 2026**. This file is the integration record: what each sponsor judges, what in
@@ -9,10 +9,10 @@ the desk answers it, which stage delivers it, and what we do not claim. It is up
 | Track | Prize | Why it fits a private margin desk | Not chosen |
 |---|---|---|---|
 | **Pyth — best use of market data** | 3 months Pyth Pro | Pyth already *is* the collateral mark: its price is the `k_c` scalar inside every solvency proof and the gate on every seizure. The work makes it fresh, comparable (underlying vs wrapper) and enforced on chain. | — |
-| **Tessera — pre-IPO T-Tokens** | $6,000 | "OpenAI or Kalshi T-Tokens" are Tessera's tokenized pre-IPO shares (`T-OpenAI`, `T-Kalshi`), not the OpenAI API. Pre-IPO holders are exactly who needs a position that never was public; a borrow line against `T-OpenAI` is value flowing *to* the token. | — |
-| **PreStocks — pre-IPO tokens** | $5,000 | Same mechanism as Tessera with PreStocks' `ANTHROPIC` token and its published mark price. Once the collateral schedule exists, a listing is one config block. | — |
-| Meteora DBC | $5,000 | | A borrow-*rate* auction has no honest mapping onto a launch bonding curve; separate web3.js-v1 stack; "mainnet beats slides" needs mainnet SOL. Dropped. |
-| Clawpump | $5,000 | | Requires launching a token on Clawpump with a stock-paired pool. Not this product. Dropped. |
+| Tessera — pre-IPO T-Tokens | $6,000 | | **Dropped 21 Sep.** PreStocks' rule: "projects that integrate any non-PreStocks pre-IPO tokens will be ineligible". The desk had listed `T-OpenAI` next to `ANTHROPIC`; it cannot hold both bounties. The `T-OpenAI-mock` listing was **retired** on chain (`update_listing`: haircut 1,000,000 %, quote limit 1 s, symbol `RETIRED`; a listing cannot be closed) and removed from the profile, descriptor, keeper, SDK, dashboard and diagram. Its open loans still repay. |
+| **PreStocks — pre-IPO tokens** | $10,000 | PreStocks' `ANTHROPIC` token and its published mark price become a collateral of the desk: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing the position, borrow at the print. The only pre-IPO token on the desk (see Tessera). | |
+| **Meteora DBC** | $5,000 | Taken up 21 Sep (Part B below): the desk's lender agent launches its token on a TSLAx-quoted DBC pool on mainnet, configured from the desk's own numbers. | |
+| **Clawpump** | $5,000 | Taken up 21 Sep: the lender agent gets a Clawpump identity and wallet; the stock-paired pool is the Meteora one. | |
 
 ## What the desk becomes: one rate, a collateral schedule
 
@@ -22,7 +22,7 @@ source, haircut and freshness limits; the xONIA rate, the sealed-bid window and 
 
 ```
 Listing ["listing", cstock_mint]  { mock_mint, cstock_mint, escrow_account, feed_id[32],
-                                    price_source (0 Pyth cache · 1 Tessera · 2 PreStocks · 3 mock · 4 Pyth's own account),
+                                    price_source (0 Pyth cache · 1 reserved/retired · 2 PreStocks · 3 mock · 4 Pyth's own account),
                                     haircut_bps, max_price_age (slots), max_publish_age_secs, symbol[16], decimals }
 PriceCache ["price", feed_id]     { feed_id, price, expo, publish_time, posted_slot, posts }   — one per listing
 Loan.listing                      bound at lock_collateral; deposit / seize / release check it
@@ -44,7 +44,6 @@ Planned devnet schedule:
 | Listing | Source | `feed_id` | Haircut | Quote limit |
 |---|---|---|---|---|
 | `TSLAx-mock` | Pyth `Crypto.TSLAX/USD` via Hermes (bearer key), on-chain push account as fallback | `0x47a15647…a362` (Pyth id) | 150 % | 1 h |
-| `T-OpenAI-mock` | Tessera public API `markPrice` for mint `oPAiAikWTaFj9RYoRFD35ccfwhnMcB3ThgBZRHSkjTZ` | `sha256("tessera:T-OpenAI")` — a label, not a Pyth id | 200 % | 48 h |
 | `ANTHROPIC-mock` | PreStocks public API `markPrice` for `Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw` | `sha256("prestocks:ANTHROPIC")` — a label | 200 % | 48 h |
 
 The `-mock` mints are devnet twins (Token-2022 `ScaledUiAmount` + `PermanentDelegate`, wrapped 1:1 into a
@@ -67,28 +66,27 @@ Incident recorded honestly: the mainnet push account `GpoWLTd6…` we copied fro
 `Crypto.TSLAX/USD` is a 24/7 feed (earlier docs called it an equity feed that closes overnight — wrong; the push
 account died, the feed did not).
 
-## Tessera — criteria → what answers them
+## Tessera — retired 21 Sep
 
-| Judged on | Where it is answered | Stage |
-|---|---|---|
-| A product or use case for T-OpenAI / T-Kalshi | A confidential borrow line against `T-OpenAI`: the holder wraps into a confidential mint, proves `collateral ≥ 200 % × loan` against Tessera's mark without revealing either amount, borrows at the xONIA print. | 3 |
-| Drives value to the tokens | Collateral utility. A pre-IPO token you can borrow against without disclosing your position is worth more than one you can only hold. | 3 |
-| Integration depth | Tessera's `token-details` mark is the on-chain `PriceCache` for the listing (`price_source = 1`), with `publish_time = keeper fetch time` — stated on chain and in the UI as an attested mark, not a feed. Listing, wrap, lock, deposit, seize, release all run per listing. | 3 |
-| Developer surface | Build page: the `T-OpenAI-mock` schedule row, the **Tessera** column (`feedIdForLabel("tessera:T-OpenAI")` → `fetchPrice`, `fetchListing(cstockMint)`, `buildLockPlan({ listing, feedId, mockMint, haircutBps })`, the `token-details` `curl`, explorer links to listing and escrow), the `marks` recipe (the label → feed-id rule, proven against the chain), the `solvency` recipe (200 % pledge). The API sends no CORS headers, so the on-chain cache is the browser's source — said on the page. | live |
+Listed 17–20 Sep as `T-OpenAI-mock` (`BAUiqw…`, escrow `AmL991…`, cSTOCK `GRDt32…`), verified end to end (rows below
+are kept as history). Retired for PreStocks eligibility: `window-admin listing-retire tessera_openai` set the on-chain
+listing to haircut 1,000,000 % / quote limit 1 s / symbol `RETIRED` (every future lock and seize refused; repay →
+release unaffected), removed it from `deployments/devnet.json` and `config/devnet.toml`, and moved its agent to
+listing #0. The keeper no longer posts under `sha256("tessera:T-OpenAI")`; price-source tag 1 is reserved.
 
 ## PreStocks — criteria → what answers them
 
 | Judged on | Where it is answered | Stage |
 |---|---|---|
-| Creativity | The same desk lists `ANTHROPIC` next to a listed stock and a Tessera token under one rate — a collateral schedule, the way a prime desk actually runs. | 3 |
+| Creativity | The same desk lists `ANTHROPIC` next to a listed stock under one rate — a collateral schedule, the way a prime desk actually runs; and (Part B) the desk's lender agent, whose yield comes from loans against tokenized stocks, is launched on a stock-quoted Meteora pool. | 3 |
 | Integration depth | `/api/prestocks` `markPrice` → keeper → `PriceCache` (`price_source = 2`); `tokenPrice` vs `markPrice` shown as the PreStocks basis in the schedule table. | 3 |
 | Product quality | Listing selector on the Desk, per-listing lock/deposit on Positions, schedule with quote ages on Market; tier-1 attack cases for wrong-listing and stale-quote paths; tier-2 lifecycle on a second listing. | 3 |
 | Developer surface | Build page: the `ANTHROPIC-mock` schedule row, the **PreStocks** column (`feedIdForLabel("prestocks:ANTHROPIC")`, the `/api/prestocks` `curl`, the same SDK calls), `marks` and `solvency` recipes (ANTHROPIC: 1.965 shares required, 3.143 pledged after the 200 % haircut for 1,000 USDC); console events named by listing (`credit.PricePosted · ANTHROPIC-mock $…`). | live |
 
 ## Honest limits (also in the UI)
 
-- Tessera and PreStocks marks are **keeper-attested** copies of a public API, timestamped at fetch. They are not
-  signed feeds. The Pyth listing is the only one whose quote carries the publisher's own timestamp (and, after
+- The PreStocks mark is a **keeper-attested** copy of a public API, timestamped at fetch. It is not a
+  signed feed. The Pyth listing is the only one whose quote carries the publisher's own timestamp (and, after
   Stage 4, the publisher's own signature).
 - The administrator can decrypt individual amounts (accountable privacy — unchanged; see `docs/THREAT_MODEL.md`).
 - Devnet twins, not the mainnet tokens.
@@ -100,7 +98,7 @@ account died, the feed did not).
 | 0 | This record + `docs/tracks.excalidraw` | done 17 Sep |
 | 1 | Keeper: Hermes with key, freshest on-chain shard fallback, `price-check`, quote-age metric, doc corrections | done 17 Sep (Hermes path live once `PYTH_API_KEY` is set) |
 | 2 | Dashboard: underlying vs wrapper panel (Pyth mainnet read via a browser-friendly RPC), wrapper basis, stale badge | done 17 Sep (`app/src/lib/pyth.ts`, `CollateralMark.tsx`) |
-| 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI, `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
+| 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI (retired 21 Sep), `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
 | 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; **devnet upgraded to A15** (`window_credit` slot 500375381, `e2c2dbb`); only the TSLAx flip (`listing-set-source mock_tsla 4`) waits for `PYTH_API_KEY` — the poster needs Hermes; until then TSLAx stays source 0 and honestly stale, and every dashboard surface already reads a source-4 listing where the program would (`fetchQuotes`) |
 | 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; hosted site back on GitHub Pages 19 Sep (repo public); submission blurbs final (below); freeze + tag are the last action, on the user's go |
 
@@ -161,7 +159,7 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
   had drifted the memory file); `watch_tunnels.sh` keeps the quick tunnels alive.
 
 - Final integration pass (20 Sep evening), every check at HEAD on the hosted site: Pages == HEAD, chain == HEAD
-  (5/5 byte-identical), `price-check` answers for Pyth (refused, stale by design) / Tessera / PreStocks, all eight
+  (5/5 byte-identical), `price-check` answers for Pyth (refused, stale by design) / Tessera (since retired) / PreStocks, all eight
   wallet-free recipes confirmed on Pages (`verify` re-proved epoch 470 in the browser), `thewindow.schedule()`,
   fresh public clone builds and tests green, CI green. The pass surfaced one more agents gap — a loan whose deposit
   failed after the lock was never resumed, and the deposit itself failed on a stale owner-side balance cache
@@ -178,11 +176,7 @@ window opens exactly when the equity market closes. The Pyth listing can run wit
 all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, feed, verification level, age),
 posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it the moment a Pyth key is present).
 
-**Tessera.** A confidential borrow line against T-OpenAI: wrap into a confidential mint, prove solvency against
-Tessera's mark without revealing the position, borrow at the xONIA print. Pre-IPO holders are the people who most
-need a position that never was public.
-
-**PreStocks.** ANTHROPIC listed on the same desk under the same rate, marked by PreStocks' published price with
+**PreStocks.** ANTHROPIC, the only pre-IPO token on the desk, listed next to a tokenized stock under one rate, marked by PreStocks' published price with
 its implied-vs-mark basis on the schedule: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing
 the position, borrow at the print, and — for developers — a Build page that shows the listing's PDAs, the account
 the program prices from, and the exact SDK calls, runnable in the tab.

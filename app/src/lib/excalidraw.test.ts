@@ -41,9 +41,10 @@ describe("docs/tracks.excalidraw", () => {
     }
   });
 
-  it("names the three tracks and the four stages", () => {
+  it("names the two tracks and the four stages", () => {
     const text = file.elements.map((e) => e.text ?? "").join("\n");
-    for (const needle of ["Pyth", "Tessera", "PreStocks", "①", "②", "③", "④", "max_publish_age"]) {
+    for (const needle of ["Pyth", "PreStocks", "①", "②", "③", "④", "max_publish_age"]) {
+      expect(text).not.toContain("Tessera");
       expect(text, needle).toContain(needle);
     }
   });
