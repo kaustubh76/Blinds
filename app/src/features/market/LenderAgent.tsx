@@ -12,6 +12,14 @@ import { LAUNCH, launchCluster, useLaunch } from "../../lib/launch";
 
 const usd = (v: number) => `$${v.toLocaleString("en-US", { maximumFractionDigits: v < 10 ? 4 : 0 })}`;
 const q = (v: number) => `${v.toLocaleString("en-US", { maximumFractionDigits: 4 })} quote`;
+const age = (s: number) =>
+  s < 120
+    ? `${s} s`
+    : s < 7200
+      ? `${Math.round(s / 60)} min`
+      : s < 172800
+        ? `${(s / 3600).toFixed(1)} h`
+        : `${Math.round(s / 86400)} d`;
 
 export function LenderAgent() {
   const l = useLaunch();
@@ -62,7 +70,13 @@ export function LenderAgent() {
         <Stat
           label="raised so far"
           value={d ? q(d.raisedQuote) : "—"}
-          hint={d ? `${usd(d.raisedQuote * d.quoteUsd)} at ${usd(d.quoteUsd)} per quote` : undefined}
+          hint={
+            d
+              ? `${usd(d.raisedQuote * d.quoteUsd)} at ${usd(d.quoteUsd)} per quote${
+                  d.quoteFeed ? ` · Pyth ${d.quoteFeed}, ${age(d.quoteAgeSecs ?? 0)} old` : " · the launch-time price"
+                }`
+              : undefined
+          }
         />
         <Stat
           label="graduation threshold"

@@ -2,7 +2,9 @@
 import { bigintSafe, launch } from "./browser.mjs";
 
 const [url = "https://kaustubh76.github.io/Blinds/#/build", idsArg] = process.argv.slice(2);
-const ids = (idsArg ?? "config,schedule,pyth-mainnet,marks,solvency,latest-print,verify,subscribe").split(",");
+const ids = (idsArg ?? "config,schedule,pyth-mainnet,marks,launch-status,solvency,latest-print,verify,subscribe").split(
+  ",",
+);
 const b = await launch();
 const p = await b.newPage();
 await p.setViewport({ width: 1400, height: 1000 });

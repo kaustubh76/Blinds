@@ -1,0 +1,20 @@
+{
+  "name": "The Window Lender",
+  "symbol": "WLEND",
+  "description": "The token of THE WINDOW's lender agent: the autonomous lender on the other side of every overnight window of a private margin desk for tokenized stocks on Solana. It lends against tokenized-stock collateral proven solvent in zero knowledge and earns the xONIA rate. Launched on a Meteora Dynamic Bonding Curve quoted in a tokenized stock, configured from the desk's own numbers. Not investment advice; a hackathon project (Stocklana, September 2026).",
+  "image": "https://kaustubh76.github.io/Blinds/launch/wlend.svg",
+  "external_url": "https://kaustubh76.github.io/Blinds/#/market",
+  "attributes": [
+    { "trait_type": "venue", "value": "Meteora Dynamic Bonding Curve" },
+    { "trait_type": "quote", "value": "TSLAx (xStocks) on mainnet; a twin mint on devnet" },
+    {
+      "trait_type": "priced by",
+      "value": "Pyth Crypto.TSLAX/USD, Equity.US.TSLA/USD while the wrapper account is stale"
+    },
+    { "trait_type": "source", "value": "https://github.com/kaustubh76/Blinds/tree/main/services/launch" }
+  ],
+  "properties": {
+    "files": [{ "uri": "https://kaustubh76.github.io/Blinds/launch/wlend.svg", "type": "image/svg+xml" }],
+    "category": "image"
+  }
+}

@@ -84,6 +84,24 @@ Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
 6 simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
+
+**The lender agent's token** ([`docs/TRACKS.md`](TRACKS.md) Part B): `WLEND` on a Meteora Dynamic
+Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — $25,000 → $250,000
+fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $365.23 per quote
+(the curve raises 168.50 quote before it graduates), fee 300 → 30 bp
+over one tenor, 50 % of fees and 10 % of the raise to the agent. This is a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6).
+
+| | address |
+|---|---|
+| pool (Meteora DBC) | [`EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg`](https://explorer.solana.com/address/EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg?cluster=devnet) |
+| WLEND mint | [`72QJmsn48nkLKM6zDr5hjVvoEuJGrRRtS81iv8geZL1m`](https://explorer.solana.com/address/72QJmsn48nkLKM6zDr5hjVvoEuJGrRRtS81iv8geZL1m?cluster=devnet) |
+| config | [`HsfeZeTwmebMbu1Mtj2dLBU5EW2BvAhZErayN8RJGPZr`](https://explorer.solana.com/address/HsfeZeTwmebMbu1Mtj2dLBU5EW2BvAhZErayN8RJGPZr?cluster=devnet) |
+| quote mint (a devnet twin of TSLAx) | [`GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn`](https://explorer.solana.com/address/GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn?cluster=devnet) |
+| creator · fee wallet | [`8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5`](https://explorer.solana.com/address/8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5?cluster=devnet) |
+| launch tx | [`5aadUBptReDHXuZkQzKDyA73JS6TuXvZQV5QPtrkdP9TcrErnTmhH2v4WgePdShhGzGMedYj4Akzbdqq5BY9AmmP`](https://explorer.solana.com/tx/5aadUBptReDHXuZkQzKDyA73JS6TuXvZQV5QPtrkdP9TcrErnTmhH2v4WgePdShhGzGMedYj4Akzbdqq5BY9AmmP?cluster=devnet) |
+
+The Market page's card and the Build page's `launch-status` recipe read this pool from raw bytes (`sdk.fetchDbc`).
+
 ### Watch it yourself
 
 ```bash

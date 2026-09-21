@@ -8,6 +8,7 @@ import { Button, Callout, Pill, Section } from "../../components/ui";
 import { WindowClock } from "../../components/WindowClock";
 import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
 import { formatRate, formatUsdc } from "../../lib/format";
+import { LAUNCH } from "../../lib/launch";
 import { useSelectedListing } from "../../lib/listings";
 import { useDeployment, useOracle, usePrices, useSeries, useSlot } from "../../lib/queries";
 import { useHashRoute } from "../../lib/useHashRoute";
@@ -67,7 +68,7 @@ export function Home() {
       <section className="brand-wash grid gap-8 rounded-[var(--radius-xl)] border border-line bg-surface-1 px-6 py-8 sm:px-10 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:items-center">
         <div className="animate-rise">
           <Pill tone="accent" icon="sparkles">
-            live on Solana devnet · one rate, three collaterals
+            live on Solana devnet · one rate, two collaterals
           </Pill>
           <h1 className="t-display mt-4 text-ink-1">
             Borrow against tokenized stock.
@@ -121,7 +122,7 @@ export function Home() {
       {/* Collateral */}
       <Section
         eyebrow="what you can bring"
-        title="Three collaterals, one rate"
+        title={`${["No", "One", "Two", "Three", "Four"][listings.length] ?? listings.length} collateral${listings.length === 1 ? "" : "s"}, one rate`}
         lead="Each listing is marked by its own source and carries its own haircut; the chain refuses a lock or a seizure when the quote is not fresh."
         right={
           <a href="#/market" className="text-sm text-accent hover:underline">
@@ -129,7 +130,7 @@ export function Home() {
           </a>
         }
       >
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className={`grid gap-4 ${listings.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           {listings.map((l, i) => (
             <ListingCard
               key={l.key}
@@ -144,6 +145,13 @@ export function Home() {
             />
           ))}
         </div>
+        <p className="mt-4 text-sm text-ink-3">
+          The lender on the other side of every window is an autonomous agent; its token,{" "}
+          <span className="mono">{LAUNCH.token.symbol}</span>, is on a stock-quoted Meteora bonding curve —{" "}
+          <a href="#/market" className="text-accent hover:underline">
+            the curve →
+          </a>
+        </p>
       </Section>
 
       {/* Calculator */}

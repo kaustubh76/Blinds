@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPlan, DEFAULTS } from "../src/plan.js";
+import { pickQuote, QUOTE_MAX_AGE_SECS } from "../src/pyth.js";
 
 describe("the lender agent's launch plan", () => {
   const tslax = { quoteUsd: 365.23, quoteDecimals: 8 as const };
@@ -37,5 +38,18 @@ describe("the lender agent's launch plan", () => {
   it("refuses nonsense", () => {
     expect(() => buildPlan({ ...DEFAULTS, quoteUsd: 0, quoteDecimals: 8 })).toThrow();
     expect(() => buildPlan({ ...DEFAULTS, ...tslax, migrationUsd: 1, initialUsd: 2 })).toThrow();
+  });
+});
+
+describe("which Pyth read prices the quote", () => {
+  const at = (publishTime: number, ageSecs: number) => ({ publishTime, ageSecs });
+  it("prefers the wrapper feed while it is fresh", () => {
+    expect(pickQuote(at(1000, 60), at(2000, 5))?.feed).toBe("Crypto.TSLAX/USD");
+  });
+  it("falls back to the equity feed once the wrapper's account has died", () => {
+    const dead = at(1000, QUOTE_MAX_AGE_SECS + 1);
+    expect(pickQuote(dead, at(2000, 5))?.feed).toBe("Equity.US.TSLA/USD");
+    expect(pickQuote(dead, null)?.feed).toBe("Crypto.TSLAX/USD");
+    expect(pickQuote(null, null)).toBeNull();
   });
 });

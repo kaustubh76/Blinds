@@ -51,12 +51,23 @@ export function useLaunch() {
   return useQuery({
     queryKey: ["launch", LAUNCH.pool],
     queryFn: async () => {
-      const [dbc, quote] = await Promise.all([
+      const [dbc, wrapper, equity] = await Promise.all([
         withRpcRetry(() => fetchDbc(launchRpc, address(LAUNCH.pool))),
         fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"]).catch(() => null),
+        fetchFreshest(mainnetRpc, FEEDS["Equity.US.TSLA/USD"]).catch(() => null),
       ]);
       if (!dbc) return null;
       const dec = 10 ** LAUNCH.quote.decimals;
+      // The same rule as services/launch: the wrapper feed while fresh, else the underlying equity —
+      // the wrapper's only push account died on 12 Sep (docs/PYTH.md).
+      const now = Math.floor(Date.now() / 1000);
+      const fresh = wrapper && now - wrapper.publishTime <= 24 * 3600;
+      const quote = fresh
+        ? wrapper
+        : equity && (!wrapper || equity.publishTime > wrapper.publishTime)
+          ? equity
+          : wrapper;
+      const quoteFeed = quote === wrapper ? "Crypto.TSLAX/USD" : "Equity.US.TSLA/USD";
       const quoteUsd = quote ? Number(quote.price) * 10 ** quote.expo : LAUNCH.quote.usd;
       return {
         ...dbc,
@@ -67,6 +78,8 @@ export function useLaunch() {
         totalFeeQuote: Number(dbc.pool.totalTradingQuoteFee) / dec,
         quoteUsd,
         quoteFromPyth: !!quote,
+        quoteFeed: quote ? quoteFeed : null,
+        quoteAgeSecs: quote ? Math.max(0, now - quote.publishTime) : null,
         pool: dbc.pool as typeof dbc.pool & { address: Address },
       };
     },

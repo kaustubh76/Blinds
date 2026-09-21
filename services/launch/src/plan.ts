@@ -67,6 +67,8 @@ export interface LaunchPlan {
     quoteUsd: number;
     initialMarketCapQuote: number;
     migrationMarketCapQuote: number;
+    /** What the curve raises (in quote units) before it graduates — the program's `migration_quote_threshold`. */
+    migrationQuoteThreshold: number;
     initialUsd: number;
     migrationUsd: number;
     feeBps: { open: number; rest: number; periods: number; durationSecs: number };
@@ -141,6 +143,7 @@ export function buildPlan(n: DeskNumbers): LaunchPlan {
       quoteUsd: n.quoteUsd,
       initialMarketCapQuote: initialMarketCap,
       migrationMarketCapQuote: migrationMarketCap,
+      migrationQuoteThreshold: Number(config.migrationQuoteThreshold.toString()) / 10 ** n.quoteDecimals,
       initialUsd: n.initialUsd,
       migrationUsd: n.migrationUsd,
       feeBps: { open: n.openFeeBps, rest: n.restFeeBps, periods, durationSecs: n.tenorSecs },

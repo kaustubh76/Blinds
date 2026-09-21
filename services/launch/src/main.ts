@@ -24,7 +24,7 @@ import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/s
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, type Transaction } from "@solana/web3.js";
 import BN from "bn.js";
 import { buildPlan, DEFAULTS, type LaunchPlan } from "./plan.js";
-import { fetchFreshest, TSLAX_USD_FEED } from "./pyth.js";
+import { fetchQuoteUsd } from "./pyth.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 try {
@@ -68,7 +68,15 @@ const log = (msg: string, extra: Record<string, unknown> = {}) =>
 interface PlanFile {
   cluster: string;
   createdAt: string;
-  quote: { mint: string; decimals: number; usd: number; pythAccount: string; publishTime: number; ageSecs: number };
+  quote: {
+    mint: string;
+    decimals: number;
+    usd: number;
+    feed?: string;
+    pythAccount: string;
+    publishTime: number;
+    ageSecs: number;
+  };
   numbers: ReturnType<typeof buildPlan>["summary"];
   token: typeof TOKEN;
 }
@@ -86,8 +94,8 @@ interface LaunchFile extends PlanFile {
 
 async function quoteForCluster(conn: Connection, payer: Keypair | null) {
   const mainnet = new Connection(MAINNET_RPC, "confirmed");
-  const q = await fetchFreshest(mainnet, TSLAX_USD_FEED);
-  if (!q) throw new Error("no Pyth TSLAX/USD account readable on mainnet");
+  const q = await fetchQuoteUsd(mainnet);
+  if (!q) throw new Error("no Pyth TSLAX/USD or TSLA/USD account readable on mainnet");
   if (CLUSTER === "mainnet") return { mint: TSLAX_MAINNET, decimals: 8 as const, q };
   // devnet: a plain SPL twin of the quote, 8 decimals like TSLAx; the tool mints itself a test balance
   const existing = readJson<PlanFile>(PLAN_FILE);
@@ -119,6 +127,7 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
       mint: mint.toBase58(),
       decimals,
       usd: q.usd,
+      feed: q.feed,
       pythAccount: q.account,
       publishTime: q.publishTime,
       ageSecs: q.ageSecs,
@@ -130,6 +139,7 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
   log("plan written", {
     file: PLAN_FILE,
     quoteUsd: q.usd,
+    pricedFrom: q.feed,
     pythAgeSecs: q.ageSecs,
     initialMarketCapQuote: p.summary.initialMarketCapQuote.toFixed(4),
     migrationMarketCapQuote: p.summary.migrationMarketCapQuote.toFixed(4),
@@ -141,8 +151,10 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
 
 async function launch(conn: Connection, payer: Keypair) {
   const { file, plan: p } = await plan(conn, payer);
-  if (CLUSTER === "mainnet" && file.quote.ageSecs > 7 * 24 * 3600) {
-    throw new Error(`the Pyth quote is ${file.quote.ageSecs} s old — refuse to price a mainnet launch on it`);
+  if (CLUSTER === "mainnet" && file.quote.ageSecs > 3 * 24 * 3600) {
+    throw new Error(
+      `the Pyth ${file.quote.feed} quote is ${file.quote.ageSecs} s old — refuse to price a mainnet launch on it`,
+    );
   }
   const client = DynamicBondingCurveClient.create(conn, "confirmed");
   const config = Keypair.generate();
@@ -209,7 +221,7 @@ async function status(conn: Connection) {
     client.state.getPoolMigrationQuoteThreshold(pool),
   ]);
   if (!vp) throw new Error("pool account missing");
-  const q = await fetchFreshest(new Connection(MAINNET_RPC, "confirmed"), TSLAX_USD_FEED);
+  const q = await fetchQuoteUsd(new Connection(MAINNET_RPC, "confirmed"));
   const quoteUsd = q?.usd ?? l.quote.usd;
   const dec = 10 ** l.quote.decimals;
   const st = vp.poolState;
@@ -225,6 +237,7 @@ async function status(conn: Connection) {
     thresholdQuote: Number(threshold.toString()) / dec,
     thresholdUsd: (Number(threshold.toString()) / dec) * quoteUsd,
     quoteUsd,
+    quotePricedFrom: q?.feed ?? null,
     pythAgeSecs: q?.ageSecs ?? null,
     isMigrated: st.isMigrated,
     migrationProgress: st.migrationProgress,

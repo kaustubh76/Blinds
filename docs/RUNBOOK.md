@@ -106,7 +106,35 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | hosted site 404 / Actions "not started … payments have failed" | GitHub billing hold on the account (suspends Actions **and** Pages, even for public repos) | github.com/settings/billing → fix the payment; then `gh api -X POST repos/kaustubh76/Blinds/pages -f build_type=workflow` and re-run the `pages` workflow; meanwhile `serve_app.sh` |
 | browser 429s on `api.devnet.solana.com` | admin + agents + browsers share one IP | a dedicated devnet RPC in Settings (`?rpc=`), or the repo variable `VITE_RPC_URL` |
 
-## 6. The last action: freeze
+## 6. The lender agent's token (services/launch)
+
+The desk's lender is an autonomous agent; its token `WLEND` lives on a Meteora Dynamic Bonding Curve quoted in
+a tokenized stock (`docs/TRACKS.md` Part B). One CLI, one record per cluster (`deployments/launch-<cluster>.json`):
+
+```sh
+pnpm install && pnpm --filter @thewindow/solana-sdk build            # once
+export LAUNCH_CLUSTER=devnet                                          # or mainnet
+pnpm --filter @thewindow/launch plan               # Pyth-priced curve → deployments/launch-plan-<cluster>.json (no tx)
+pnpm --filter @thewindow/launch launch             # createConfigAndPool: the pool mints WLEND; ~0.03 SOL + rents
+pnpm --filter @thewindow/launch status             # progress, raised vs threshold (quote and USD), spot, fees
+pnpm --filter @thewindow/launch buy 5              # devnet only: swap 5 twin-quote into WLEND to move the curve
+pnpm --filter @thewindow/launch graduate           # once the threshold is met: migrate to DAMM v2, LP locked
+CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent   # the lender's Clawpump identity + wallet
+```
+
+- **Which price.** The plan is priced from Pyth's own mainnet account for `Crypto.TSLAX/USD`; when that account
+  is older than a day (its only push account died on 12 Sep) the underlying `Equity.US.TSLA/USD` prices it and
+  the record says so (`quote.feed`). A mainnet launch refuses a quote older than 3 days.
+- **Mainnet.** `WINDOW_LAUNCH_KEYPAIR` must hold ~0.5 SOL; the quote is TSLAx
+  (`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, Meteora-badged). Set `LAUNCH_CREATOR` to the Clawpump agent
+  wallet first (run `agent`), or the payer becomes the fee wallet. The dashboard prefers
+  `deployments/launch-mainnet.json` the moment it exists (`app/src/lib/launch.ts`); commit it and re-render
+  `docs/DEMO.md`.
+- **Devnet.** The quote is a plain 8-dp twin mint the tool creates and funds (1,000 units to the payer);
+  `LAUNCH_NEW_QUOTE=1` mints a fresh one. The pool is a rehearsal — same program, same config, same code path.
+- Nothing here touches the desk's programs, the keeper or the market; it can run while the market is stopped.
+
+## 7. The last action: freeze
 
 `./scripts/freeze.sh` sets every program's upgrade authority to none — **irreversible**. Only after the
 final program change is on devnet and verified; then `git tag -a v1.0.0-stocklana`.

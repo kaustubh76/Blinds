@@ -7,6 +7,7 @@ import type { Address } from "@solana/kit";
 import type * as SDK from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
 import { type DeploymentView, fetchDeployment } from "../../lib/chain";
+import { LAUNCH, launchCluster } from "../../lib/launch";
 import { startLive } from "../../lib/live";
 import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
 import { quoteAddress, quoteSourceFor } from "./quotes";
@@ -228,6 +229,57 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
       return {
         prestocks: await one("prestocks:ANTHROPIC", "https://prestocks.com/api/prestocks"),
         note: "an attested mark: publish_time is the keeper's fetch time; the on-chain limit for this listing is 48 h",
+      };
+    },
+  },
+  {
+    id: "launch-status",
+    title: "The lender agent's DBC pool, decoded from raw bytes",
+    blurb:
+      "Meteora's VirtualPool and PoolConfig read without Meteora's SDK: progress to graduation, the quote raised against the migration threshold, spot from sqrt_price, and the fee split. The pool lives on the launch's own cluster; its USD value is Pyth's read of the quote stock.",
+    code: (ctx) => `import * as sdk from "@thewindow/solana-sdk";
+import { createSolanaRpc, address } from "@solana/kit";
+const rpc = createSolanaRpc("${
+      launchCluster === "mainnet-beta"
+        ? "https://solana-rpc.publicnode.com"
+        : ctx.config.cluster === "devnet"
+          ? ctx.config.rpcUrl
+          : "https://api.devnet.solana.com"
+    }");   // the launch's cluster, not necessarily the desk's
+// deployments/launch-${LAUNCH.cluster}.json: the pool services/launch created (config, base mint, quote, creator)
+const { pool, config, progress } = await sdk.fetchDbc(rpc, address("${LAUNCH.pool}"));   // owner-checked against ${"dbcij3LW…"}
+const dec = 10 ** ${LAUNCH.quote.decimals};                                                     // the quote's decimals (TSLAx: 8)
+console.log("progress", progress, "raised", Number(pool.quoteReserve) / dec, "of", Number(config.migrationQuoteThreshold) / dec, "quote");
+console.log("spot", sdk.dbcPrice(pool.sqrtPrice, 6, ${LAUNCH.quote.decimals}), "quote per ${LAUNCH.token.symbol}", "migrated", pool.isMigrated);
+console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Number(pool.partnerQuoteFee) / dec, "total traded", Number(pool.totalTradingQuoteFee) / dec);
+// the quote stock's USD price, the way the desk reads it (the "pyth-mainnet" recipe): fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"])`,
+    run: async (ctx) => {
+      const { createSolanaRpc, address } = await import("@solana/kit");
+      const rpc =
+        launchCluster === "mainnet-beta"
+          ? mainnetRpc
+          : ctx.config.cluster === "devnet"
+            ? ctx.rpc
+            : createSolanaRpc("https://api.devnet.solana.com");
+      const d = await ctx.sdk.fetchDbc(rpc, address(LAUNCH.pool));
+      if (!d) return { pool: LAUNCH.pool, present: false };
+      const dec = 10 ** LAUNCH.quote.decimals;
+      return {
+        cluster: LAUNCH.cluster,
+        pool: LAUNCH.pool,
+        baseMint: LAUNCH.baseMint,
+        quoteMint: LAUNCH.quote.mint,
+        progress: d.progress,
+        raisedQuote: Number(d.pool.quoteReserve) / dec,
+        thresholdQuote: Number(d.config.migrationQuoteThreshold) / dec,
+        spotQuotePerToken: ctx.sdk.dbcPrice(d.pool.sqrtPrice, 6, LAUNCH.quote.decimals),
+        isMigrated: d.pool.isMigrated,
+        fees: {
+          creator: Number(d.pool.creatorQuoteFee) / dec,
+          partner: Number(d.pool.partnerQuoteFee) / dec,
+          totalTraded: Number(d.pool.totalTradingQuoteFee) / dec,
+        },
+        note: "devnet is a rehearsal on a twin quote mint; the numbers are the same code path as the Market card.",
       };
     },
   },

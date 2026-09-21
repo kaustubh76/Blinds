@@ -83,6 +83,55 @@ listing #0. The keeper no longer posts under `sha256("tessera:T-OpenAI")`; price
 | Product quality | Listing selector on the Desk, per-listing lock/deposit on Positions, schedule with quote ages on Market; tier-1 attack cases for wrong-listing and stale-quote paths; tier-2 lifecycle on a second listing. | 3 |
 | Developer surface | Build page: the `ANTHROPIC-mock` schedule row, the **PreStocks** column (`feedIdForLabel("prestocks:ANTHROPIC")`, the `/api/prestocks` `curl`, the same SDK calls), `marks` and `solvency` recipes (ANTHROPIC: 1.965 shares required, 3.143 pledged after the 200 % haircut for 1,000 USDC); console events named by listing (`credit.PricePosted · ANTHROPIC-mock $…`). | live |
 
+## Part B — the lender agent: Meteora DBC + Clawpump (21 Sep)
+
+The desk's lender is an autonomous agent. On devnet it already lends every overnight window against
+tokenized-stock collateral proven solvent in zero knowledge and earns the xONIA rate (`services/admin`, the
+simulated agents). Part B gives it a token and an identity: **`WLEND`** launches on a Meteora Dynamic Bonding
+Curve **quoted in a tokenized stock** (TSLAx on mainnet, a twin mint on devnet), and the curve is configured
+from the desk's own numbers rather than from a template. Code: `services/launch` (`plan · launch · status ·
+buy · graduate · agent`), `sdk/src/dbc.ts` (the pool decoded from raw bytes), `app/src/features/market/LenderAgent.tsx`.
+
+What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, `buildCurveWithMarketCap`):
+
+| Curve parameter | Set from | Value |
+|---|---|---|
+| quote token | the desk's collateral | TSLAx `XsDoVfqe…zoB` (8 dp, Meteora-badged) on mainnet; twin `GY41SK2W…qhbn` on devnet |
+| initial / migration market cap (in quote units) | USD targets ÷ Pyth's price of the quote stock — **the same read the desk marks collateral with** (`Crypto.TSLAX/USD` from Pyth's own mainnet account; `Equity.US.TSLA/USD` while the wrapper's account is stale, recorded as `quote.feed`) | $25,000 → $250,000 fully diluted; at $367.50 that is 68.03 → 680.27 quote, threshold 167.46 quote raised |
+| fee schedule | one **tenor** of the desk (a loan lives ~4 h on devnet): 300 bp at the first tick decaying exponentially to 30 bp over 48 periods | `FeeSchedulerExponential`, dynamic fee on, fees collected in the quote stock |
+| creator | the lender agent's wallet (Clawpump's `walletAddress` once `agent` has run; the payer until then) | 50 % of trading fees + 10 % of the graduated raise to the agent |
+| graduation | DAMM v2, `Customizable` config, both LP positions permanently locked | `LAUNCH_DAMM_CONFIG` = `7F6dnUcR…NESd` |
+| supply | 1,000,000,000 WLEND, 6 dp, no vesting | — |
+
+### Meteora DBC — criteria → what answers them
+
+| Judged on | Where it is answered |
+|---|---|
+| Originality of the DBC use case | A **stock-quoted** curve for an agent whose yield comes from loans against that stock class; the raise target and the fee horizon are the desk's own (USD lending capital priced through Pyth, one tenor). Not a memecoin launcher and not a Pyth-anchored stock/stock pool. |
+| Technical soundness | `createConfigAndPool` from the SDK (`@meteora-ag/dynamic-bonding-curve-sdk` 1.5.12) with the token badge passed when the quote has one; `tokenSupply` left to the program when a migration fee is set (the program's `InvalidTokenSupply` rule); creator-fee percentage tied to the migration fee (the program's other rule). The dashboard reads the pool **without** the SDK: `sdk.fetchDbc` decodes `VirtualPool` / `PoolConfig` from bytes (owner-checked against `dbcij3LW…`), with fixtures captured from the devnet pool. |
+| Working code on mainnet | Devnet rehearsal done end to end (below). The mainnet launch is one command once the launch key holds ~0.5 SOL — the tool refuses to price it on a Pyth quote older than 3 days. |
+| Life after the hackathon | `status`/`graduate` are operator commands; the Market card and the `launch-status` recipe follow whichever cluster the record names; the fee stream and the locked LP outlive the event. |
+
+### Clawpump — criteria → what answers them
+
+| Judged on | Where it is answered |
+|---|---|
+| An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` creates its Clawpump identity (`POST /api/v1/agents`) and records `id` + `walletAddress`; that wallet is the pool's creator and fee claimer (`LAUNCH_CREATOR`). The stock-paired pool is the Meteora one above. |
+| Honest venue note | Clawpump's documented launch venue is pump.fun (its `/pump-pairs` lists TSLAx and 21 other xStocks as quote assets). Whether a stock-paired Clawpump launch can land on Meteora is confirmed by `preflight: true` on `/launch/self-funded`, which needs the API key; until then Clawpump is the identity and the fee wallet, Meteora is the pool — stated as such everywhere. |
+
+### Verified on devnet, 21 Sep 2026
+
+| step | evidence |
+|---|---|
+| plan | priced from Pyth's mainnet account; `Crypto.TSLAX/USD` shard 0 was 754,853 s old, so the plan records `Equity.US.TSLA/USD` (13 s old) — $367.50 → threshold 167.46 quote |
+| launch | `createConfigAndPool` `5aadUBpt…AmmP`: config `HsfeZeTw…GPZr`, pool `EZyMqXWB…6BTg`, WLEND mint `72QJmsn4…ZL1m`, quote twin `GY41SK2W…qhbn`, creator `8S6dkUV5…wHf5` (`deployments/launch-devnet.json`) |
+| buy 5 | progress 2.9 %, raised 4.85 quote, fees 0.06 creator / 0.06 partner, spot 7.72e-8 quote per WLEND |
+| the same numbers from raw bytes | `sdk/test/dbc.test.ts` (3) against the captured accounts; the Market card and the Build page's `launch-status` recipe on the dev server show 2.9 % / 4.85 of 168.50 quote / $28k fully diluted |
+| unit tests | `services/launch/test/plan.test.ts` (6): USD → quote conversion, the raise scales with the quote price, fee/lock/agent slice, refuses nonsense, and which Pyth read prices the quote |
+
+Still open (needs inputs, not code): ~0.5 mainnet SOL to the launch keypair and a Clawpump `cpk_` key. Then:
+`agent` → `LAUNCH_CLUSTER=mainnet launch` → commit `deployments/launch-mainnet.json` → re-render DEMO.
+
 ## Honest limits (also in the UI)
 
 - The PreStocks mark is a **keeper-attested** copy of a public API, timestamped at fetch. It is not a
@@ -90,6 +139,8 @@ listing #0. The keeper no longer posts under `sha256("tessera:T-OpenAI")`; price
   Stage 4, the publisher's own signature).
 - The administrator can decrypt individual amounts (accountable privacy — unchanged; see `docs/THREAT_MODEL.md`).
 - Devnet twins, not the mainnet tokens.
+- The lender agent's pool and fees are real on the cluster named on the card; the lending loop the agent earns
+  from is the devnet desk. Clawpump's own launch venue is pump.fun; the stock-paired pool here is Meteora's.
 
 ## Stages and status
 
@@ -101,6 +152,7 @@ listing #0. The keeper no longer posts under `sha256("tessera:T-OpenAI")`; price
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI (retired 21 Sep), `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
 | 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; **devnet upgraded to A15** (`window_credit` slot 500375381, `e2c2dbb`); only the TSLAx flip (`listing-set-source mock_tsla 4`) waits for `PYTH_API_KEY` — the poster needs Hermes; until then TSLAx stays source 0 and honestly stale, and every dashboard surface already reads a source-4 listing where the program would (`fetchQuotes`) |
 | 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; hosted site back on GitHub Pages 19 Sep (repo public); submission blurbs final (below); freeze + tag are the last action, on the user's go |
+| 6 | Part B: `services/launch`, `sdk/src/dbc.ts`, the Market card, `launch-status` recipe, RUNBOOK §6 | devnet rehearsal verified 21 Sep; mainnet launch + Clawpump agent wait for the two inputs above |
 
 ## Verified on devnet, 18 Sep 2026
 
@@ -175,6 +227,18 @@ per listing, and show the xStock quote against the underlying equity feed with t
 window opens exactly when the equity market closes. The Pyth listing can run with no keeper in the price path at
 all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, feed, verification level, age),
 posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it the moment a Pyth key is present).
+
+**Meteora DBC.** THE WINDOW's lender is an autonomous agent that lends against tokenized stocks every
+overnight window and earns the xONIA rate. Its token, WLEND, launches on a Dynamic Bonding Curve **quoted in
+TSLAx**, and the curve is set from the desk's numbers: the raise target is the agent's lending capital in USD,
+converted into the quote stock through the same Pyth read the desk marks collateral with; the fee decays over
+one tenor of the desk; the creator fee stream is the agent's wallet; graduated liquidity is locked for good.
+The dashboard reads the pool from raw bytes (no SDK in the browser) and shows progress, raise, fees and spot
+beside the desk's own schedule. Devnet rehearsal verified end to end; the mainnet pool is one command.
+
+**Clawpump.** The lender agent gets a Clawpump identity and wallet; that wallet is the creator and fee claimer
+of its stock-paired Meteora pool. Everything the agent earns — trading fees, its share of the raise, and the
+xONIA it lends at — flows to one address a judge can watch.
 
 **PreStocks.** ANTHROPIC, the only pre-IPO token on the desk, listed next to a tokenized stock under one rate, marked by PreStocks' published price with
 its implied-vs-mark basis on the schedule: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing

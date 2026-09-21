@@ -33,6 +33,42 @@ listing_rows = "\n".join(
     for l in d.get("listings", [])
 )
 
+def launch_block():
+    """The lender agent's pool (docs/TRACKS.md Part B): mainnet when launched, else the devnet rehearsal."""
+    for cluster in ("mainnet", "devnet"):
+        f = root / "deployments" / f"launch-{cluster}.json"
+        if not f.exists():
+            continue
+        l = json.loads(f.read_text())
+        exl = lambda a: f"https://explorer.solana.com/address/{a}" + ("" if cluster == "mainnet" else "?cluster=devnet")
+        n = l["numbers"]
+        rows = [
+            ("pool (Meteora DBC)", l["pool"]),
+            (f"{l['token']['symbol']} mint", l["baseMint"]),
+            ("config", l["config"]),
+            ("quote mint" + ("" if cluster == "mainnet" else " (a devnet twin of TSLAx)"), l["quote"]["mint"]),
+            ("creator · fee wallet" + (" (the Clawpump agent)" if l.get("agent") else ""), l["creator"]),
+        ]
+        table = "\n".join(f"| {k} | [`{v}`]({exl(v)}) |" for k, v in rows)
+        tx = l.get("txs", {}).get("createConfigAndPool", "")
+        note = ("the mainnet pool, quoted in TSLAx" if cluster == "mainnet"
+                else "a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6)")
+        return f"""
+**The lender agent's token** ([`docs/TRACKS.md`](TRACKS.md) Part B): `{l['token']['symbol']}` on a Meteora Dynamic
+Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — ${n['initialUsd']:,} → ${n['migrationUsd']:,}
+fully diluted, priced through Pyth `{l['quote'].get('feed', 'Crypto.TSLAX/USD')}` at ${l['quote']['usd']:,.2f} per quote
+(the curve raises {n['migrationQuoteThreshold']:.2f} quote before it graduates), fee {n['feeBps']['open']} → {n['feeBps']['rest']} bp
+over one tenor, {n['creatorFeePct']} % of fees and {n['raiseToAgentPct']} % of the raise to the agent. This is {note}.
+
+| | address |
+|---|---|
+{table}
+{f"| launch tx | [`{tx}`](https://explorer.solana.com/tx/{tx}{'' if cluster == 'mainnet' else '?cluster=devnet'}) |" if tx else ""}
+
+The Market page's card and the Build page's `launch-status` recipe read this pool from raw bytes (`sdk.fetchDbc`).
+"""
+    return ""
+
 section = f"""## C. Devnet — the deployment that is judged
 
 Everything below is live on devnet and readable by anyone; no account of ours is needed to check it.
@@ -66,6 +102,7 @@ Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
 {len(d['agents'])} simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
+{launch_block()}
 ### Watch it yourself
 
 ```bash

@@ -14,7 +14,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 |---|---|
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
-| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · PreStocks (· Meteora · Clawpump) integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule |
+| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · PreStocks · Meteora DBC · Clawpump integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule; [`services/launch`](services/launch) — the lender agent's token on a stock-quoted Meteora bonding curve |
 | Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 32 attack cases in 11 files, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Runbook | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — judging day: budget, start/watch/stop, the share link, what to do when something fails |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
@@ -24,9 +24,9 @@ Average: the first on-chain borrow rate for tokenized equities.
 | | |
 |---|---|
 | [![Home](docs/screens/home.png)](docs/screens/home.png) | [![Desk](docs/screens/desk.png)](docs/screens/desk.png) |
-| **Home** — the live window, the three collaterals with their marks and whether the chain would accept them right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
+| **Home** — the live window, the two collaterals with their marks and whether the chain would accept them right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
 | [![Market](docs/screens/market.png)](docs/screens/market.png) | [![Explorer](docs/screens/explorer.png)](docs/screens/explorer.png) |
-| **Market** — xONIA by epoch, the last proven curve, the collateral schedule and the Pyth mark beside the underlying equity. | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
+| **Market** — xONIA by epoch, the last proven curve, the collateral schedule, the Pyth mark beside the underlying equity, and the lender agent's bonding curve (WLEND on Meteora DBC). | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
 
 Light and dark themes (the header toggle, or `?theme=light|dark`); the same pages on a phone: [`docs/screens/home-phone.png`](docs/screens/home-phone.png).
 
@@ -35,11 +35,13 @@ Light and dark themes (the header toggle, or `?theme=light|dark`); the same page
 ```
 programs/   window_registry · window_auction · window_oracle · window_wrap · window_credit   (Anchor 1.1.2)
 crates/     window-elgamal · window-clearing · window-proofs · window-proofs-wasm · window-client · window-config · window-testkit
-services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join (rate-limited faucet) for the dashboard) · pyth-poster (Node: carries Pyth's signed update into Pyth's receiver on devnet so the Pyth listing can be priced from Pyth's own account)
+services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join (rate-limited faucet) for the dashboard) · pyth-poster (Node: carries Pyth's signed update into Pyth's receiver on devnet so the Pyth listing can be priced from Pyth's own account) · launch (Node: the lender agent's token on a stock-quoted Meteora DBC pool, priced from Pyth, and its Clawpump identity)
 sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated clients; transaction plans; wasm proofs; print re-verification)
 app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a developer console, a Build page)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
 config/     demo.toml · integration.toml · devnet.toml · prod.toml — the single source of market parameters
+scripts/    market.sh · serve_app.sh · watch_tunnels.sh · localnet.sh · freeze.sh · smoke/ (headless drivers: routes, recipes, judge path, positions)
+deployments/ devnet.json (the desk) · launch-devnet.json / launch-mainnet.json (the lender agent's pool)
 docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · PYTH.md · LISTINGS.md · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
 ```
 

@@ -13,6 +13,7 @@
     "quoteUsd": 365.23000001,
     "initialMarketCapQuote": 68.45001779513046,
     "migrationMarketCapQuote": 684.5001779513046,
+    "migrationQuoteThreshold": 168.50157355,
     "initialUsd": 25000,
     "migrationUsd": 250000,
     "feeBps": {

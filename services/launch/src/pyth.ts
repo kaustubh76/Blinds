@@ -8,6 +8,12 @@ import { type Connection, PublicKey } from "@solana/web3.js";
 export const PYTH_RECEIVER = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
 export const PYTH_PUSH_ORACLE = new PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
 export const TSLAX_USD_FEED = "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362";
+/** The underlying equity: what the wrapper tracks within basis points, and the desk's own comparison feed. */
+export const TSLA_USD_FEED = "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1";
+/** Older than this and a quote is a broken feed, not a price (the wrapper's only push account died 12 Sep). */
+export const QUOTE_MAX_AGE_SECS = 24 * 3600;
+
+export type QuoteFeed = "Crypto.TSLAX/USD" | "Equity.US.TSLA/USD";
 
 export interface PythQuote {
   price: bigint;
@@ -16,6 +22,29 @@ export interface PythQuote {
   account: string;
   usd: number;
   ageSecs: number;
+}
+
+/** Which of the two reads prices the quote: the wrapper while fresh, else the fresher of the two. */
+export function pickQuote<Q extends { publishTime: number; ageSecs: number }>(
+  wrapper: Q | null,
+  equity: Q | null,
+): (Q & { feed: QuoteFeed }) | null {
+  if (wrapper && wrapper.ageSecs <= QUOTE_MAX_AGE_SECS) return { ...wrapper, feed: "Crypto.TSLAX/USD" };
+  if (equity && (!wrapper || equity.publishTime > wrapper.publishTime))
+    return { ...equity, feed: "Equity.US.TSLA/USD" };
+  return wrapper ? { ...wrapper, feed: "Crypto.TSLAX/USD" } : null;
+}
+
+/**
+ * The USD price of the quote token, the way the desk would price it: the wrapper feed when it is
+ * fresh, else the underlying equity feed (recorded as such). Null when neither is readable.
+ */
+export async function fetchQuoteUsd(conn: Connection): Promise<(PythQuote & { feed: QuoteFeed }) | null> {
+  const [wrapper, equity] = await Promise.all([
+    fetchFreshest(conn, TSLAX_USD_FEED),
+    fetchFreshest(conn, TSLA_USD_FEED),
+  ]);
+  return pickQuote(wrapper, equity);
 }
 
 const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
