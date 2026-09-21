@@ -1,0 +1,31 @@
+{
+  "name": "@thewindow/launch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The lender agent's token launch: a TSLAx-quoted Meteora DBC pool configured from the desk's numbers, and its Clawpump identity.",
+  "scripts": {
+    "plan": "tsx src/main.ts plan",
+    "launch": "tsx src/main.ts launch",
+    "status": "tsx src/main.ts status",
+    "buy": "tsx src/main.ts buy",
+    "graduate": "tsx src/main.ts graduate",
+    "agent": "tsx src/main.ts agent",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@meteora-ag/dynamic-bonding-curve-sdk": "1.5.12",
+    "@solana/web3.js": "^1.98.0",
+    "@solana/spl-token": "^0.4.13",
+    "bn.js": "^5.2.1",
+    "smol-toml": "^1.4.2"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

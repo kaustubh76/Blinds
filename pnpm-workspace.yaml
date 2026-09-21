@@ -3,4 +3,5 @@ packages:
   - app
   - tests/integration
   - services/pyth-poster
+  - services/launch
   - scripts/smoke
