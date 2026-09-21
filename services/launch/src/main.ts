@@ -164,7 +164,8 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
     numbers: p.summary,
     token: TOKEN,
   };
-  writeJson(PLAN_FILE, file);
+  const kept = readJson<PlanFile & { agent?: LaunchFile["agent"] }>(PLAN_FILE)?.agent;
+  writeJson(PLAN_FILE, kept ? { ...file, agent: kept } : file);
   log("plan written", {
     file: PLAN_FILE,
     quoteUsd: q.usd,
@@ -382,10 +383,7 @@ async function agent(forceNew: boolean) {
   const record = { id: a.id, walletAddress: a.walletAddress, name: a.name };
   const l = readJson<LaunchFile>(LAUNCH_FILE);
   if (l) writeJson(LAUNCH_FILE, { ...l, agent: record });
-  else {
-    const p = readJson<PlanFile>(PLAN_FILE);
-    if (p) writeJson(PLAN_FILE, { ...p, agent: record });
-  }
+  else writeJson(PLAN_FILE, { ...(readJson<PlanFile>(PLAN_FILE) ?? { cluster: CLUSTER }), agent: record });
   log("the lender agent", { ...record, recordedIn: l ? LAUNCH_FILE : PLAN_FILE });
 }
 

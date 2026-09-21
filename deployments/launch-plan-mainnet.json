@@ -1,0 +1,40 @@
+{
+  "cluster": "mainnet",
+  "createdAt": "2026-09-21T09:06:01.420Z",
+  "quote": {
+    "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    "decimals": 8,
+    "usd": 369.91,
+    "feed": "Equity.US.TSLA/USD",
+    "pythAccount": "FQB8c4zB8Emrp9W8bmyk6GanCLq4aRytHYPDAnaEpq9z",
+    "publishTime": 1789981555,
+    "ageSecs": 6
+  },
+  "numbers": {
+    "quoteUsd": 369.91,
+    "initialMarketCapQuote": 67.5840069206023,
+    "migrationMarketCapQuote": 675.840069206023,
+    "migrationQuoteThreshold": 166.3697378,
+    "initialUsd": 25000,
+    "migrationUsd": 250000,
+    "feeBps": {
+      "open": 300,
+      "rest": 30,
+      "periods": 48,
+      "durationSecs": 14400
+    },
+    "raiseToAgentPct": 10,
+    "creatorFeePct": 50,
+    "supply": 1000000000
+  },
+  "token": {
+    "name": "The Window Lender",
+    "symbol": "WLEND",
+    "uri": "https://kaustubh76.github.io/Blinds/launch/wlend.json"
+  },
+  "agent": {
+    "id": "0044b672-ec2c-4cdf-b327-7c0e9a449c1b",
+    "walletAddress": "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
+    "name": "The Window Lender"
+  }
+}
