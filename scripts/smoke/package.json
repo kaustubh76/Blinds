@@ -1,0 +1,17 @@
+{
+  "name": "@thewindow/smoke",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Headless-Chrome drivers for the hosted dashboard: the judge's path, every recipe, every route.",
+  "scripts": {
+    "routes": "node routes.mjs",
+    "recipes": "node recipes.mjs",
+    "demo": "node demo.mjs",
+    "positions": "node positions.mjs",
+    "shot": "node shot.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}
