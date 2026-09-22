@@ -1,9 +1,28 @@
-//! `/healthz` and `/metrics` (Prometheus text). Aggregates only — never a size.
+//! `/healthz`, `/metrics` (Prometheus text) and `/marks` (the attested marks as the keeper last read
+//! them, with the implied price beside — the basis the dashboard shows). Aggregates only — never a size.
 
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
 };
+
+/// What the keeper last read from a mark's public API: the mark it posted on chain, the implied
+/// (traded) price it did not, and when. USD × 1e8, like the on-chain cache.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct MarkSnapshot {
+    /// The listing's profile key (`prestocks_anthropic`).
+    pub key: String,
+    pub symbol: String,
+    pub source: String,
+    /// The listing's feed id — what the dashboard matches a `Listing` account on.
+    pub feed_id_hex: String,
+    pub url: String,
+    pub mark_e8: u64,
+    pub implied_e8: Option<u64>,
+    /// (implied − mark) / mark in basis points, when the API publishes an implied price.
+    pub basis_bps: Option<i64>,
+    pub fetched_at: i64,
+}
 
 #[derive(Default)]
 pub struct Metrics {
@@ -25,9 +44,25 @@ pub struct Metrics {
     pub keeper_lamports: AtomicU64,
     pub last_print_ms: AtomicU64,
     pub last_r_star_bps: AtomicU64,
+    /// The attested marks by listing key, as last read (`/marks`).
+    pub marks: std::sync::Mutex<std::collections::BTreeMap<String, MarkSnapshot>>,
 }
 
 impl Metrics {
+    pub fn set_mark(&self, snap: MarkSnapshot) {
+        if let Ok(mut m) = self.marks.lock() {
+            m.insert(snap.key.clone(), snap);
+        }
+    }
+
+    /// `/marks`: `{ "<listing key>": MarkSnapshot, … }`, sorted by key.
+    pub fn marks_json(&self) -> String {
+        self.marks
+            .lock()
+            .map(|m| serde_json::to_string(&*m).unwrap_or_else(|_| "{}".into()))
+            .unwrap_or_else(|_| "{}".into())
+    }
+
     pub fn set_publish_age(&self, listing: &str, age: u64) {
         if let Ok(mut m) = self.price_publish_age_by_listing.lock() {
             m.insert(listing.to_string(), age);
@@ -97,7 +132,7 @@ pub type JoinHandler = Arc<dyn Fn(JoinRequest) -> Result<JoinOutcome, JoinRefusa
 /// `GET /faucet`: what the limiter has left.
 pub type FaucetStatus = Arc<dyn Fn() -> String + Send + Sync>;
 
-/// Serves `/healthz`, `/metrics`, `/deployment` (JSON), `/faucet` and `POST /join` on `port`.
+/// Serves `/healthz`, `/metrics`, `/marks`, `/deployment` (JSON), `/faucet` and `POST /join` on `port`.
 pub fn serve(
     metrics: Arc<Metrics>,
     port: u16,
@@ -133,6 +168,9 @@ pub fn serve(
             let (status, body, ctype) = match (req.method().clone(), req.url()) {
                 (tiny_http::Method::Get, "/healthz") => (200, "ok\n".to_string(), "text/plain"),
                 (tiny_http::Method::Get, "/metrics") => (200, metrics.render(), "text/plain"),
+                (tiny_http::Method::Get, "/marks") => {
+                    (200, metrics.marks_json(), "application/json")
+                }
                 (tiny_http::Method::Get, "/deployment") => {
                     (200, deployment_json.clone(), "application/json")
                 }
@@ -209,4 +247,48 @@ pub fn serve(
             let _ = req.respond(resp);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn marks_json_is_keyed_by_listing_and_carries_the_basis() {
+        let m = Metrics::default();
+        assert_eq!(m.marks_json(), "{}");
+        m.set_mark(MarkSnapshot {
+            key: "prestocks_anthropic".into(),
+            symbol: "ANTHROPIC-mock".into(),
+            source: "prestocks".into(),
+            feed_id_hex: "ab".repeat(32),
+            url: "https://prestocks.com/api/prestocks".into(),
+            mark_e8: 105_143_999_341,
+            implied_e8: Some(103_987_682_509),
+            basis_bps: Some(-110),
+            fetched_at: 1_790_000_000,
+        });
+        let v: serde_json::Value = serde_json::from_str(&m.marks_json()).unwrap();
+        let s = &v["prestocks_anthropic"];
+        assert_eq!(s["symbol"], "ANTHROPIC-mock");
+        assert_eq!(s["mark_e8"], 105_143_999_341u64);
+        assert_eq!(s["implied_e8"], 103_987_682_509u64);
+        assert_eq!(s["basis_bps"], -110);
+        assert_eq!(s["fetched_at"], 1_790_000_000);
+        // a second read of the same listing replaces the first
+        m.set_mark(MarkSnapshot {
+            key: "prestocks_anthropic".into(),
+            symbol: "ANTHROPIC-mock".into(),
+            source: "prestocks".into(),
+            feed_id_hex: "ab".repeat(32),
+            url: "https://prestocks.com/api/prestocks".into(),
+            mark_e8: 1,
+            implied_e8: None,
+            basis_bps: None,
+            fetched_at: 1_790_000_060,
+        });
+        let v: serde_json::Value = serde_json::from_str(&m.marks_json()).unwrap();
+        assert_eq!(v.as_object().unwrap().len(), 1);
+        assert!(v["prestocks_anthropic"]["implied_e8"].is_null());
+    }
 }

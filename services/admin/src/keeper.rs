@@ -98,6 +98,23 @@ pub fn post_price(ctx: &Ctx, rec: &ListingRecord, price: &mut PriceSource) -> Re
     let p = price.fetch(now)?;
     let age = p.age_secs(now);
     ctx.metrics.set_publish_age(&rec.symbol, age as u64);
+    if let (Some(read), Some(url)) = (price.last_mark_read(), price.mark_url()) {
+        // The implied price never goes on chain; `/marks` serves it beside the mark for the basis.
+        let basis_bps = read
+            .implied
+            .map(|i| ((i as i128 - read.mark as i128) * 10_000 / read.mark.max(1) as i128) as i64);
+        ctx.metrics.set_mark(crate::metrics::MarkSnapshot {
+            key: rec.key.clone(),
+            symbol: rec.symbol.clone(),
+            source: rec.source.clone(),
+            feed_id_hex: rec.feed_id_hex.clone(),
+            url: url.to_string(),
+            mark_e8: read.mark,
+            implied_e8: read.implied,
+            basis_bps,
+            fetched_at: read.fetched_at,
+        });
+    }
     if age > rec.max_publish_age_secs {
         // Posted anyway, with its true timestamp: the chain refuses to lock or seize on it, and the
         // age stays public. Silently skipping would hide the outage.

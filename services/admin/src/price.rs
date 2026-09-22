@@ -57,7 +57,11 @@ pub enum Source {
         match_field: &'static str,
         match_value: String,
         price_field: String,
+        /// The implied (traded) price field, when the API publishes one beside the mark.
+        implied_field: Option<String>,
         last_ok: Option<(Price, i64)>,
+        /// The last complete read: mark and implied price, for `/marks` (the basis is never on chain).
+        last_read: Option<MarkRead>,
     },
     /// Deterministic walk for localnet/CI. Never used with a real feed id.
     Mock { value: u64, step: u64 },
@@ -67,6 +71,14 @@ pub enum Source {
 /// gives up: the on-chain `max_publish_age_secs` is what finally halts locks.
 const MARK_KEEP_LAST_SECS: i64 = 6 * 3600;
 const MARK_RETRIES: usize = 3;
+
+/// One read of an attested mark: what the keeper saw, in USD × 1e8, and when.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MarkRead {
+    pub mark: u64,
+    pub implied: Option<u64>,
+    pub fetched_at: i64,
+}
 
 pub struct PriceSource {
     source: Source,
@@ -107,7 +119,12 @@ impl PriceSource {
     }
 
     /// PreStocks' public `/api/prestocks`: the element with `contract_address == source_mint`.
-    pub fn prestocks(url: String, contract_address: String, price_field: String) -> Self {
+    pub fn prestocks(
+        url: String,
+        contract_address: String,
+        price_field: String,
+        implied_field: Option<String>,
+    ) -> Self {
         Self {
             source: Source::Mark {
                 name: "prestocks",
@@ -115,9 +132,27 @@ impl PriceSource {
                 match_field: "contract_address",
                 match_value: contract_address,
                 price_field,
+                implied_field: implied_field.filter(|f| !f.is_empty()),
                 last_ok: None,
+                last_read: None,
             },
             last: None,
+        }
+    }
+
+    /// The last mark read with its implied price, when this source is an attested mark.
+    pub fn last_mark_read(&self) -> Option<MarkRead> {
+        match &self.source {
+            Source::Mark { last_read, .. } => *last_read,
+            _ => None,
+        }
+    }
+
+    /// The mark's public URL, when this source is an attested mark.
+    pub fn mark_url(&self) -> Option<&str> {
+        match &self.source {
+            Source::Mark { url, .. } => Some(url),
+            _ => None,
         }
     }
 
@@ -185,13 +220,29 @@ fn fetch(source: &mut Source, now: i64) -> Result<Price> {
             }
             best.ok_or_else(|| anyhow!("no readable Pyth account: {}", errors.join("; ")))
         }
-        Source::Mark { name, url, match_field, match_value, price_field, last_ok } => {
+        Source::Mark {
+            name,
+            url,
+            match_field,
+            match_value,
+            price_field,
+            implied_field,
+            last_ok,
+            last_read,
+        } => {
             let mut last_err = None;
             for _ in 0..MARK_RETRIES {
-                match fetch_mark(url, match_field, match_value, price_field) {
-                    Ok(usd) => {
+                match fetch_mark(
+                    url,
+                    match_field,
+                    match_value,
+                    price_field,
+                    implied_field.as_deref(),
+                ) {
+                    Ok((usd, implied)) => {
                         let p = Price { price: usd, expo: -8, publish_time: now };
                         *last_ok = Some((p, now));
+                        *last_read = Some(MarkRead { mark: usd, implied, fetched_at: now });
                         return Ok(p);
                     }
                     Err(e) => last_err = Some(e),
@@ -265,7 +316,13 @@ pub fn parse_hermes(body: &str, expected_feed_id: &[u8; 32]) -> Result<Price> {
 
 // ───────────────────────────── attested marks ─────────────────────────────
 
-fn fetch_mark(url: &str, match_field: &str, match_value: &str, price_field: &str) -> Result<u64> {
+fn fetch_mark(
+    url: &str,
+    match_field: &str,
+    match_value: &str,
+    price_field: &str,
+    implied_field: Option<&str>,
+) -> Result<(u64, Option<u64>)> {
     let body = ureq::get(url)
         .set("Accept", "application/json")
         .timeout(std::time::Duration::from_secs(15))
@@ -273,7 +330,10 @@ fn fetch_mark(url: &str, match_field: &str, match_value: &str, price_field: &str
         .with_context(|| format!("mark {url}"))?
         .into_string()
         .context("mark response")?;
-    parse_mark(&body, match_field, match_value, price_field)
+    let mark = parse_mark(&body, match_field, match_value, price_field)?;
+    // The implied price is informational (the basis on the dashboard): its absence never blocks the mark.
+    let implied = implied_field.and_then(|f| parse_mark(&body, match_field, match_value, f).ok());
+    Ok((mark, implied))
 }
 
 /// A JSON array of tokens → the USD mark of the one whose `match_field` is `match_value`,
@@ -497,6 +557,43 @@ mod tests {
     const PRESTOCKS: &str = include_str!("../tests/fixtures/prestocks.json");
 
     #[test]
+    fn a_mark_read_carries_the_implied_price_and_survives_its_absence() {
+        let mark = parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "markPrice",
+        )
+        .unwrap();
+        let implied = parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "tokenPrice",
+        )
+        .ok();
+        assert!(implied.is_some_and(|i| i != mark));
+        // a field the API does not publish is None, never an error for the mark
+        assert!(parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "nope"
+        )
+        .is_err());
+        let s = PriceSource::prestocks(
+            "https://p/x".into(),
+            "c".into(),
+            "markPrice".into(),
+            Some(String::new()),
+        );
+        let Source::Mark { implied_field, .. } = &s.source else { panic!("mark") };
+        assert!(implied_field.is_none(), "an empty implied_field means none");
+        assert_eq!(s.last_mark_read(), None);
+        assert_eq!(s.mark_url(), Some("https://p/x"));
+    }
+
+    #[test]
     fn parses_prestocks_marks_by_contract_address() {
         let a = parse_mark(
             PRESTOCKS,
@@ -534,7 +631,12 @@ mod tests {
 
     #[test]
     fn a_mark_source_is_described_as_attested() {
-        let s = PriceSource::prestocks("https://p/x".into(), "c".into(), "markPrice".into());
+        let s = PriceSource::prestocks(
+            "https://p/x".into(),
+            "c".into(),
+            "markPrice".into(),
+            Some("tokenPrice".into()),
+        );
         assert!(s.describe().contains("attested"));
         assert!(s.describe().starts_with("prestocks mark markPrice for c"));
     }

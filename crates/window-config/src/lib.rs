@@ -118,6 +118,10 @@ pub struct ListingCfg {
     /// PreStocks: the JSON field carrying the USD mark (`markPrice`).
     #[serde(default)]
     pub price_field: String,
+    /// PreStocks: the JSON field carrying the token's implied (traded) price (`tokenPrice`), read
+    /// beside the mark and served by the admin's `/marks` as the basis. Optional; never posted on chain.
+    #[serde(default)]
+    pub implied_field: String,
     /// Pyth: the push-oracle shard the desk's own poster (`services/pyth-poster`) writes this feed
     /// into on the desk's cluster. Set, the listing may run as `price_source = 4` and the program
     /// reads Pyth's receiver-owned `PriceUpdateV2` at `[shard, feed_id]` directly.
@@ -355,6 +359,8 @@ mod tests {
         );
         let a = p.listing("prestocks_anthropic").unwrap();
         assert_eq!(a.source, PriceSourceKind::Prestocks);
+        assert_eq!(a.price_field, "markPrice");
+        assert_eq!(a.implied_field, "tokenPrice", "the basis the admin serves at /marks");
         // The same vector is asserted by sdk/test/listings.test.ts.
         use sha2::Digest as _;
         assert_eq!(

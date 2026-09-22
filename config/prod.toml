@@ -60,3 +60,4 @@ source_url = "https://prestocks.com/api/prestocks"
 source_mint = "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw"
 source_symbol = "ANTHROPIC"
 price_field = "markPrice"
+implied_field = "tokenPrice"   # the traded price beside the mark: served by the admin's /marks as the basis, never posted on chain

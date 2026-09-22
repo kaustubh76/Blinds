@@ -123,6 +123,7 @@ fn price_source(l: &window_config::ListingCfg) -> Result<PriceSource> {
             l.source_url.clone(),
             l.source_mint.clone(),
             l.price_field.clone(),
+            Some(l.implied_field.clone()),
         )),
         K::Pyth => {
             let feed = l.feed_id().ok_or_else(|| anyhow::anyhow!("{}: bad pyth_feed_id", l.key))?;
@@ -349,6 +350,18 @@ fn main() -> Result<()> {
                             p.age_secs(now),
                             l.max_publish_age_secs
                         );
+                        if let Some(r) = price.last_mark_read() {
+                            match r.implied {
+                                Some(i) => println!(
+                                    "[{}] implied {}.{:02} USD (basis {} bp) — served at /marks, never posted",
+                                    l.symbol,
+                                    i / 100_000_000,
+                                    (i / 1_000_000) % 100,
+                                    (i as i128 - r.mark as i128) * 10_000 / r.mark.max(1) as i128
+                                ),
+                                None => println!("[{}] no implied price in the API response", l.symbol),
+                            }
+                        }
                     }
                     Err(e) => println!("[{}] ERROR {e:#}", l.symbol),
                 }
