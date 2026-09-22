@@ -116,7 +116,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             hint={
               snap
                 ? `PreStocks tokenPrice, read ${formatAge(snap.fetched_at)}`
-                : config.adminUrl
+                : dep.data?.adminUrl || config.adminUrl
                   ? marks.isFetching
                     ? "asking the keeper…"
                     : "the keeper did not answer — needs a market started after 22 Sep"

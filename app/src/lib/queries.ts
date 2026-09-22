@@ -96,22 +96,27 @@ export interface MarkSnapshot {
  * `GET <admin>/marks` — the implied price beside the mark (the PreStocks basis). Only while the admin
  * service is reachable (the market runs); `null` without an admin URL or when it does not answer.
  */
-export const useMarks = () =>
-  useQuery<Record<string, MarkSnapshot> | null>({
-    queryKey: ["marks", config.adminUrl],
+export const useMarks = () => {
+  // The admin URL in force: the `?admin=` link, or the hosted pointer file discovered by fetchDeployment.
+  const dep = useDeployment();
+  const base = dep.data?.adminUrl ?? config.adminUrl ?? "";
+  return useQuery<Record<string, MarkSnapshot> | null>({
+    queryKey: ["marks", base],
     queryFn: async () => {
-      if (!config.adminUrl) return null;
+      if (!base) return null;
       try {
-        const res = await fetch(`${config.adminUrl}/marks`, { signal: AbortSignal.timeout(6000) });
+        const res = await fetch(`${base}/marks`, { signal: AbortSignal.timeout(6000) });
         if (!res.ok) return null;
         return (await res.json()) as Record<string, MarkSnapshot>;
       } catch {
         return null;
       }
     },
+    enabled: dep.isFetched,
     refetchInterval: 60_000,
     retry: 0,
   });
+};
 
 /** All listings' price caches in one call (the public RPC rate-limits a query per row); retried through 429s. */
 /** Every listing's quote, read the way the program reads it (cache PDA, or the Pyth account for source 4), in one RPC call. */
