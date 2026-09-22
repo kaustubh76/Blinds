@@ -68,6 +68,12 @@ From then on TSLAx locks and seizures are priced from the receiver-owned account
 for it. To go back (poster down for longer than an hour): `listing-set-source mock_tsla 0` — the cache path
 resumes on the next keeper tick.
 
+## 2b. Presenting
+
+[`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the 2–3 minute walkthrough: what to click, what to say, the
+fallbacks, and the drop-in line for each sponsor. Its one hard requirement is timing — start within a
+minute of a window opening, or the autopilot waits for the next one in front of your audience.
+
 ## 3. Watch
 
 ```bash
