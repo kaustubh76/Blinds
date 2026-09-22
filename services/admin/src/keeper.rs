@@ -16,7 +16,13 @@ use crate::{chain::read, deployment::ListingRecord, price::PriceSource, Ctx};
 /// One price source per listing, in `deployment.listings` order.
 pub type PriceSources = Vec<PriceSource>;
 
+/// `tick` with `prices_elsewhere`: the staleness posts belong to the price thread (main.rs); the loop
+/// still posts a fresh set at every epoch open, which is the one moment it must not wait.
 pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
+    tick_with(ctx, prices, false)
+}
+
+pub fn tick_with(ctx: &Ctx, prices: &mut PriceSources, prices_elsewhere: bool) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let admin = &ctx.keys.admin;
     let slot = chain.slot()?;
@@ -46,8 +52,10 @@ pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
     // Refresh each listing's price at half its freshness window so credit never sees a stale
     // cache. This is a staleness check, not `slot % period == 0`: the loop samples one slot per
     // tick, and on devnet ~13 slots pass per tick, so a modulo test is usually missed and every
-    // lock fails PriceStale.
-    post_prices(ctx, prices, slot, false)?;
+    // lock fails PriceStale. When the price thread runs, it owns this and the loop does not race it.
+    if !prices_elsewhere {
+        post_prices(ctx, prices, slot, false)?;
+    }
     let loans = load_loans(ctx)?;
     seize_matured(ctx, &loans)?;
     close_settled_bids(ctx, &config, slot, &loans)?;

@@ -339,7 +339,7 @@ fn main() -> Result<()> {
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");
             loop {
-                if let Err(e) = keeper::tick(&ctx, &mut prices) {
+                if let Err(e) = keeper::tick_with(&ctx, &mut prices, true) {
                     error!("keeper: {e:#}");
                 }
                 if let Err(e) = admin.tick(&ctx) {

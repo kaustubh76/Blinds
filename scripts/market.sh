@@ -122,8 +122,16 @@ case "${1:-status}" in
     fi
     if [ "$CLUSTER" = devnet ] && command -v solana >/dev/null; then
       bal=$(solana balance -ud 2>/dev/null | awk '{print $1}')
-      # ~0.032 SOL per epoch at ~7-minute epochs (docs/DEMO.md §C), i.e. ~0.28 SOL/hour.
-      [ -n "$bal" ] && printf 'balance: %s SOL (~%.0f h of live market left)\n' "$bal" "$(echo "$bal" | awk '{print $1/0.28}')"
+      # 0.032 SOL per epoch (docs/DEMO.md §C); an epoch is 900 slots plus ~2 min of print, and a slot is
+      # however long devnet makes it today (0.45 s until mid-Sep 2026, ~0.17 s since 22 Sep) — so measure.
+      s1=$(solana slot -ud 2>/dev/null); sleep 20; s2=$(solana slot -ud 2>/dev/null)
+      if [ -n "$bal" ] && [ -n "$s1" ] && [ -n "$s2" ] && [ "$s2" -gt "$s1" ]; then
+        awk -v bal="$bal" -v d="$((s2 - s1))" 'BEGIN {
+          sps = 20 / d; epoch_s = 900 * sps + 120; per_h = 3600 / epoch_s * 0.032;
+          printf "balance: %s SOL (~%.1f h of live market left at %.2f s/slot ≈ %.2f SOL/h)\n", bal, bal / per_h, sps, per_h }'
+      elif [ -n "$bal" ]; then
+        printf 'balance: %s SOL (~%.0f h of live market left at the historical 0.28 SOL/h)\n' "$bal" "$(echo "$bal" | awk '{print $1/0.28}')"
+      fi
     fi
     ;;
   *) echo "usage: $0 {start|stop|status|tunnel} [cluster]"; exit 2 ;;
