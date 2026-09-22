@@ -4,7 +4,8 @@
 # process stays up while the link is dead — so this loop probes both every minute (through 1.1.1.1,
 # past the local resolver's cache), replaces a dead one, re-copies the faucet pointer into the served
 # build and logs the current share link. With WINDOW_PUBLISH=1 it also commits the pointer for the
-# hosted site (publish_admin_url.sh).
+# GitHub Pages site (publish_admin_url.sh); with WINDOW_VERCEL=1 it redeploys the Vercel copy
+# (deploy_vercel.sh), which serves its own snapshot of the pointer.
 #
 #   ./scripts/watch_tunnels.sh start | stop | status        log: /tmp/window-tunnels.log
 set -euo pipefail
@@ -51,6 +52,8 @@ loop() {
     if [ "$changed" = 1 ]; then
       ./scripts/serve_app.sh refresh >>"$LOG" 2>&1 || true
       [ "${WINDOW_PUBLISH:-0}" = 1 ] && { ./scripts/publish_admin_url.sh >>"$LOG" 2>&1 || log "publish failed"; }
+      # Vercel serves a static copy of the pointer, so a rotated tunnel needs a redeploy there too.
+      [ "${WINDOW_VERCEL:-0}" = 1 ] && { ./scripts/deploy_vercel.sh >>"$LOG" 2>&1 || log "vercel deploy failed"; }
       u="$(cat "$APP_URL_FILE" 2>/dev/null || true)"; a="$(admin_url)"
       log "share: ${u:-<no dashboard tunnel>}${a:+/?admin=$a}"
     fi

@@ -14,7 +14,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 |---|---|
 | Specification | [`docs/SPEC.md`](docs/SPEC.md) (frozen) · [`docs/SPEC_AMENDMENTS.md`](docs/SPEC_AMENDMENTS.md) (what changed while building, and why) |
 | Build plan | [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — phases, gates, verified toolchain |
-| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · PreStocks · Meteora DBC · Clawpump integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule; [`services/launch`](services/launch) — the lender agent's token on a stock-quoted Meteora bonding curve |
+| Tracks | [`docs/TRACKS.md`](docs/TRACKS.md) — Pyth · PreStocks · Meteora DBC · Clawpump integration record, with the diagram [`docs/tracks.excalidraw`](docs/tracks.excalidraw); the whole-product map [`docs/project.excalidraw`](docs/project.excalidraw) — every program, instruction, proof, service loop, SDK module, page, test tier and track, status-badged (`pnpm docs:diagrams` regenerates both); [`docs/PYTH.md`](docs/PYTH.md) — what the Pyth quote does and how its age is enforced; [`docs/LISTINGS.md`](docs/LISTINGS.md) — the collateral schedule; [`services/launch`](services/launch) — the lender agent's token on a stock-quoted Meteora bonding curve |
 | Status | **Live on devnet** — five programs, a market printing xONIA, and a dashboard that re-verifies each print in the browser: **<https://kaustubh76.github.io/Blinds/>**. Addresses and a walkthrough: [`docs/DEMO.md`](docs/DEMO.md) §C. Tier-1 suites (e2e, 32 attack cases in 11 files, invariants, privacy, measurements) run on Agave 4.2 via LiteSVM; tier-2 runs the dashboard's own code path against a real `solana-test-validator` with the real services. |
 | Runbook | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — judging day: budget, start/watch/stop, the share link, what to do when something fails |
 | Honest-claims rule | Never "trustless", "undecryptable", "nobody can see". The administrator **can** decrypt individual amounts. The public sees aggregates, the price, and the rate — each proven or publicly attributable. Enforced by `scripts/check_claims.sh` in CI. |
@@ -42,7 +42,7 @@ tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measuremen
 config/     demo.toml · integration.toml · devnet.toml · prod.toml — the single source of market parameters
 scripts/    market.sh · serve_app.sh · watch_tunnels.sh · localnet.sh · freeze.sh · smoke/ (headless drivers: routes, recipes, judge path, positions)
 deployments/ devnet.json (the desk) · launch-devnet.json / launch-mainnet.json (the lender agent's pool)
-docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · PYTH.md · LISTINGS.md · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
+docs/       SPEC.md · SPEC_V2.md · SPEC_AMENDMENTS.md · BUILD_PLAN.md · TRACKS.md · tracks.excalidraw · project.excalidraw · PYTH.md · LISTINGS.md · toolchain.md · METHODOLOGY.md · THREAT_MODEL.md · DEMO.md · adr/
 ```
 
 ## Quickstart
@@ -61,12 +61,20 @@ cd app && pnpm dev      # dashboard against localnet (docs/DEMO.md)
 
 ## Hosting the dashboard
 
-**Live at <https://kaustubh76.github.io/Blinds/>**, published by `.github/workflows/pages.yml` on
+**Live at <https://kaustubh76.github.io/Blinds/>** (and mirrored at
+<https://the-window-for-stocks.vercel.app/>), published by `.github/workflows/pages.yml` on
 every push to `main` (pnpm + Vite only; the browser proof engine `sdk/wasm` is committed, so no
 Rust toolchain is needed). It reads the public devnet RPC by default; set a repository variable
 `VITE_RPC_URL` to a dedicated endpoint to lift the browser rate limits, and the next push picks it
 up. Nothing else is needed to *read* the market; to *trade* from the hosted site the admin service's
 demo faucet must be reachable — see "The faucet from the hosted site" below.
+
+The Vercel mirror is the same `app/dist`, pushed by `./scripts/deploy_vercel.sh` (production by
+default, `preview` for a preview URL). It is a manual publish, not a git integration: it builds the
+SDK and the app exactly as the workflow does, copies `deployments/admin-url.txt` in beside them, and
+deploys `app/dist` with the project link in `app/.vercel`. Because that pointer is a snapshot, a
+rotated faucet tunnel needs a redeploy — `WINDOW_VERCEL=1 ./scripts/watch_tunnels.sh start` does it
+automatically, and a `?admin=<url>` link always overrides whatever the host has baked in.
 
 ### The faucet from the hosted site
 
