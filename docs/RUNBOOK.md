@@ -74,6 +74,7 @@ resumes on the next keeper tick.
 WINDOW_RPC_URL=https://api.devnet.solana.com pnpm watch:epoch --epochs 1   # next print, re-verified in wasm
 ./target/release/window-admin --cluster devnet --profile devnet price-check # every listing's source, mark, quote age
 curl -s 127.0.0.1:9090/metrics | grep -E 'price_publish_age|prices_posted|prints_total'
+curl -s 127.0.0.1:9090/marks | jq .     # the attested marks as last read, with the implied price and the basis (22 Sep+)
 tail -f /tmp/window-admin-devnet.log
 ```
 

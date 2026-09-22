@@ -132,7 +132,10 @@ your browser; pick a listing, and *Autopilot* runs derive → join → set up �
 every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
 the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
-key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
+key. *Agent* (key 5) is the lender agent — its journey to a token on mainnet, the Meteora curve set from the
+desk's numbers, its Clawpump identity. *Build* (key 7) has the recipes, the IDLs and the API for anyone who
+wants to integrate. Home's "built with" strip and the Market's PreStocks card (`#/market/prestocks`) are where
+Pyth, PreStocks, Meteora and Clawpump each show a live number.
 
 ### Running the market yourself
 
@@ -154,6 +157,9 @@ paused, which is why the series and the explorer are populated even between runs
 
 ## What to look at
 
+- The Agent page (`#/agent`): five journey steps, each computed from a record or the chain, the pending ones
+  naming what they wait on; the PreStocks mark card on Market: the mark, the implied price and the basis
+  (the last two only while the market runs — the admin's `/marks`).
 - A bid transaction: the instruction data holds a 320-byte validity proof and no number.
 - The Epoch account: 74 × 96 bytes of accumulators, no sizes.
 - An attest transaction: four `VerifyZeroCiphertext` instructions (1,182 bytes total) followed by

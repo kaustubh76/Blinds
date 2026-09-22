@@ -108,10 +108,10 @@ describe("the lender agent card", () => {
     expect(t).not.toContain("graduated to DAMM v2");
   });
 
-  it("warns when the chain's creator or fee claimer is not the agent wallet", () => {
+  it("says so when the chain's creator or fee claimer is not the agent wallet (a rehearsal fact on devnet)", () => {
     query.mockReturnValue({ ...base, data: { kind: "ok", state: { ...state, feesToAgent: false } } });
     const { container } = render(<LenderAgent />);
-    expect(container.textContent).toContain("creator or fee claimer is not the agent wallet");
+    expect(container.textContent).toContain("rehearsal launched by the payer, before the identity");
     expect(container.textContent).not.toContain("fees flow to the agent");
   });
 

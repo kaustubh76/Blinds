@@ -46,6 +46,6 @@ describe("the lender agent's column on the Build page", () => {
     const t = container.textContent ?? "";
     expect(t).toContain("2.9 %");
     expect(t).toContain("period 7 of 48");
-    expect(container.querySelector('a[href="#/market/lender"]')).not.toBeNull();
+    expect(container.querySelector('a[href="#/agent"]')).not.toBeNull();
   });
 });

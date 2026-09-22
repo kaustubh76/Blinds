@@ -17,6 +17,7 @@ const LABEL: Record<Tab, string> = {
   desk: "Desk",
   positions: "Positions",
   market: "Market",
+  agent: "Agent",
   explorer: "Explorer",
   build: "Build",
 };
@@ -25,6 +26,7 @@ const ICON: Record<Tab, IconName> = {
   desk: "zap",
   positions: "layers",
   market: "chart",
+  agent: "sparkles",
   explorer: "search",
   build: "code",
 };

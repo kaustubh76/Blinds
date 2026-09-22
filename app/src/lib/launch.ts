@@ -65,9 +65,23 @@ export interface LaunchRecord {
 
 const mainnetModules = import.meta.glob("../../../deployments/launch-mainnet.json", { eager: true, import: "default" });
 const mainnetLaunch = Object.values(mainnetModules)[0] as LaunchRecord | undefined;
+// The mainnet *plan* carries the Clawpump identity before the mainnet pool exists (`services/launch agent`).
+const planModules = import.meta.glob("../../../deployments/launch-plan-mainnet.json", {
+  eager: true,
+  import: "default",
+});
+const mainnetPlan = Object.values(planModules)[0] as Partial<LaunchRecord> | undefined;
 
+/** The agent's identity, wherever it was recorded: the mainnet launch, the mainnet plan, else the devnet record. */
+export const AGENT: LaunchRecord["agent"] | undefined =
+  mainnetLaunch?.agent ?? mainnetPlan?.agent ?? (devnetLaunch as LaunchRecord).agent;
+const withAgent = (r: LaunchRecord): LaunchRecord => (r.agent || !AGENT ? r : { ...r, agent: AGENT });
+
+/** Both records, for the journey: the devnet rehearsal always exists; mainnet once the launch has run. */
+export const DEVNET_LAUNCH: LaunchRecord = withAgent(devnetLaunch as LaunchRecord);
+export const MAINNET_LAUNCH: LaunchRecord | null = mainnetLaunch ? withAgent(mainnetLaunch) : null;
 /** The launch the dashboard shows: mainnet when there is one, else the devnet rehearsal. */
-export const LAUNCH: LaunchRecord = mainnetLaunch ?? (devnetLaunch as LaunchRecord);
+export const LAUNCH: LaunchRecord = MAINNET_LAUNCH ?? DEVNET_LAUNCH;
 export const launchCluster = LAUNCH.cluster === "mainnet" ? "mainnet-beta" : "devnet";
 /** The base token's decimals (`services/launch/src/plan.ts`: an SPL mint with 6). */
 export const LAUNCH_BASE_DECIMALS = 6;

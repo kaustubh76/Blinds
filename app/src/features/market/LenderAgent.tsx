@@ -161,11 +161,14 @@ function AgentBlock({ s }: { s: LaunchState | null }) {
               fees flow to the agent
             </Badge>
           )}
-          {s?.feesToAgent === false && (
-            <Badge tone="warn" icon="alert">
-              creator or fee claimer is not the agent wallet
-            </Badge>
-          )}
+          {s?.feesToAgent === false &&
+            (LAUNCH.cluster === "mainnet" ? (
+              <Badge tone="warn" icon="alert">
+                creator or fee claimer is not the agent wallet
+              </Badge>
+            ) : (
+              <Badge tone="mute">rehearsal launched by the payer, before the identity</Badge>
+            ))}
         </div>
       )}
       {c && (

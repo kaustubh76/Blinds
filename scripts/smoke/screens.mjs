@@ -28,6 +28,7 @@ for (const theme of ["light", "dark"]) {
     ["", 12_000],
     ["desk", 8_000],
     ["market", 20_000],
+    ["agent", 20_000],
     ["explorer", 12_000],
   ]) {
     const p = await page(1280, 1100, `${base}?theme=${theme}#/${route}`, ms);

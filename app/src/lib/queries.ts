@@ -79,6 +79,40 @@ export const useQuote = (listing: QuoteSource | undefined) =>
     refetchInterval: SLOT_MS * 2,
   });
 
+/** What the keeper last read from an attested mark's API: the mark it posted and the implied price it did not. */
+export interface MarkSnapshot {
+  key: string;
+  symbol: string;
+  source: string;
+  feed_id_hex: string;
+  url: string;
+  mark_e8: number;
+  implied_e8: number | null;
+  basis_bps: number | null;
+  fetched_at: number;
+}
+
+/**
+ * `GET <admin>/marks` — the implied price beside the mark (the PreStocks basis). Only while the admin
+ * service is reachable (the market runs); `null` without an admin URL or when it does not answer.
+ */
+export const useMarks = () =>
+  useQuery<Record<string, MarkSnapshot> | null>({
+    queryKey: ["marks", config.adminUrl],
+    queryFn: async () => {
+      if (!config.adminUrl) return null;
+      try {
+        const res = await fetch(`${config.adminUrl}/marks`, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return null;
+        return (await res.json()) as Record<string, MarkSnapshot>;
+      } catch {
+        return null;
+      }
+    },
+    refetchInterval: 60_000,
+    retry: 0,
+  });
+
 /** All listings' price caches in one call (the public RPC rate-limits a query per row); retried through 429s. */
 /** Every listing's quote, read the way the program reads it (cache PDA, or the Pyth account for source 4), in one RPC call. */
 export const usePrices = (listings: QuoteSource[] | undefined) =>

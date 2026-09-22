@@ -15,6 +15,7 @@ import { useHashRoute } from "../../lib/useHashRoute";
 import { useWindowClock } from "../../lib/useWindowClock";
 import { useSession } from "../../lib/wallet";
 import { BorrowCalculator } from "./BorrowCalculator";
+import { Integrations } from "./Integrations";
 
 export const DESK_PREFILL_KEY = "thewindow:desk:prefill";
 
@@ -148,11 +149,14 @@ export function Home() {
         <p className="mt-4 text-sm text-ink-3">
           The lender on the other side of every window is an autonomous agent; its token,{" "}
           <span className="mono">{LAUNCH.token.symbol}</span>, is on a stock-quoted Meteora bonding curve —{" "}
-          <a href="#/market/lender" className="text-accent hover:underline">
-            the curve →
+          <a href="#/agent" className="text-accent hover:underline">
+            the agent and its curve →
           </a>
         </p>
       </Section>
+
+      {/* Built with */}
+      <Integrations />
 
       {/* Calculator */}
       <Section

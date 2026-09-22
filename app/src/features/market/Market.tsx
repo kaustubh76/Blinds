@@ -16,9 +16,10 @@ import { DepthChart } from "../explorer/DepthChart";
 import { CollateralMark } from "./CollateralMark";
 import { CollateralSchedule } from "./CollateralSchedule";
 import { LenderAgent } from "./LenderAgent";
+import { PreStocksMark } from "./PreStocksMark";
 import { SeriesChart } from "./SeriesChart";
 
-/** `focus` is the route's parameter: `#/market/lender` scrolls to the lender agent's card. */
+/** `focus` is the route's parameter: `#/market/lender` scrolls to the lender agent's card, `#/market/prestocks` to the PreStocks mark. */
 export function Market({ focus }: { focus?: string | undefined } = {}) {
   const dep = useDeployment();
   const oracle = useOracle();
@@ -175,6 +176,7 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
       {/* The collateral schedule, then listing #0's mark beside the underlying equity feed. */}
       <CollateralSchedule />
       <CollateralMark />
+      <PreStocksMark focus={focus === "prestocks"} />
       <LenderAgent focus={focus === "lender"} />
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (

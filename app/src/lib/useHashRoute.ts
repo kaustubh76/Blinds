@@ -1,7 +1,7 @@
 /** `#/explorer/16` — tabs and one optional parameter, linkable and back-button friendly. */
 import { useCallback, useEffect, useState } from "react";
 
-export const TABS = ["home", "desk", "positions", "market", "explorer", "build"] as const;
+export const TABS = ["home", "desk", "positions", "market", "agent", "explorer", "build"] as const;
 export type Tab = (typeof TABS)[number];
 
 export interface Route {

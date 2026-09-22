@@ -6,6 +6,7 @@ describe("hash route", () => {
     expect(parseHash("#/explorer/16")).toEqual({ tab: "explorer", param: "16" });
     expect(parseHash("#/desk")).toEqual({ tab: "desk" });
     expect(parseHash("#/build")).toEqual({ tab: "build" });
+    expect(parseHash("#/agent")).toEqual({ tab: "agent" });
     expect(toHash("explorer", "16")).toBe("#/explorer/16");
     expect(toHash("market")).toBe("#/market");
   });

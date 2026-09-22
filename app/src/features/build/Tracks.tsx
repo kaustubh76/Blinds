@@ -191,7 +191,8 @@ const q = await sdk.fetchQuote(rpc, {                            // { price, exp
             The same desk lists ANTHROPIC, a pre-IPO token, next to a listed stock under one rate — a collateral
             schedule. PreStocks publishes a <span className="mono">markPrice</span> and a{" "}
             <span className="mono">tokenPrice</span>; the keeper posts the mark (
-            <span className="mono">price_source = 2</span>) and the Market shows the implied-vs-mark basis.
+            <span className="mono">price_source = 2</span>); the Market&apos;s PreStocks card shows the implied-vs-mark
+            basis from the admin&apos;s <span className="mono">/marks</span> while the market runs.
           </p>
           <div className="text-xs">
             <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">on-chain cache now</div>

@@ -54,8 +54,8 @@ export function LenderTrack() {
             {s.thresholdQuote.toLocaleString("en-US", { maximumFractionDigits: 2 })} quote · fee now{" "}
             {fee.bps >= 100 ? `${(fee.bps / 100).toFixed(2)} %` : `${fee.bps.toFixed(1)} bp`} (period {fee.period} of{" "}
             {s.config.baseFee.numberOfPeriod}) ·{" "}
-            <a href="#/market/lender" className="text-accent hover:underline">
-              the card →
+            <a href="#/agent" className="text-accent hover:underline">
+              the agent page →
             </a>
           </p>
         ) : l.isError ? (

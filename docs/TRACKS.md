@@ -79,8 +79,8 @@ listing #0. The keeper no longer posts under `sha256("tessera:T-OpenAI")`; price
 | Judged on | Where it is answered | Stage |
 |---|---|---|
 | Creativity | The same desk lists `ANTHROPIC` next to a listed stock under one rate — a collateral schedule, the way a prime desk actually runs; and (Part B) the desk's lender agent, whose yield comes from loans against tokenized stocks, is launched on a stock-quoted Meteora pool. | 3 |
-| Integration depth | `/api/prestocks` `markPrice` → keeper → `PriceCache` (`price_source = 2`); `tokenPrice` vs `markPrice` shown as the PreStocks basis in the schedule table. | 3 |
-| Product quality | Listing selector on the Desk, per-listing lock/deposit on Positions, schedule with quote ages on Market; tier-1 attack cases for wrong-listing and stale-quote paths; tier-2 lifecycle on a second listing. | 3 |
+| Integration depth | `/api/prestocks` `markPrice` → keeper → `PriceCache` (`price_source = 2`). The implied price (`tokenPrice`) is read beside it and served by the admin's `GET /marks` (22 Sep; never on chain — PreStocks' API sends no CORS header and `post_price` needs a listing): the **PreStocks mark card** on the Market page (`#/market/prestocks`) shows mark, implied price and the basis in bps while the market runs, and says what it waits on when it does not. | 3 |
+| Product quality | The **PreStocks** tile in Home's "built with" strip (live mark) and the PreStocks mark card on Market (mark, implied, basis, haircut, the 48 h rule's verdict, the mainnet mint `Pren1…`); listing selector on the Desk, per-listing lock/deposit on Positions, schedule with quote ages on Market; tier-1 attack cases for wrong-listing and stale-quote paths; tier-2 lifecycle on a second listing. | 3 |
 | Developer surface | Build page: the `ANTHROPIC-mock` schedule row, the **PreStocks** column (`feedIdForLabel("prestocks:ANTHROPIC")`, the `/api/prestocks` `curl`, the same SDK calls), `marks` and `solvency` recipes (ANTHROPIC: 1.965 shares required, 3.143 pledged after the 200 % haircut for 1,000 USDC); console events named by listing (`credit.PricePosted · ANTHROPIC-mock $…`). | live |
 
 ## Part B — the lender agent: Meteora DBC + Clawpump (21 Sep)
@@ -111,12 +111,14 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 | Technical soundness | `createConfigAndPool` from the SDK (`@meteora-ag/dynamic-bonding-curve-sdk` 1.5.12) with the token badge passed when the quote has one; `tokenSupply` left to the program when a migration fee is set (the program's `InvalidTokenSupply` rule); creator-fee percentage tied to the migration fee (the program's other rule). The dashboard reads the pool **without** the SDK: `sdk.fetchDbc` decodes `VirtualPool` / `PoolConfig` from bytes (owner-checked against `dbcij3LW…`), with fixtures captured from the devnet pool. |
 | Working code on mainnet | Devnet rehearsal done end to end (below). The mainnet launch is one command once the launch key holds ~0.05 SOL (`launch` checks the balance first and sends nothing below 0.04) — the tool refuses to price it on a Pyth quote older than 3 days. |
 | Life after the hackathon | `status`/`graduate` are operator commands; the Market card and the `launch-status` recipe follow whichever cluster the record names; the fee stream and the locked LP outlive the event. |
+| Product surface | The **Agent** page (`#/agent`, 22 Sep): the journey (five steps, each computed from the records and the pool, every pending one naming what it waits on), the agent on the desk (lender/borrower agents, last xONIA), the Meteora card (fee now with the schedule drawn, progress, fees), "the curve, set from the desk's numbers" (parameter → desk number → on-chain value), the Clawpump identity, the developer column. Home's "built with" strip links to it with the live progress. |
 
 ### Clawpump — criteria → what answers them
 
 | Judged on | Where it is answered |
 |---|---|
 | An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` gives it its Clawpump identity — the key's one agent is reused and renamed (`POST /agents/{id}`), else created — and records `id` + `walletAddress`; that wallet is the Meteora pool's **creator and fee claimer** by default, and the card checks the chain agrees ("fees flow to the agent"). `services/launch clawpump-launch` has Clawpump launch the agent's **identity coin `LENDER` on pump.fun, paired with TSLAx** (`POST /launch`, `pumpQuoteMint` = TSLAx, `selfFunded` — the agent's own wallet pays 0.0092 SOL). |
+| Where a judge sees it | The Agent page's Clawpump card (name, id, wallet on mainnet, the coin's pump.fun/mint/tx links once launched) and the journey's steps 1 and 4; the Home strip's Clawpump tile. |
 | Two coins, two roles | Clawpump's launch venue is pump.fun (confirmed 21 Sep from its developer reference: `/launch`, `/launch/self-funded`; `/pump-pairs` lists TSLAx and 21 other xStocks); it cannot create a Meteora pool, and a DBC pool mints its own token. So the agent has an identity coin (Clawpump → pump.fun, TSLAx pair) and a capital token (WLEND on Meteora, configured from the desk). One agent, one revenue wallet; the card and the docs say which is which. |
 
 ### Verified on devnet, 21 Sep 2026
@@ -242,6 +244,6 @@ of its stock-paired Meteora pool. Everything the agent earns — trading fees, i
 xONIA it lends at — flows to one address a judge can watch.
 
 **PreStocks.** ANTHROPIC, the only pre-IPO token on the desk, listed next to a tokenized stock under one rate, marked by PreStocks' published price with
-its implied-vs-mark basis on the schedule: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing
+its implied-vs-mark basis on the Market's PreStocks card: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing
 the position, borrow at the print, and — for developers — a Build page that shows the listing's PDAs, the account
 the program prices from, and the exact SDK calls, runnable in the tab.

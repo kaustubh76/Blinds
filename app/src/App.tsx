@@ -9,6 +9,7 @@ const Explorer = lazy(() => import("./features/explorer/Explorer").then((m) => (
 const Desk = lazy(() => import("./features/desk/Desk").then((m) => ({ default: m.Desk })));
 const Positions = lazy(() => import("./features/positions/Positions").then((m) => ({ default: m.Positions })));
 const Build = lazy(() => import("./features/build/Build").then((m) => ({ default: m.Build })));
+const Agent = lazy(() => import("./features/agent/Agent").then((m) => ({ default: m.Agent })));
 
 export function App() {
   const route = useHashRoute();
@@ -24,6 +25,7 @@ export function App() {
       >
         {route.tab === "home" && <Home />}
         {route.tab === "market" && <Market focus={route.param} />}
+        {route.tab === "agent" && <Agent />}
         {route.tab === "explorer" && <Explorer epochParam={route.param} />}
         {route.tab === "desk" && <Desk />}
         {route.tab === "positions" && <Positions />}

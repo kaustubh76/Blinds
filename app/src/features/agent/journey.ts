@@ -1,0 +1,102 @@
+/**
+ * The lender agent's journey, computed from the launch records and the pool — never from a claim.
+ * Every step that is not done says what it waits on.
+ */
+import type { LaunchRecord } from "../../lib/launch";
+
+export type StepState = "done" | "pending" | "blocked";
+
+export interface JourneyStep {
+  id: "identity" | "rehearsal" | "mainnet" | "coin" | "graduation";
+  title: string;
+  state: StepState;
+  /** What happened, or what it waits on. */
+  detail: string;
+  /** A link into the product or an explorer, when there is one. */
+  href?: string | undefined;
+}
+
+export const LAUNCH_KEY = "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX";
+
+export function journey(
+  devnet: LaunchRecord | null,
+  mainnet: LaunchRecord | null,
+  live: { isMigrated: boolean; progress: number } | null,
+): JourneyStep[] {
+  const agent = mainnet?.agent ?? devnet?.agent ?? null;
+  const coin = mainnet?.clawpump ?? devnet?.clawpump ?? null;
+  const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+  const steps: JourneyStep[] = [
+    agent
+      ? {
+          id: "identity",
+          title: "A Clawpump identity",
+          state: "done",
+          detail: `${agent.name} · wallet ${short(agent.walletAddress)} — the pool's creator and fee wallet`,
+          href: `https://explorer.solana.com/address/${agent.walletAddress}`,
+        }
+      : {
+          id: "identity",
+          title: "A Clawpump identity",
+          state: "pending",
+          detail: "waits on services/launch agent (needs CLAWPUMP_API_KEY)",
+        },
+    devnet?.pool
+      ? {
+          id: "rehearsal",
+          title: "Devnet rehearsal on Meteora DBC",
+          state: "done",
+          detail: `pool ${short(devnet.pool)} on a twin quote mint — same program, same configuration`,
+          href: `https://explorer.solana.com/address/${devnet.pool}?cluster=devnet`,
+        }
+      : { id: "rehearsal", title: "Devnet rehearsal on Meteora DBC", state: "pending", detail: "not run yet" },
+    mainnet?.pool
+      ? {
+          id: "mainnet",
+          title: "The mainnet pool, quoted in TSLAx",
+          state: "done",
+          detail: `pool ${short(mainnet.pool)} · WLEND ${short(mainnet.baseMint)}`,
+          href: `https://explorer.solana.com/address/${mainnet.pool}`,
+        }
+      : {
+          id: "mainnet",
+          title: "The mainnet pool, quoted in TSLAx",
+          state: "blocked",
+          detail: `waits on ~0.05 SOL at the launch key ${short(LAUNCH_KEY)} — the pool cost 0.027 on devnet; nothing is sent below 0.04`,
+          href: `https://explorer.solana.com/address/${LAUNCH_KEY}`,
+        },
+    coin
+      ? {
+          id: "coin",
+          title: "The identity coin, launched by Clawpump",
+          state: "done",
+          detail: `${coin.symbol} on pump.fun, paired with TSLAx · mint ${short(coin.mint)}`,
+          href: coin.pumpUrl,
+        }
+      : {
+          id: "coin",
+          title: "The identity coin, launched by Clawpump",
+          state: agent ? "blocked" : "pending",
+          detail: agent
+            ? `waits on ~0.02 SOL at the agent's wallet ${short(agent.walletAddress)} — the agent pays its own launch (0.0092 SOL for a TSLAx pair)`
+            : "needs the identity first",
+          href: agent ? `https://explorer.solana.com/address/${agent.walletAddress}` : undefined,
+        },
+    live?.isMigrated
+      ? {
+          id: "graduation",
+          title: "Graduation to DAMM v2",
+          state: "done",
+          detail: "the curve reached its threshold; liquidity is locked on DAMM v2",
+        }
+      : {
+          id: "graduation",
+          title: "Graduation to DAMM v2",
+          state: "pending",
+          detail: live
+            ? `${(live.progress * 100).toFixed(1)} % of the raise so far — buyers move the curve, nothing else does`
+            : "once the pool reads, its progress shows here",
+        },
+  ];
+  return steps;
+}
