@@ -301,6 +301,40 @@ fn main() -> Result<()> {
                 default_every,
             };
             let mut prices = price_sources(&profile, &ctx.deployment)?;
+            // Prices on their own clock. The main loop below can spend minutes in a print or a
+            // loan-service pass, and a listing's `max_price_age_slots` is a slot count: at devnet's
+            // 2026-09-22 pace (~0.17 s/slot) 1,200 slots is under four minutes, so a post that
+            // waits for the loop arrives stale and every lock fails PriceStale. This thread checks
+            // every `WINDOW_PRICE_TICK_MS` (default 20 s) and posts whatever is past half its window.
+            {
+                let price_tick_ms: u64 = std::env::var("WINDOW_PRICE_TICK_MS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(20_000);
+                let price_ctx = Ctx {
+                    chain: Box::new(RpcChain::new(&rpc)),
+                    keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
+                    profile: profile.clone(),
+                    deployment: deployment.clone(),
+                    metrics: metrics.clone(),
+                    backfill_epochs: 0,
+                    default_every,
+                };
+                let mut price_sources_2 = price_sources(&profile, &price_ctx.deployment)?;
+                std::thread::spawn(move || loop {
+                    match price_ctx.chain.slot() {
+                        Ok(slot) => {
+                            if let Err(e) =
+                                keeper::post_prices(&price_ctx, &mut price_sources_2, slot, false)
+                            {
+                                error!("price thread: {e:#}");
+                            }
+                        }
+                        Err(e) => error!("price thread: slot: {e:#}"),
+                    }
+                    std::thread::sleep(Duration::from_millis(price_tick_ms));
+                });
+            }
             let admin = Administrator::new(profile.print.bsgs_baby_bits);
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");

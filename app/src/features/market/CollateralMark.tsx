@@ -9,6 +9,7 @@ import { Badge, ExplorerLink } from "../../components/ui";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
 import { useCreditConfig, useDeployment, useMultiplier, useQuote, useSlot } from "../../lib/queries";
+import { secsToSlots } from "../../lib/slotTime";
 
 /** Fallback quote-age limit for a descriptor without listings; otherwise listing #0's on-chain `max_publish_age_secs`. */
 export const QUOTE_STALE_AFTER_SECS = 3_600;
@@ -37,7 +38,7 @@ export function CollateralMark() {
         <span className="flex flex-wrap items-center gap-2">
           {quoteStale && (
             <Badge tone="warn" icon="alert">
-              quote older than {formatSlotAge(staleAfter / 0.45)}
+              quote older than {formatSlotAge(secsToSlots(staleAfter))}
             </Badge>
           )}
           <ExplorerLink address={PYTH_SHARD0_TSLAX} cluster="mainnet-beta">
@@ -51,10 +52,10 @@ export function CollateralMark() {
           API key, otherwise the freshest of Pyth&apos;s own on-chain accounts — with the feed&apos;s own timestamp
           stored unmodified. Two rules are enforced on chain per listing at every lock and seize: the keeper must have
           posted within the listing&apos;s <span className="mono">max_price_age</span>, and the quote&apos;s own
-          timestamp must be within <span className="mono">max_publish_age</span> ({formatSlotAge(staleAfter / 0.45)} for
-          this one). The underlying <span className="mono">Equity.US.TSLA/USD</span> is read from Pyth&apos;s mainnet
-          account in this browser; the overnight window opens when that market closes, which is why the 24/7 wrapper
-          feed marks the collateral.
+          timestamp must be within <span className="mono">max_publish_age</span> (
+          {formatSlotAge(secsToSlots(staleAfter))} for this one). The underlying{" "}
+          <span className="mono">Equity.US.TSLA/USD</span> is read from Pyth&apos;s mainnet account in this browser; the
+          overnight window opens when that market closes, which is why the 24/7 wrapper feed marks the collateral.
         </>
       }
     >

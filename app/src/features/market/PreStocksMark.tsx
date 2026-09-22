@@ -12,6 +12,7 @@ import { config } from "../../config";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, formatBasis } from "../../lib/pyth";
 import { type MarkSnapshot, useDeployment, useMarks, useQuote, useSlot } from "../../lib/queries";
+import { secsToSlots } from "../../lib/slotTime";
 
 /** PreStocks' ANTHROPIC token on mainnet — never touched by the desk; the devnet listing is a twin. */
 export const PRESTOCKS_ANTHROPIC_MINT = "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw";
@@ -65,7 +66,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             <Badge tone="borrow">PreStocks mark</Badge>
             {stale ? (
               <Badge tone="warn" icon="alert">
-                mark older than {formatSlotAge(limit / 0.45)} · locks refused
+                mark older than {formatSlotAge(secsToSlots(limit))} · locks refused
               </Badge>
             ) : (
               <Badge tone="mute">attested · a keeper copy, stamped at fetch</Badge>
@@ -84,11 +85,11 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             listed stock under one rate. The keeper reads PreStocks&apos; public <span className="mono">markPrice</span>{" "}
             and posts it as this listing&apos;s mark (<span className="mono">price_source = 2</span>) with the fetch
             time as its timestamp — a copy of a public number, attested by the keeper, not a signed feed. The chain
-            refuses a lock or a seizure once the mark is older than {formatSlotAge(limit / 0.45)}; if the API stops, the
-            last good mark is re-posted for six hours, then that rule halts new locks. The implied price is what the
-            token trades at (<span className="mono">tokenPrice</span>), read beside the mark and served by the admin
-            service while the market runs — never posted on chain. Devnet holds a twin of the token; the mainnet mint is
-            not touched.
+            refuses a lock or a seizure once the mark is older than {formatSlotAge(secsToSlots(limit))}; if the API
+            stops, the last good mark is re-posted for six hours, then that rule halts new locks. The implied price is
+            what the token trades at (<span className="mono">tokenPrice</span>), read beside the mark and served by the
+            admin service while the market runs — never posted on chain. Devnet holds a twin of the token; the mainnet
+            mint is not touched.
           </>
         }
       >
@@ -141,7 +142,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
           />
           <Stat
             label="quote limit"
-            value={listing ? formatSlotAge(listing.maxPublishAgeSecs / 0.45) : "—"}
+            value={listing ? formatSlotAge(secsToSlots(listing.maxPublishAgeSecs)) : "—"}
             hint={
               stale
                 ? "exceeded: the chain refuses locks and seizures on this listing"

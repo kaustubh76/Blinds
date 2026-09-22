@@ -11,6 +11,7 @@ import { EpochStatus, PrintStatus } from "@thewindow/solana-sdk";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { devConsole } from "./console";
 import { useAuctionConfig, useEpoch, usePrint, useSlot } from "./queries";
+import { SLOT_SECONDS_DEFAULT, SLOT_SECONDS_MAX, SLOT_SECONDS_MIN, setSlotSeconds, slotsToSecs } from "./slotTime";
 
 export type Phase = "loading" | "open" | "overdue" | "closed" | "printing" | "printed" | "notrade" | "idle";
 
@@ -80,7 +81,7 @@ export function derivePhase(args: {
       ...none,
       epoch: epoch.index,
       progress,
-      secondsLeft: slot === null ? null : Math.max(0, Math.round((closeAt - slot) * 0.45)),
+      secondsLeft: slot === null ? null : slotsToSecs(closeAt - slot),
       bids: epoch.totalBids,
     };
   }
@@ -113,10 +114,6 @@ export function derivePhase(args: {
   };
 }
 
-const SLOT_SECONDS_DEFAULT = 0.45;
-const SLOT_SECONDS_MIN = 0.35;
-const SLOT_SECONDS_MAX = 0.7;
-
 /** Advances a slot estimate between polls at the measured slot rate; never goes backwards. */
 export function useEstimatedSlot(polled: number | undefined): number | null {
   const [est, setEst] = useState<number | null>(null);
@@ -129,6 +126,7 @@ export function useEstimatedSlot(polled: number | undefined): number | null {
     if (prev && polled > prev.base) {
       const observed = (now - prev.at) / 1000 / (polled - prev.base);
       rate = Math.min(SLOT_SECONDS_MAX, Math.max(SLOT_SECONDS_MIN, prev.rate * 0.7 + observed * 0.3));
+      setSlotSeconds(rate); // every slot→time conversion on the page follows the measurement
     }
     // Snap forward only: a poll that is behind our estimate must not rewind the ring.
     const base = Math.max(polled, prev ? prev.base + (now - prev.at) / 1000 / prev.rate : polled);

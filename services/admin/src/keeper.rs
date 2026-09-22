@@ -60,7 +60,7 @@ pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
 /// Posts every listing whose cache is missing or older than half its `max_price_age`
 /// (`force` posts all). One listing's failure never stops the others — nor the rest of the
 /// keeper's tick: it is logged, and the chain's freshness rules speak for the missing post.
-fn post_prices(ctx: &Ctx, prices: &mut PriceSources, slot: u64, force: bool) -> Result<()> {
+pub fn post_prices(ctx: &Ctx, prices: &mut PriceSources, slot: u64, force: bool) -> Result<()> {
     let chain = ctx.chain.as_ref();
     for (rec, price) in ctx.deployment.listings.iter().zip(prices.iter_mut()) {
         if rec.reads_pyth_account() {

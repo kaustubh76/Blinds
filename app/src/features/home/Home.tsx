@@ -11,6 +11,7 @@ import { formatRate, formatUsdc } from "../../lib/format";
 import { LAUNCH } from "../../lib/launch";
 import { useSelectedListing } from "../../lib/listings";
 import { useDeployment, useOracle, usePrices, useSeries, useSlot } from "../../lib/queries";
+import { secsToSlots } from "../../lib/slotTime";
 import { useHashRoute } from "../../lib/useHashRoute";
 import { useWindowClock } from "../../lib/useWindowClock";
 import { useSession } from "../../lib/wallet";
@@ -106,7 +107,7 @@ export function Home() {
             <div className="mt-1 text-sm text-ink-3">
               {clock.phase === "open" && clock.secondsLeft !== null ? (
                 <>
-                  this window closes in <Countdown slots={clock.secondsLeft / 0.45} />
+                  this window closes in <Countdown slots={secsToSlots(clock.secondsLeft)} />
                 </>
               ) : clock.phase === "printing" ? (
                 "proving the print, tick by tick"

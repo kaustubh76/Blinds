@@ -16,6 +16,7 @@ import type { ListingView } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { sourceLabel, useOnChainListings } from "../../lib/listings";
 import { useDeployment, usePrices, useSlot } from "../../lib/queries";
+import { secsToSlots } from "../../lib/slotTime";
 
 const SOURCE_URL: Record<string, string> = {
   prestocks: "https://prestocks.com/api/prestocks",
@@ -170,7 +171,9 @@ function Row({
         {price.data ? (
           <span className={fresh && !fresh.quoteFresh ? "text-status-serious" : ""}>
             {formatAge(price.data.publishTime)}
-            <span className="block text-[11px] text-ink-3">limit {formatSlotAge(l.maxPublishAgeSecs / 0.45)}</span>
+            <span className="block text-[11px] text-ink-3">
+              limit {formatSlotAge(secsToSlots(l.maxPublishAgeSecs))}
+            </span>
           </span>
         ) : (
           "—"

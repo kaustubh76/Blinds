@@ -1,8 +1,9 @@
-/** A slot distance as a live mm:ss, ticking once a second from the last poll (~0.45 s per slot). */
+/** A slot distance as a live mm:ss, ticking once a second from the last poll, at the measured slot rate. */
 import { useEffect, useState } from "react";
+import { slotSeconds, slotsToSecs } from "../lib/slotTime";
 
 export function slotsToClock(slots: number): string {
-  const s = Math.max(0, Math.round(slots * 0.45));
+  const s = slotsToSecs(slots);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
@@ -18,7 +19,7 @@ export function Countdown({ slots, label, className = "" }: { slots: number; lab
     const id = setInterval(() => setElapsed((e) => e + 1), 1_000);
     return () => clearInterval(id);
   }, []);
-  const remaining = Math.max(0, slots - elapsed / 0.45);
+  const remaining = Math.max(0, slots - elapsed / slotSeconds());
   return (
     <span className={`num inline-flex items-baseline gap-1 ${className}`} title={`${Math.round(slots)} slots`}>
       <span className="font-medium text-ink-1">{slotsToClock(remaining)}</span>

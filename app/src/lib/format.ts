@@ -1,5 +1,6 @@
 /** Display helpers. Units follow spec §7.3 / amendment A3: µUSDC, milli-shares, cents, bps ticks. */
 import { formatRate as sdkFormatRate, tickToBps } from "@thewindow/solana-sdk";
+import { slotsToSecs } from "./slotTime";
 
 export const formatRate = (tick: number): string => sdkFormatRate(tick);
 export const formatBps = (tick: number): string => `${tickToBps(tick)} bps`;
@@ -31,9 +32,9 @@ export const hex = (b: ArrayLike<number>, n?: number): string => {
   return n === undefined ? s : `${s.slice(0, n)}…`;
 };
 
-/** Seconds until `target` slot at ~400 ms/slot (localnet & devnet alike). */
+/** Seconds until `target` slot at the measured slot rate (lib/slotTime.ts). */
 export function slotsToSeconds(slots: number): number {
-  return Math.max(0, Math.round(slots * 0.4));
+  return slotsToSecs(slots);
 }
 
 export function formatCountdown(seconds: number): string {
@@ -62,9 +63,9 @@ export function formatAge(unixSeconds: number | bigint, now = Date.now()): strin
   return `${Math.floor(h / 24)} d ago`;
 }
 
-/** Slot delta as a rough duration at ~0.45 s/slot. */
+/** Slot delta as a rough duration at the measured slot rate. */
 export function formatSlotAge(slots: number): string {
-  const s = Math.max(0, Math.round(slots * 0.45));
+  const s = slotsToSecs(slots);
   if (s < 90) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 120) return `${m} min`;

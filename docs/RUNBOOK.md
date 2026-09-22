@@ -13,11 +13,11 @@ cd ~/Desktop/Blinds
 
 | what | cost |
 |---|---|
-| the market (keeper + administrator + operator + agents) | **~0.28 SOL / hour** — 0.032 SOL per ~7-minute epoch, all rent for accounts kept on chain |
+| the market (keeper + administrator + operator + agents) | **0.032 SOL per epoch**, all rent for accounts kept on chain. An epoch is 900 slots: ~7 min at the 0.45 s/slot devnet ran until mid-September (**~0.28 SOL/h**), ~2.6 min at the **~0.17 s/slot measured on 22 Sep** (**~0.75 SOL/h**). Measure before budgeting: `solana slot -ud` twice, a minute apart. |
 | the faucet, per new wallet | 0.10 SOL + two token accounts (~0.006) |
 | a judge's full flow (bid, lock, deposit) | < 0.05 SOL, paid from the faucet's 0.10 |
 
-`solana balance -ud` — have **≥ 1 SOL** for a two-hour window plus a handful of judges. `solana airdrop 2 -ud`
+`solana balance -ud` — have **≥ 2 SOL** for a two-hour window at today's slot pace plus a handful of judges. `solana airdrop 2 -ud`
 is usually rate-limited; <https://faucet.solana.com> (GitHub login) gives 5 SOL. The market at 0.01 SOL
 fails every transaction and burns nothing — but shows nothing either.
 
@@ -106,6 +106,7 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | `make test-integration` fails at `setup` on a Linux x86_64 machine with `VerifyPubkeyValidity → SigmaProof(PubkeyValidity, AlgebraicRelation)` | the **prebuilt** Agave `solana-test-validator` for Linux x86_64 (4.2.1, 4.2.2 and 4.3.0 from release.anza.xyz; AMD Zen 3 and Zen 4 runners alike) refuses pubkey-validity proofs that the macOS arm64 build of the same commit, LiteSVM compiled on that same Linux machine, and devnet's own validators all accept — shown by `window-admin zk-probe`, which sends two proof-only transactions (this binary's proof and one made on macOS): both refused there, both accepted here. Same feature set, same version string, same bytes. Not this project's code | run `WINDOW_PROFILE=integration ./scripts/localnet.sh probe` to confirm on the machine, then run tier 2 on macOS or against devnet; `.github/workflows/tier2.yml` can build the validator from source (`build_validator=true`) |
 | hosted site 404 / Actions "not started … payments have failed" | GitHub billing hold on the account (suspends Actions **and** Pages, even for public repos) | github.com/settings/billing → fix the payment; then `gh api -X POST repos/kaustubh76/Blinds/pages -f build_type=workflow` and re-run the `pages` workflow; meanwhile `serve_app.sh` |
 | browser 429s on `api.devnet.solana.com` | admin + agents + browsers share one IP | a dedicated devnet RPC in Settings (`?rpc=`), or the repo variable `VITE_RPC_URL` |
+| listing cards say **post stale** and locks fail `PriceStale` although the keeper logs posts every few minutes | devnet's slot time changed (0.45 → ~0.17 s on 22 Sep): `max_price_age_slots = 1200` is a slot count, now ~3.4 min, and an admin started before 22 Sep posts prices only from its main loop, which a print or a loan-service pass can hold for longer than that | restart the market: since 22 Sep the admin posts prices from a dedicated thread every `WINDOW_PRICE_TICK_MS` (20 s) whenever a cache is past half its window; `pnpm schedule` shows the verdicts; the dashboard measures the slot rate itself |
 
 ## 6. The lender agent's token (services/launch)
 
