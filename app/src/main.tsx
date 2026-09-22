@@ -4,6 +4,7 @@ import { isTransientRpcError } from "@thewindow/solana-sdk";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { ErrorScreen } from "./components/ErrorScreen";
 import "./index.css";
 import { config } from "./config";
 import { registerBurnerWallet } from "./lib/burner";
@@ -23,8 +24,13 @@ const queryClient = new QueryClient({
   },
 });
 
-// Registered before the first render so `useWallets` sees it in its first snapshot.
-registerBurnerWallet();
+// Registered before the first render so `useWallets` sees it in its first snapshot. A wallet
+// extension that injects a broken registry must not take the read-only dashboard down with it.
+try {
+  registerBurnerWallet();
+} catch (e) {
+  console.error("burner wallet unavailable in this browser", e);
+}
 
 // The whole SDK on the page, for DevTools: `await thewindow.sdk.fetchAuctionConfig(thewindow.rpc)`.
 window.thewindow = {
@@ -62,11 +68,16 @@ const root = document.getElementById("root");
 if (!root) throw new Error("#root missing");
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        <WalletBridges />
-        <App />
-      </SessionProvider>
-    </QueryClientProvider>
+    <ErrorScreen>
+      <QueryClientProvider client={queryClient}>
+        <SessionProvider>
+          <WalletBridges />
+          <App />
+        </SessionProvider>
+      </QueryClientProvider>
+    </ErrorScreen>
   </StrictMode>,
 );
+
+// React mounted: the static fallback in index.html has served its purpose.
+document.getElementById("boot-fallback")?.remove();

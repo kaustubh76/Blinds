@@ -1,0 +1,82 @@
+/**
+ * The last line of defence: a render that throws must never leave a blank page.
+ *
+ * Everything the dashboard shows is derived from chain reads and from browser state (saved RPC and
+ * faucet settings, a burner key, wallet extensions that inject themselves into the page), so a
+ * crash here is usually specific to one visitor's browser and invisible to everyone else. The
+ * boundary prints what failed and offers the two things that fix a poisoned browser: clear this
+ * site's saved settings, or reload.
+ */
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { clearSettings } from "../config";
+
+interface State {
+  error: Error | null;
+  info: string | null;
+}
+
+export class ErrorScreen extends Component<{ children: ReactNode }, State> {
+  override state: State = { error: null, info: null };
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Also on the console, where a visitor can copy it out of DevTools.
+    console.error("dashboard crashed", error, info.componentStack);
+    this.setState({ info: info.componentStack ?? null });
+  }
+
+  private reset = (): void => {
+    clearSettings();
+    try {
+      localStorage.clear();
+    } catch {
+      // private window: nothing was saved anyway
+    }
+    location.reload();
+  };
+
+  override render(): ReactNode {
+    const { error, info } = this.state;
+    if (!error) return this.props.children;
+    return (
+      <div className="mx-auto flex min-h-screen max-w-[720px] flex-col justify-center gap-5 px-6 py-12">
+        <div>
+          <div className="t-eyebrow">the dashboard stopped</div>
+          <h1 className="t-h1 mt-2 text-ink-1">Something in this browser broke the page.</h1>
+          <p className="t-lead mt-3">
+            The chain is unaffected — every print, loan and proof is still on devnet. This is the browser side: usually
+            a saved setting pointing somewhere unreachable, or a wallet extension that failed to inject.
+          </p>
+        </div>
+        <pre className="mono overflow-x-auto rounded-[var(--radius-md)] border border-line bg-surface-2 p-4 text-xs text-status-critical">
+          {error.message || String(error)}
+        </pre>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={this.reset}
+            className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
+          >
+            Clear this site's settings and reload
+          </button>
+          <button
+            type="button"
+            onClick={() => location.reload()}
+            className="rounded-full border border-line px-4 py-2 text-sm text-ink-2"
+          >
+            Just reload
+          </button>
+        </div>
+        {info && (
+          <details className="text-xs text-ink-3">
+            <summary className="cursor-pointer">where it happened</summary>
+            <pre className="mono mt-2 overflow-x-auto whitespace-pre-wrap">{info}</pre>
+          </details>
+        )}
+      </div>
+    );
+  }
+}

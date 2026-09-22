@@ -76,6 +76,15 @@ in beside them, and deploys `app/dist` with the project link in `app/.vercel`. B
 is a snapshot, a rotated faucet tunnel needs a redeploy — `WINDOW_VERCEL=1 ./scripts/watch_tunnels.sh start`
 does it automatically, and a `?admin=<url>` link always overrides whatever the host has baked in.
 
+**A blank page is now impossible to misread.** Everything the dashboard shows is derived from chain
+reads and from browser state — saved RPC and faucet settings, a burner key, wallet extensions that
+inject themselves into the page — so a failure is often specific to one visitor and invisible
+everywhere else. Two nets catch it: `app/index.html` carries a static panel that reveals itself when
+the app has not mounted (a module that will not load, a script an extension blocked) and names the
+failing request, and `app/src/components/ErrorScreen.tsx` catches a crash during render, prints the
+error and offers to clear this site's saved settings. Both offer a reload; neither touches the
+chain. `ErrorScreen.test.tsx` covers the boundary; the module-404 path is driven in a real browser.
+
 **Why the mirror proxies its reads.** The public devnet endpoint rate-limits per client IP, and the
 desk's own services (keeper, operator, six agents) saturate that quota from the machine running the
 market: a browser on that network was losing ~45 % of its `getMultipleAccounts` reads to HTTP 429,

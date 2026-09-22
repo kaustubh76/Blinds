@@ -22,6 +22,9 @@ VITE_BASE=/ VITE_CLUSTER=devnet \
 cp deployments/admin-url.txt app/dist/admin-url.txt
 # Zero-config Vercel turns files under api/ at the deployment root into serverless functions.
 mkdir -p app/dist/api && cp scripts/vercel/api/rpc.mjs app/dist/api/rpc.mjs
+# Hashed assets cache forever; the shell that names them never does (a stale shell asks for files
+# this deploy deleted, which is a blank page).
+cp scripts/vercel/vercel.json app/dist/vercel.json
 [ -d app/.vercel ] || { echo "link the project first: cd app && vercel link --project the-window-for-stocks"; exit 1; }
 cp -R app/.vercel app/dist/.vercel
 cd app/dist

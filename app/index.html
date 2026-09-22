@@ -19,7 +19,67 @@
     />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!--
+        Shown only if the app never mounts: a module that failed to load (a stale index.html asking
+        for an asset hash that no longer exists), or something in this browser throwing before React
+        runs. main.tsx removes it the moment the first render lands, so a healthy load never sees it.
+      -->
+      <div
+        id="boot-fallback"
+        hidden
+        style="max-width:44rem;margin:12vh auto;padding:0 1.5rem;color:#f2efe8;font:16px/1.55 ui-sans-serif,system-ui,sans-serif"
+      >
+        <p style="font:500 11px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#7d7a73">
+          the dashboard did not start
+        </p>
+        <h1 style="margin:.6rem 0 0;font-size:28px;line-height:1.15;letter-spacing:-.02em">
+          This page could not load its code.
+        </h1>
+        <p style="margin:.9rem 0 0;color:#b7b3aa">
+          The chain is unaffected. This is the browser side — most often a cached copy of this page asking for a file
+          that a newer deploy replaced, or an extension blocking a script.
+        </p>
+        <pre
+          id="boot-error"
+          style="margin:1.1rem 0 0;padding:.9rem;overflow-x:auto;border:1px solid #262a32;border-radius:10px;background:#1b1e24;font:12px/1.5 ui-monospace,monospace;color:#ef4444"
+        ></pre>
+        <p style="margin:1.1rem 0 0">
+          <button
+            type="button"
+            onclick="location.reload(true)"
+            style="border:0;border-radius:999px;padding:.55rem 1rem;background:#a78bfa;color:#0c0d10;font:500 14px/1 inherit;cursor:pointer"
+          >
+            Reload
+          </button>
+          <span style="margin-left:.6rem;color:#7d7a73;font-size:13px">
+            still blank? hold Shift and reload to bypass the cache
+          </span>
+        </p>
+      </div>
+    </div>
+    <script>
+      // Reveal the fallback if the first render has not replaced it, and name the failure when the
+      // browser gives us one (a module 404, a blocked script, an extension throwing at import).
+      (() => {
+        var box = document.getElementById("boot-fallback");
+        var out = document.getElementById("boot-error");
+        var show = (msg) => {
+          if (!box?.isConnected) return;
+          if (msg && out && !out.textContent) out.textContent = msg;
+          box.hidden = false;
+        };
+        addEventListener("error", (e) => {
+          var t = e.target;
+          if (t && t.tagName === "SCRIPT") show("could not load " + (t.src || "a script"));
+          else if (e.message) show(e.message);
+        }, true);
+        addEventListener("unhandledrejection", (e) => {
+          show(String(e.reason?.message || e.reason || "a promise rejected"));
+        });
+        setTimeout(() => { show(""); }, 8000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
