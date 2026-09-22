@@ -2,3 +2,4 @@
 # `scripts/market.sh start` writes it (a Cloudflare quick tunnel); `stop` clears it;
 # `scripts/publish_admin_url.sh` commits it so the hosted dashboard picks it up as a fallback
 # to the `?admin=` link. Comment lines are ignored.
+https://boating-switching-condos-communication.trycloudflare.com
