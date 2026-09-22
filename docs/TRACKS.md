@@ -220,6 +220,17 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
   failed after the lock was never resumed, and the deposit itself failed on a stale owner-side balance cache
   (`InconsistentInput`) — fixed (`4946808`): 9 stranded deposits resumed in one window, 0 failures after.
 
+## 22 Sep: the integrations as pages, the basis, devnet's new slot pace
+
+| step | evidence |
+|---|---|
+| the integrations on the dashboard | **Agent** page (`#/agent`, key 5): five-step journey from the records (identity ✓ · devnet rehearsal ✓ · mainnet pool waits on 0.05 SOL · identity coin waits on 0.02 SOL · graduation pending), the agent on the desk, the Meteora card, "the curve, set from the desk's numbers", the Clawpump card, the dev column. Home **"built with"** strip: Pyth $375.19 · PreStocks $1,051.40 · Meteora 2.9 % · Clawpump "The Window Lender". Market **PreStocks mark card** (`#/market/prestocks`). Verified on Pages (`16c05db`, `ada036f`), screenshots in `docs/screens/` |
+| the PreStocks basis, for real | `GET /marks` on the admin (`bd07f2f`): `{"prestocks_anthropic": {mark_e8: 105155741317, implied_e8: 102802912200, basis_bps: -223, fetched_at: 1790061527, …}}`; the hosted card via the published tunnel: **implied $1,034.28 · basis −162.7 bp**. The keeper reads `implied_field = "tokenPrice"` beside `markPrice`; never on chain |
+| devnet's slot pace | measured 304 slots / 52 s = **~0.17 s/slot** (0.44–0.55 until mid-Sep). `max_price_age_slots = 1200` ≈ 3.4 min; the pre-22-Sep admin posted only from its main loop (~5 min apart) → Home said "post stale", agents logged "price not usable", locks failed `PriceStale`. Fixed (`5aa2848`): the admin posts prices from a dedicated 20 s thread (log: posts every ≤ 2 min, `/metrics` publish age 0 for ANTHROPIC); the dashboard measures the rate (`lib/slotTime.ts`); `market.sh status` measures it for the runway (~0.44 SOL/h today) |
+| after the restart | `pnpm schedule`: ANTHROPIC posted 582 slots ago, quote 108 s old → **ACCEPTED**; TSLAx posted 63 slots ago, quote 11.4 h old → REFUSED (`QuoteStale`, by design without a Pyth key); Home pill **accepting** on ANTHROPIC |
+| judge path at the new pace, hosted, fresh burner `4zcm…nmef` | faucet join `4vWpaX…` → confidential account `2bHEWZ…` → wrap `7KkHbD…` → sealed borrow bid `2tnay8…` (4.25 %, 50 bp past the last print; a first bid at 3.50 % sat under the 3.75 % print, as designed) → **matched epoch 496 at 3.75 %**, 77.3 % marginal fill → lock `4nKwa4…` (ANTHROPIC at $1,051.43, 200 %) → deposit interrupted by a public-RPC 429 at 4/6, **resumed from Positions**: `2XoJJ2…` (confidential transfer to escrow + `deposit_collateral`) |
+| keeper | matured loans on a listing whose quote the chain would refuse now wait quietly (one note per pass) instead of a refused seize per loan per tick (`55a163a`) |
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a
