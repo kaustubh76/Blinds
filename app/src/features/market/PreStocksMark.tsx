@@ -119,7 +119,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
                   ? marks.isFetching
                     ? "asking the keeper…"
                     : "the keeper did not answer — needs a market started after 22 Sep"
-                  : "needs the keeper's feed · the market is paused"
+                  : "needs the admin service — open the dashboard from the market's ?admin= link"
             }
           />
           <Stat
