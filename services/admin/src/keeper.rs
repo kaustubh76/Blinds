@@ -160,12 +160,27 @@ fn load_loans(ctx: &Ctx) -> Result<Vec<(Pubkey, Loan)>> {
 fn seize_matured(ctx: &Ctx, loans: &[(Pubkey, Loan)]) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let slot = chain.slot()?;
+    let now = chain.unix_timestamp()?;
+    // A seize is refused on chain without a usable quote (the same two freshness rules as a lock).
+    // Read each listing's quote once and say so once per pass, instead of sending a doomed
+    // transaction per matured loan per tick — a stale Pyth quote (no key) makes that the steady state.
+    let mut unusable: std::collections::HashSet<Pubkey> = std::collections::HashSet::new();
     for (key, loan) in loans.iter().map(|(k, l)| (*k, l)) {
         if loan.status == LoanStatus::Active as u8 && slot > loan.deadline_slot {
             let Some(rec) = ctx.deployment.listing_by_pda(&loan.listing) else {
                 warn!(loan = %key, listing = %loan.listing, "loan bound to an unknown listing; not seizing");
                 continue;
             };
+            if unusable.contains(&loan.listing) {
+                continue;
+            }
+            let usable =
+                crate::quote::read_quote(chain, rec)?.is_some_and(|q| q.usable(rec, now, slot));
+            if !usable {
+                unusable.insert(loan.listing);
+                info!(listing = %rec.symbol, "matured loans wait: the listing's quote is not usable on chain (a seize would be refused)");
+                continue;
+            }
             match chain.send(
                 &ctx.keys.admin,
                 &[ix::seize(
