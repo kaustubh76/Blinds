@@ -71,10 +71,22 @@ demo faucet must be reachable — see "The faucet from the hosted site" below.
 
 The Vercel mirror is the same `app/dist`, pushed by `./scripts/deploy_vercel.sh` (production by
 default, `preview` for a preview URL). It is a manual publish, not a git integration: it builds the
-SDK and the app exactly as the workflow does, copies `deployments/admin-url.txt` in beside them, and
-deploys `app/dist` with the project link in `app/.vercel`. Because that pointer is a snapshot, a
-rotated faucet tunnel needs a redeploy — `WINDOW_VERCEL=1 ./scripts/watch_tunnels.sh start` does it
-automatically, and a `?admin=<url>` link always overrides whatever the host has baked in.
+SDK and the app exactly as the workflow does, copies `deployments/admin-url.txt` and the RPC proxy
+in beside them, and deploys `app/dist` with the project link in `app/.vercel`. Because that pointer
+is a snapshot, a rotated faucet tunnel needs a redeploy — `WINDOW_VERCEL=1 ./scripts/watch_tunnels.sh start`
+does it automatically, and a `?admin=<url>` link always overrides whatever the host has baked in.
+
+**Why the mirror proxies its reads.** The public devnet endpoint rate-limits per client IP, and the
+desk's own services (keeper, operator, six agents) saturate that quota from the machine running the
+market: a browser on that network was losing ~45 % of its `getMultipleAccounts` reads to HTTP 429,
+so panels filled in slowly or sat at "—". The Vercel build therefore points `VITE_RPC_URL` at
+`/api/rpc` (`scripts/vercel/api/rpc.mjs`): a serverless function that forwards JSON-RPC from
+Vercel's egress instead of the visitor's, retries the 429s that remain, and holds read replies for
+`RPC_CACHE_MS` (1.2 s by default) so repeated reads across visitors cost one upstream call. Writes
+are never cached. Set `RPC_UPSTREAM` in the Vercel project to use a dedicated endpoint — the key
+stays server-side and never reaches the bundle. Subscriptions are unaffected: the proxy is HTTP
+only, so the app keeps its WebSocket straight to the cluster (`VITE_WS_URL`). GitHub Pages has no
+serverless layer, so it still reads the public endpoint directly; `?rpc=<url>` overrides either.
 
 ### The faucet from the hosted site
 

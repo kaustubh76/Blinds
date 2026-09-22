@@ -54,6 +54,8 @@ export function resolveSettings(input: {
     cluster?: string | undefined;
   };
   hosted: boolean;
+  /** Where the page is served from; a path-only RPC (`/api/rpc`, the hosted proxy) resolves against it. */
+  origin?: string | undefined;
 }): Resolved & { fromUrl: Settings } {
   const params = new URLSearchParams(input.search);
   const clean = (v: string | null | undefined): string | undefined => {
@@ -95,8 +97,26 @@ export function resolveSettings(input: {
     input.env.adminUrl,
     input.hosted ? "" : "http://127.0.0.1:9090",
   );
-  const [wsUrl, wsSrc] = pick(fromUrl.wsUrl, clean(input.saved.wsUrl), clean(input.env.wsUrl), wsUrlFor(rpcUrl));
-  return { rpcUrl, adminUrl, wsUrl, cluster, source: { rpc: rpcSrc, admin: adminSrc, ws: wsSrc }, fromUrl };
+  // A path-only RPC is this site's own proxy (`scripts/vercel/api/rpc.mjs`): absolute for the
+  // transport, and no WebSocket of its own — subscriptions still go straight to the cluster.
+  const proxied = rpcUrl.startsWith("/");
+  const origin = input.origin?.replace(/\/+$/, "") ?? "";
+  const resolvedRpc = proxied ? `${origin}${rpcUrl}` : rpcUrl;
+  const clusterWs = cluster === "devnet" ? "wss://api.devnet.solana.com" : "ws://127.0.0.1:8900";
+  const [wsUrl, wsSrc] = pick(
+    fromUrl.wsUrl,
+    clean(input.saved.wsUrl),
+    clean(input.env.wsUrl),
+    proxied ? clusterWs : wsUrlFor(rpcUrl),
+  );
+  return {
+    rpcUrl: resolvedRpc,
+    adminUrl,
+    wsUrl,
+    cluster,
+    source: { rpc: rpcSrc, admin: adminSrc, ws: wsSrc },
+    fromUrl,
+  };
 }
 
 function readSaved(): Settings {
@@ -131,6 +151,7 @@ const inBrowser = typeof window !== "undefined" && typeof window.location !== "u
 
 const resolved = resolveSettings({
   search: inBrowser ? window.location.search : "",
+  origin: inBrowser ? window.location.origin : undefined,
   saved: inBrowser ? readSaved() : {},
   env: {
     rpcUrl: import.meta.env.VITE_RPC_URL,

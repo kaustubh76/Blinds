@@ -44,4 +44,29 @@ describe("runtime settings", () => {
     expect(wsUrlFor("http://127.0.0.1:8899")).toBe("ws://127.0.0.1:8900");
     expect(wsUrlFor("https://rpc.example/path?k=1")).toBe("wss://rpc.example/path?k=1");
   });
+
+  it("a path-only RPC is the site's own proxy: absolute for the transport, cluster WebSocket kept", () => {
+    const r = resolveSettings({
+      search: "",
+      saved: {},
+      env: { rpcUrl: "/api/rpc", cluster: "devnet" },
+      hosted: true,
+      origin: "https://the-window-for-stocks.vercel.app",
+    });
+    expect(r.rpcUrl).toBe("https://the-window-for-stocks.vercel.app/api/rpc");
+    // The proxy speaks HTTP only; subscriptions still go straight to the cluster.
+    expect(r.wsUrl).toBe("wss://api.devnet.solana.com");
+  });
+
+  it("an explicit ?rpc= still wins over the proxy", () => {
+    const r = resolveSettings({
+      search: "?rpc=https://rpc.example",
+      saved: {},
+      env: { rpcUrl: "/api/rpc", cluster: "devnet" },
+      hosted: true,
+      origin: "https://the-window-for-stocks.vercel.app",
+    });
+    expect(r.rpcUrl).toBe("https://rpc.example");
+    expect(r.wsUrl).toBe("wss://rpc.example");
+  });
 });
