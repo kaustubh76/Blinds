@@ -26,19 +26,24 @@ It prints the `?admin=…` share link, which listing the chain would accept righ
    a window in wall-clock terms is how long a keeper tick takes — measure it, never assume it. With a
    window open the autopilot reaches a confirmed bid in **~37 seconds**; with it closed the Desk says
    *"no window is open"* and waits. Start within a minute of a window opening.
-2. **Fresh browser window** (or incognito): no extensions, no saved settings. Zoom 110 %, DevTools closed.
-3. Open the site from the `?admin=…` link — that is what makes *Try it with a devnet burner* work.
-4. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). On
+2. **If you have a dedicated devnet RPC, use it.** The public `api.devnet.solana.com` answers 429 when the
+   keeper, the agents and a browser share one address, and that is the single biggest source of slowness on
+   the day: windows stretch and the Build page has to retry. Set `WINDOW_RPC_URL` before `judging_day.sh up`
+   (services) and open the site with `?rpc=<url>` (dashboard). A free Helius/QuickNode devnet key is enough.
+   Do not run the smoke drivers while demoing — they add load to the same endpoint.
+3. **Fresh browser window** (or incognito): no extensions, no saved settings. Zoom 110 %, DevTools closed.
+4. Open the site from the `?admin=…` link — that is what makes *Try it with a devnet burner* work.
+5. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). On
    23 Sep it was **ANTHROPIC** (TSLAx is refused while Pyth's wrapper account is stale — that refusal
    is part of the story, see 0:35). Pick the accepting one on the Desk.
-5. The Autopilot bids **four ticks (1 %) past the last print**, because the auction is uniform price —
+6. The Autopilot bids **four ticks (1 %) past the last print**, because the auction is uniform price —
    everyone matched clears at r\*, never at their own tick, so a wider bid costs the borrower nothing and
    only buys fill probability. Two ticks was not enough on 23 Sep: the last print was 3.25 %, the bid went
    in at 3.75 %, and the window cleared at 4.00 %. If a bid still misses, seal another in the next window.
-6. A funded loan now runs its whole life inside the demo: the tenor starts when the operator funds it
+7. A funded loan now runs its whole life inside the demo: the tenor starts when the operator funds it
    and is ~8 minutes at today's slot pace, with repayment attested about half way. Do not be surprised
    when a loan you just funded is already repaid.
-7. Second tab on `#/explorer`, in case you are asked to prove a print.
+8. Second tab on `#/explorer`, in case you are asked to prove a print.
 
 ---
 
