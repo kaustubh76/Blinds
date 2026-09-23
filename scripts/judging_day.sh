@@ -38,7 +38,9 @@ case "${1:-status}" in
       fi
     fi
     ./scripts/market.sh start "$CLUSTER"
-    ./scripts/watch_tunnels.sh start || true
+    # WINDOW_PUBLISH=1: a quick tunnel's name rotates when it is replaced, and the hosted site reads the
+    # committed pointer — without this, a rotation mid-demo leaves the faucet pointing at a dead URL.
+    WINDOW_PUBLISH=1 ./scripts/watch_tunnels.sh start || true
     ./scripts/publish_admin_url.sh || echo "note: could not publish the admin URL (push it yourself, or share the ?admin= link)"
     url="$(admin_url)"
     echo
