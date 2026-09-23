@@ -21,6 +21,14 @@ pub struct MarkSnapshot {
     pub implied_e8: Option<u64>,
     /// (implied − mark) / mark in basis points, when the API publishes an implied price.
     pub basis_bps: Option<i64>,
+    /// The company behind the token: its valuation at the mark and at the traded price (whole USD),
+    /// and the tokens outstanding (×1e8). Informational — none of this is on chain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mark_valuation_usd: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implied_valuation_usd: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supply_e8: Option<u64>,
     pub fetched_at: i64,
 }
 
@@ -266,6 +274,9 @@ mod tests {
             mark_e8: 105_143_999_341,
             implied_e8: Some(103_987_682_509),
             basis_bps: Some(-110),
+            mark_valuation_usd: Some(1_721_033_511_558),
+            implied_valuation_usd: Some(1_726_843_818_616),
+            supply_e8: Some(738_182_909_284),
             fetched_at: 1_790_000_000,
         });
         let v: serde_json::Value = serde_json::from_str(&m.marks_json()).unwrap();
@@ -274,6 +285,8 @@ mod tests {
         assert_eq!(s["mark_e8"], 105_143_999_341u64);
         assert_eq!(s["implied_e8"], 103_987_682_509u64);
         assert_eq!(s["basis_bps"], -110);
+        assert_eq!(s["mark_valuation_usd"], 1_721_033_511_558u64);
+        assert_eq!(s["supply_e8"], 738_182_909_284u64);
         assert_eq!(s["fetched_at"], 1_790_000_000);
         // a second read of the same listing replaces the first
         m.set_mark(MarkSnapshot {
@@ -285,10 +298,15 @@ mod tests {
             mark_e8: 1,
             implied_e8: None,
             basis_bps: None,
+            mark_valuation_usd: None,
+            implied_valuation_usd: None,
+            supply_e8: None,
             fetched_at: 1_790_000_060,
         });
         let v: serde_json::Value = serde_json::from_str(&m.marks_json()).unwrap();
         assert_eq!(v.as_object().unwrap().len(), 1);
         assert!(v["prestocks_anthropic"]["implied_e8"].is_null());
+        // figures the API did not publish are left out entirely, not sent as null
+        assert!(v["prestocks_anthropic"].get("mark_valuation_usd").is_none());
     }
 }

@@ -124,6 +124,11 @@ fn price_source(l: &window_config::ListingCfg) -> Result<PriceSource> {
             l.source_mint.clone(),
             l.price_field.clone(),
             Some(l.implied_field.clone()),
+            window_admin::price::MarkExtraFields::new(
+                Some(l.mark_valuation_field.clone()),
+                Some(l.implied_valuation_field.clone()),
+                Some(l.supply_field.clone()),
+            ),
         )),
         K::Pyth => {
             let feed = l.feed_id().ok_or_else(|| anyhow::anyhow!("{}: bad pyth_feed_id", l.key))?;
@@ -394,6 +399,19 @@ fn main() -> Result<()> {
                                     (i as i128 - r.mark as i128) * 10_000 / r.mark.max(1) as i128
                                 ),
                                 None => println!("[{}] no implied price in the API response", l.symbol),
+                            }
+                            if let (Some(mv), Some(iv)) =
+                                (r.mark_valuation_usd, r.implied_valuation_usd)
+                            {
+                                println!(
+                                    "[{}] valuation {} USD at the mark, {} USD implied{}",
+                                    l.symbol,
+                                    mv,
+                                    iv,
+                                    r.supply_e8
+                                        .map(|s| format!(" · supply {}", s as f64 / 1e8))
+                                        .unwrap_or_default()
+                                );
                             }
                         }
                     }

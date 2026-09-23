@@ -122,6 +122,14 @@ pub struct ListingCfg {
     /// beside the mark and served by the admin's `/marks` as the basis. Optional; never posted on chain.
     #[serde(default)]
     pub implied_field: String,
+    /// PreStocks: the company's valuation at the mark and at the traded price, and the token supply
+    /// (`markValuation`, `impliedValuation`, `supply`). All optional, all informational — `/marks` only.
+    #[serde(default)]
+    pub mark_valuation_field: String,
+    #[serde(default)]
+    pub implied_valuation_field: String,
+    #[serde(default)]
+    pub supply_field: String,
     /// Pyth: the push-oracle shard the desk's own poster (`services/pyth-poster`) writes this feed
     /// into on the desk's cluster. Set, the listing may run as `price_source = 4` and the program
     /// reads Pyth's receiver-owned `PriceUpdateV2` at `[shard, feed_id]` directly.

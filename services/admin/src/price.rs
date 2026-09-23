@@ -59,6 +59,9 @@ pub enum Source {
         price_field: String,
         /// The implied (traded) price field, when the API publishes one beside the mark.
         implied_field: Option<String>,
+        /// Company-scale figures the API publishes beside the price: the two valuations and the
+        /// supply. Boxed: three more `String`s would otherwise make this variant dwarf the others.
+        extra_fields: Box<MarkExtraFields>,
         last_ok: Option<(Price, i64)>,
         /// The last complete read: mark and implied price, for `/marks` (the basis is never on chain).
         last_read: Option<MarkRead>,
@@ -72,11 +75,42 @@ pub enum Source {
 const MARK_KEEP_LAST_SECS: i64 = 6 * 3600;
 const MARK_RETRIES: usize = 3;
 
-/// One read of an attested mark: what the keeper saw, in USD × 1e8, and when.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The optional field names a mark source reads beside the price (all informational, never on chain).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MarkExtraFields {
+    pub mark_valuation: Option<String>,
+    pub implied_valuation: Option<String>,
+    pub supply: Option<String>,
+}
+
+impl MarkExtraFields {
+    fn clean(f: Option<String>) -> Option<String> {
+        f.filter(|s| !s.is_empty())
+    }
+    pub fn new(
+        mark_valuation: Option<String>,
+        implied_valuation: Option<String>,
+        supply: Option<String>,
+    ) -> Self {
+        Self {
+            mark_valuation: Self::clean(mark_valuation),
+            implied_valuation: Self::clean(implied_valuation),
+            supply: Self::clean(supply),
+        }
+    }
+}
+
+/// One read of an attested mark: what the keeper saw, in USD × 1e8 (and the raw figures beside it), and when.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MarkRead {
     pub mark: u64,
     pub implied: Option<u64>,
+    /// The company's valuation at the mark, and at the price the token trades at — whole USD
+    /// (a trillion-dollar valuation times 1e8 would not fit in a u64).
+    pub mark_valuation_usd: Option<u64>,
+    pub implied_valuation_usd: Option<u64>,
+    /// Tokens outstanding × 1e8, as the API publishes it.
+    pub supply_e8: Option<u64>,
     pub fetched_at: i64,
 }
 
@@ -124,6 +158,7 @@ impl PriceSource {
         contract_address: String,
         price_field: String,
         implied_field: Option<String>,
+        extra_fields: MarkExtraFields,
     ) -> Self {
         Self {
             source: Source::Mark {
@@ -133,6 +168,7 @@ impl PriceSource {
                 match_value: contract_address,
                 price_field,
                 implied_field: implied_field.filter(|f| !f.is_empty()),
+                extra_fields: Box::new(extra_fields),
                 last_ok: None,
                 last_read: None,
             },
@@ -227,6 +263,7 @@ fn fetch(source: &mut Source, now: i64) -> Result<Price> {
             match_value,
             price_field,
             implied_field,
+            extra_fields,
             last_ok,
             last_read,
         } => {
@@ -238,11 +275,12 @@ fn fetch(source: &mut Source, now: i64) -> Result<Price> {
                     match_value,
                     price_field,
                     implied_field.as_deref(),
+                    extra_fields,
                 ) {
-                    Ok((usd, implied)) => {
-                        let p = Price { price: usd, expo: -8, publish_time: now };
+                    Ok(read) => {
+                        let p = Price { price: read.mark, expo: -8, publish_time: now };
                         *last_ok = Some((p, now));
-                        *last_read = Some(MarkRead { mark: usd, implied, fetched_at: now });
+                        *last_read = Some(MarkRead { fetched_at: now, ..read });
                         return Ok(p);
                     }
                     Err(e) => last_err = Some(e),
@@ -322,7 +360,8 @@ fn fetch_mark(
     match_value: &str,
     price_field: &str,
     implied_field: Option<&str>,
-) -> Result<(u64, Option<u64>)> {
+    extra: &MarkExtraFields,
+) -> Result<MarkRead> {
     let body = ureq::get(url)
         .set("Accept", "application/json")
         .timeout(std::time::Duration::from_secs(15))
@@ -330,10 +369,37 @@ fn fetch_mark(
         .with_context(|| format!("mark {url}"))?
         .into_string()
         .context("mark response")?;
-    let mark = parse_mark(&body, match_field, match_value, price_field)?;
-    // The implied price is informational (the basis on the dashboard): its absence never blocks the mark.
-    let implied = implied_field.and_then(|f| parse_mark(&body, match_field, match_value, f).ok());
-    Ok((mark, implied))
+    parse_mark_read(&body, match_field, match_value, price_field, implied_field, extra)
+}
+
+/// The mark, and whatever else the API publishes beside it. Only the mark is required: the implied
+/// price, the two valuations and the supply are informational (the dashboard's basis), and their
+/// absence never blocks a post.
+pub fn parse_mark_read(
+    body: &str,
+    match_field: &str,
+    match_value: &str,
+    price_field: &str,
+    implied_field: Option<&str>,
+    extra: &MarkExtraFields,
+) -> Result<MarkRead> {
+    let price =
+        |name: Option<&str>| name.and_then(|n| parse_mark(body, match_field, match_value, n).ok());
+    // Valuations run to the trillions, so they are whole dollars; a supply is a token count at 1e8.
+    let usd = |name: Option<&str>| {
+        name.and_then(|n| parse_mark_number(body, match_field, match_value, n, 1.0, 1e15).ok())
+    };
+    Ok(MarkRead {
+        mark: parse_mark(body, match_field, match_value, price_field)?,
+        implied: price(implied_field),
+        mark_valuation_usd: usd(extra.mark_valuation.as_deref()),
+        implied_valuation_usd: usd(extra.implied_valuation.as_deref()),
+        supply_e8: extra
+            .supply
+            .as_deref()
+            .and_then(|n| parse_mark_number(body, match_field, match_value, n, 1e8, 1e12).ok()),
+        fetched_at: 0,
+    })
 }
 
 /// A JSON array of tokens → the USD mark of the one whose `match_field` is `match_value`,
@@ -344,20 +410,34 @@ pub fn parse_mark(
     match_value: &str,
     price_field: &str,
 ) -> Result<u64> {
+    // A price: scaled to expo −8, and never above a billion dollars a unit.
+    parse_mark_number(body, match_field, match_value, price_field, 1e8, 1e9)
+}
+
+/// One number out of the matched element: `scale` turns it into an integer (1e8 for a price or a
+/// token supply, 1 for a whole-dollar valuation), `max` is the sanity bound before scaling.
+pub fn parse_mark_number(
+    body: &str,
+    match_field: &str,
+    match_value: &str,
+    field: &str,
+    scale: f64,
+    max: f64,
+) -> Result<u64> {
     let v: serde_json::Value = serde_json::from_str(body).context("mark json")?;
     let arr = v.as_array().ok_or_else(|| anyhow!("mark response is not an array"))?;
     let el = arr
         .iter()
         .find(|e| e.get(match_field).and_then(|m| m.as_str()) == Some(match_value))
         .ok_or_else(|| anyhow!("no element with {match_field} == {match_value}"))?;
-    let usd = el
-        .get(price_field)
+    let n = el
+        .get(field)
         .and_then(|p| p.as_f64().or_else(|| p.as_str().and_then(|s| s.parse().ok())))
-        .ok_or_else(|| anyhow!("{price_field} missing or not a number"))?;
-    if !(usd.is_finite() && usd > 0.0 && usd < 1e9) {
-        bail!("{price_field} out of range: {usd}");
+        .ok_or_else(|| anyhow!("{field} missing or not a number"))?;
+    if !(n.is_finite() && n > 0.0 && n < max) {
+        bail!("{field} out of range: {n}");
     }
-    Ok((usd * 1e8).round() as u64)
+    Ok((n * scale).round() as u64)
 }
 
 // ───────────────────────────── on-chain accounts ─────────────────────────────
@@ -557,6 +637,43 @@ mod tests {
     const PRESTOCKS: &str = include_str!("../tests/fixtures/prestocks.json");
 
     #[test]
+    fn a_mark_read_carries_the_company_figures_and_survives_their_absence() {
+        let extra = MarkExtraFields::new(
+            Some("markValuation".into()),
+            Some("impliedValuation".into()),
+            Some("supply".into()),
+        );
+        let r = parse_mark_read(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "markPrice",
+            Some("tokenPrice"),
+            &extra,
+        )
+        .unwrap();
+        assert!(r.mark > 0 && r.implied.is_some_and(|i| i != r.mark));
+        // Valuations are whole dollars: a trillion times 1e8 would not fit in a u64.
+        assert!(r.mark_valuation_usd.is_some_and(|v| v > 1_000_000_000));
+        assert!(r.implied_valuation_usd.is_some_and(|v| v > 1_000_000_000));
+        assert!(r.supply_e8.is_some_and(|s| s > 0));
+        // Fields the API does not publish are simply absent; the mark still parses.
+        let none = parse_mark_read(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "markPrice",
+            Some("nope"),
+            &MarkExtraFields::new(Some("nope".into()), None, Some(String::new())),
+        )
+        .unwrap();
+        assert_eq!(none.mark, r.mark);
+        assert!(
+            none.implied.is_none() && none.mark_valuation_usd.is_none() && none.supply_e8.is_none()
+        );
+    }
+
+    #[test]
     fn a_mark_read_carries_the_implied_price_and_survives_its_absence() {
         let mark = parse_mark(
             PRESTOCKS,
@@ -586,6 +703,7 @@ mod tests {
             "c".into(),
             "markPrice".into(),
             Some(String::new()),
+            MarkExtraFields::default(),
         );
         let Source::Mark { implied_field, .. } = &s.source else { panic!("mark") };
         assert!(implied_field.is_none(), "an empty implied_field means none");
@@ -636,6 +754,7 @@ mod tests {
             "c".into(),
             "markPrice".into(),
             Some("tokenPrice".into()),
+            MarkExtraFields::default(),
         );
         assert!(s.describe().contains("attested"));
         assert!(s.describe().starts_with("prestocks mark markPrice for c"));

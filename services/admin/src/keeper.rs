@@ -120,6 +120,9 @@ pub fn post_price(ctx: &Ctx, rec: &ListingRecord, price: &mut PriceSource) -> Re
             mark_e8: read.mark,
             implied_e8: read.implied,
             basis_bps,
+            mark_valuation_usd: read.mark_valuation_usd,
+            implied_valuation_usd: read.implied_valuation_usd,
+            supply_e8: read.supply_e8,
             fetched_at: read.fetched_at,
         });
     }
