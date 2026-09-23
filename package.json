@@ -15,6 +15,7 @@
     "test:integration": "pnpm --filter=@thewindow/integration test",
     "codegen": "pnpm --filter=@thewindow/solana-sdk codegen",
     "docs:measurements": "node scripts/measurements_to_md.mjs",
+    "docs:diagrams": "node scripts/tracks_diagram.mjs && node scripts/project_diagram.mjs",
     "watch:epoch": "tsx scripts/watch_epoch.ts",
     "schedule": "tsx scripts/schedule.ts",
     "leak-audit": "tsx scripts/leak_audit.ts"

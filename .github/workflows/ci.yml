@@ -76,6 +76,7 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @thewindow/app build
       - run: node scripts/measurements_to_md.mjs --check
+      - run: node scripts/project_diagram.mjs --check
 
   integration:
     name: real validator (tier 2)

@@ -109,8 +109,13 @@ export function Tracks() {
           ·{" "}
           <a className="underline" href={`${REPO}/docs/LISTINGS.md`} target="_blank" rel="noreferrer">
             LISTINGS.md
-          </a>
-          . The administrator can decrypt individual amounts (accountable privacy); the tokens on devnet are mock twins.
+          </a>{" "}
+          ·{" "}
+          <a className="underline" href={`${REPO}/docs/project.excalidraw`} target="_blank" rel="noreferrer">
+            project.excalidraw
+          </a>{" "}
+          (the whole product on one canvas). The administrator can decrypt individual amounts (accountable privacy); the
+          tokens on devnet are mock twins.
         </span>
       }
     >

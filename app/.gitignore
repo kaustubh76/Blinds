@@ -1,0 +1,4 @@
+.vercel
+.env*
+# app/README.md tells you to `cp .env.example .env`, so keep the example itself tracked.
+!.env.example
