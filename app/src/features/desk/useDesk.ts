@@ -12,6 +12,7 @@ import {
   PrintStatus,
   pda,
   proofs,
+  TICKS,
 } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -326,18 +327,22 @@ export function useDesk(account: UiWalletAccount) {
         note("no window is open — waiting for the keeper to open the next one");
         await waitFor("an open window", () => latest.current.open, 10 * 60_000);
       }
-      // Two ticks (50 bp) on the far side of the last clearing rate — a borrower pays up to it, a
-      // lender accepts down to it — so the bid clears unless the rate moves against it by more
-      // than that. A bid exactly at the last print is marginal: the simulated lenders ask around
-      // it, and on devnet such a bid was left out of the print about half the time.
+      // Four ticks (100 bp) on the far side of the last clearing rate. The auction is uniform price:
+      // everyone matched pays (or receives) r*, never their own tick, so bidding further out costs a
+      // borrower nothing and only buys fill probability. Two ticks was not enough — on 23 Sep the
+      // last print was tick 13, this bid went in at 15, and the window cleared at 16, so it missed
+      // by one tick and the demo had nothing to lock.
       const oracle = await retry(() => fetchOracle(rpc));
       let tick = 8;
       if (oracle?.hasPrinted) {
         const last = await retry(() => fetchPrint(rpc, oracle.lastPrintEpoch));
         if (last?.status === PrintStatus.Printed) tick = last.rStarTick;
       }
-      tick = Math.max(0, Math.min(36, tick + (opts.side === 1 ? 2 : -2)));
-      note(`sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick} (last print ± 2)`);
+      const margin = 4;
+      tick = Math.max(0, Math.min(TICKS - 1, tick + (opts.side === 1 ? margin : -margin)));
+      note(
+        `sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick} (last print ${opts.side === 1 ? "+" : "−"} ${margin}; everyone matched clears at r*, so this only buys fill probability)`,
+      );
       const sigs = await bid.mutateAsync({ side: opts.side, tick, sizeMicroUsdc: opts.sizeMicroUsdc });
       note(`done — ${sigs.length} transactions for the bid; a match becomes a loan after the print`);
       return { tick, sigs };

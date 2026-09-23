@@ -31,10 +31,14 @@ It prints the `?admin=…` share link, which listing the chain would accept righ
 4. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). On
    23 Sep it was **ANTHROPIC** (TSLAx is refused while Pyth's wrapper account is stale — that refusal
    is part of the story, see 0:35). Pick the accepting one on the Desk.
-5. A funded loan now runs its whole life inside the demo: the tenor starts when the operator funds it
+5. The Autopilot bids **four ticks (1 %) past the last print**, because the auction is uniform price —
+   everyone matched clears at r\*, never at their own tick, so a wider bid costs the borrower nothing and
+   only buys fill probability. Two ticks was not enough on 23 Sep: the last print was 3.25 %, the bid went
+   in at 3.75 %, and the window cleared at 4.00 %. If a bid still misses, seal another in the next window.
+6. A funded loan now runs its whole life inside the demo: the tenor starts when the operator funds it
    and is ~8 minutes at today's slot pace, with repayment attested about half way. Do not be surprised
    when a loan you just funded is already repaid.
-6. Second tab on `#/explorer`, in case you are asked to prove a print.
+7. Second tab on `#/explorer`, in case you are asked to prove a print.
 
 ---
 

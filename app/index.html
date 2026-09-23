@@ -71,7 +71,7 @@
         };
         addEventListener("error", (e) => {
           var t = e.target;
-          if (t && t.tagName === "SCRIPT") show("could not load " + (t.src || "a script"));
+          if (t && t.tagName === "SCRIPT") show(`could not load ${t.src || "a script"}`);
           else if (e.message) show(e.message);
         }, true);
         addEventListener("unhandledrejection", (e) => {
