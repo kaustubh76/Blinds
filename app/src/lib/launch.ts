@@ -91,6 +91,9 @@ const planModules = import.meta.glob("../../../deployments/launch-plan-mainnet.j
 });
 const mainnetPlan = Object.values(planModules)[0] as Partial<LaunchRecord> | undefined;
 
+/** The mainnet plan (`services/launch plan`), when one has been written: it names the payer and the agent. */
+export const MAINNET_PLAN: Partial<LaunchRecord> | null = mainnetPlan ?? null;
+
 /** The agent's identity, wherever it was recorded: the mainnet launch, the mainnet plan, else the devnet record. */
 export const AGENT: LaunchRecord["agent"] | undefined =
   mainnetLaunch?.agent ?? mainnetPlan?.agent ?? (devnetLaunch as LaunchRecord).agent;

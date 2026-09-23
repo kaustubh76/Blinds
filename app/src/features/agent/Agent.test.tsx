@@ -31,6 +31,7 @@ vi.mock("../../lib/launch", () => ({
   LAUNCH: record,
   DEVNET_LAUNCH: record,
   MAINNET_LAUNCH: null,
+  MAINNET_PLAN: null,
   launchCluster: "devnet",
   tradeUrl: null,
   useLaunch: () => ({

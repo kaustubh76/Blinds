@@ -22,8 +22,9 @@ describe("the lender agent's column on the Build page", () => {
     expect(t).toContain("sdk.dbcFeeAt");
     expect(t).toContain("deployments/launch-devnet.json");
     expect(t).toContain("pool not on chain yet");
-    expect(t).toContain("pump.fun");
-    expect(t).toContain("The Window Lender");
+    // the venue story lives on the agent page now; this column is the developer surface
+    expect(t).toContain("the agent page");
+    expect(t).toContain("raw account bytes");
   });
   it("shows the live line with a deep link to the card", () => {
     const now = Math.floor(Date.now() / 1000);

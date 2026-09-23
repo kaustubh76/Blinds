@@ -2,7 +2,7 @@
  * The lender agent's journey, computed from the launch records and the pool — never from a claim.
  * Every step that is not done says what it waits on.
  */
-import type { LaunchRecord } from "../../lib/launch";
+import { type LaunchRecord, MAINNET_PLAN } from "../../lib/launch";
 
 export type StepState = "done" | "pending" | "blocked";
 
@@ -16,7 +16,11 @@ export interface JourneyStep {
   href?: string | undefined;
 }
 
-export const LAUNCH_KEY = "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX";
+/**
+ * The key that pays for the mainnet pool. It comes from the mainnet plan record (`payer`, written by
+ * `services/launch plan`); the literal is only the fallback for a checkout without that record.
+ */
+export const LAUNCH_KEY_FALLBACK = "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX";
 
 export function journey(
   devnet: LaunchRecord | null,
@@ -27,6 +31,7 @@ export function journey(
   const past = mainnet?.previousGraduation ?? devnet?.previousGraduation ?? null;
   const coin = mainnet?.clawpump ?? devnet?.clawpump ?? null;
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
+  const launchKey = mainnet?.payer ?? MAINNET_PLAN?.payer ?? LAUNCH_KEY_FALLBACK;
   const steps: JourneyStep[] = [
     agent
       ? {
@@ -63,8 +68,8 @@ export function journey(
           id: "mainnet",
           title: "The mainnet pool, quoted in TSLAx",
           state: "blocked",
-          detail: `waits on ~0.05 SOL at the launch key ${short(LAUNCH_KEY)} — the pool cost 0.027 on devnet; nothing is sent below 0.04`,
-          href: `https://explorer.solana.com/address/${LAUNCH_KEY}`,
+          detail: `waits on ~0.05 SOL at the launch key ${short(launchKey)} — the pool cost 0.027 on devnet; nothing is sent below 0.04`,
+          href: `https://explorer.solana.com/address/${launchKey}`,
         },
     coin
       ? {

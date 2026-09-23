@@ -11,7 +11,7 @@ import { Badge, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, formatBasis } from "../../lib/pyth";
-import { type MarkSnapshot, useDeployment, useMarks, useQuote, useSlot } from "../../lib/queries";
+import { type MarkSnapshot, useDeployment, useMainnetMint, useMarks, useQuote, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
 
 /** PreStocks' ANTHROPIC token on mainnet — never touched by the desk; the devnet listing is a twin. */
@@ -36,6 +36,8 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
   const slot = useSlot();
   const marks = useMarks();
   const snap = listing ? snapshotFor(marks.data, hex(listing.feedId)) : null;
+  // The real token, read from mainnet in this browser — the devnet listing is only a twin of it.
+  const real = useMainnetMint(PRESTOCKS_ANTHROPIC_MINT);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focus && listing) ref.current?.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -48,6 +50,20 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
   const mark = snap ? { price: BigInt(snap.mark_e8), expo: -8 } : null;
   const basis = implied && mark ? basisBps(implied, mark) : null;
   const symbol = listing?.symbol.replace(/-mock$/, "") ?? "ANTHROPIC";
+  /** A company-scale figure: trillions, billions or millions, whichever reads. */
+  const usdBig = (v: number) =>
+    v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;
+  const valuationBasis =
+    snap?.mark_valuation_usd && snap.implied_valuation_usd
+      ? ((snap.implied_valuation_usd - snap.mark_valuation_usd) / snap.mark_valuation_usd) * 10_000
+      : null;
+  const EXT_NOTE: Record<string, string> = {
+    confidentialTransferMint: "confidential transfers — the same Token-2022 machinery the desk wraps with",
+    scaledUiAmountConfig: "a rebasing multiplier, which is why the proof carries one",
+    transferHook: "a transfer hook — and a hook or a fee is why a Meteora pool cannot quote in it",
+    transferFeeConfig: "a transfer fee",
+    permanentDelegate: "a permanent delegate, as the desk's own escrow needs",
+  };
 
   return (
     <div ref={ref} id="prestocks" className="scroll-mt-20">
@@ -126,7 +142,11 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
           <Stat
             label="basis · implied vs mark"
             value={basis === null ? "—" : formatBasis(basis)}
-            hint="how far the token trades from the published mark, in basis points"
+            hint={
+              valuationBasis !== null && snap?.mark_valuation_usd
+                ? `how far the token trades from the published mark · the same gap at company scale: ${usdBig(snap.mark_valuation_usd)} marked vs ${usdBig(snap.implied_valuation_usd ?? 0)} implied`
+                : "how far the token trades from the published mark, in basis points"
+            }
             delta={
               basis === null || Math.abs(basis) < 50
                 ? undefined
@@ -161,11 +181,39 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             }
           />
           <Stat
+            label="the real token · mainnet"
+            value={
+              real.data ? `${real.data.supply.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${symbol}` : "—"
+            }
+            hint={
+              real.data
+                ? `${real.data.program.startsWith("Tokenz") ? "Token-2022" : real.data.program.slice(0, 4)} · ${real.data.decimals} dp · read from mainnet in this browser`
+                : real.isError
+                  ? "mainnet RPC unreachable from this browser"
+                  : "reading the mint…"
+            }
+          />
+          <Stat
             label="collateral mint"
             value={listing ? <ExplorerLink address={listing.cstockMint} cluster={config.cluster} /> : "—"}
             hint="cSTOCK: the confidential wrap of the devnet twin"
           />
         </div>
+        {real.data && (
+          <p className="mt-3 text-xs leading-relaxed text-ink-3">
+            <span className="text-ink-2">What the real token is:</span> a Token-2022 mint with{" "}
+            {real.data.extensions.length} extensions —{" "}
+            {real.data.extensions
+              .filter((e) => EXT_NOTE[e])
+              .map((e) => (
+                <span key={e}>
+                  <span className="mono text-ink-2">{e}</span> ({EXT_NOTE[e]}){"; "}
+                </span>
+              ))}
+            which is why this desk wraps a twin with the same shape on devnet rather than the token itself, and why a
+            bonding curve cannot quote in it.
+          </p>
+        )}
       </Card>
     </div>
   );

@@ -93,6 +93,8 @@ const log = (msg: string, extra: Record<string, unknown> = {}) =>
 interface PlanFile {
   cluster: string;
   createdAt: string;
+  /** The key that would pay for the launch (`WINDOW_LAUNCH_KEYPAIR`), when this machine holds one. */
+  payer?: string;
   quote: {
     mint: string;
     decimals: number;
@@ -186,6 +188,7 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
   const file: PlanFile = {
     cluster: CLUSTER,
     createdAt: new Date().toISOString(),
+    ...(payer ? { payer: payer.publicKey.toBase58() } : {}),
     quote: {
       mint: mint.toBase58(),
       decimals,
@@ -669,7 +672,15 @@ async function clawpumpLaunch(again: boolean) {
 const cmd = process.argv[2];
 const conn = new Connection(RPC, "confirmed");
 const needsPayer = cmd === "launch" || cmd === "graduate" || cmd === "buy" || (cmd === "plan" && CLUSTER === "devnet");
-const payer = needsPayer ? keypair("WINDOW_LAUNCH_KEYPAIR", `${process.env.HOME}/.config/solana/id.json`) : null;
+let payer = needsPayer ? keypair("WINDOW_LAUNCH_KEYPAIR", `${process.env.HOME}/.config/solana/id.json`) : null;
+// A plan spends nothing, but it should record which key would pay — the dashboard's journey names it.
+if (!payer && cmd === "plan") {
+  try {
+    payer = keypair("WINDOW_LAUNCH_KEYPAIR", `${process.env.HOME}/.config/solana/id.json`);
+  } catch {
+    // no keypair on this machine: the plan is still worth writing
+  }
+}
 try {
   if (cmd === "plan") await plan(conn, payer);
   else if (cmd === "launch") await launch(conn, payer as Keypair);

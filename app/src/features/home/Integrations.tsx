@@ -50,6 +50,9 @@ export function Integrations() {
   const equity = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
   const prestocksListing = dep.data?.listings.find((l) => l.source === "prestocks");
   const prestocks = useQuote(prestocksListing);
+  // The haircut is the descriptor's, never a sentence: an `update_listing` must not make this page lie.
+  const haircutPct = Number(prestocksListing?.haircutBps ?? Number.NaN) / 100;
+  const prestocksHaircut = Number.isFinite(haircutPct) ? `${haircutPct} %` : "its own";
   const launch = useLaunch();
   const pool = launch.data?.kind === "ok" ? launch.data.state : null;
 
@@ -76,7 +79,7 @@ export function Integrations() {
       name: "PreStocks",
       tone: "borrow",
       icon: "layers",
-      role: "ANTHROPIC, a pre-IPO token, as collateral at a 200 % haircut — marked by PreStocks' published price, attested by the keeper.",
+      role: `ANTHROPIC, a pre-IPO token, as collateral at a ${prestocksHaircut} haircut — marked by PreStocks' published price, attested by the keeper.`,
       live: prestocks.data ? formatPrice(prestocks.data.price, prestocks.data.expo) : null,
       liveHint: prestocks.data
         ? `ANTHROPIC mark · fetched ${formatAge(prestocks.data.publishTime)}`

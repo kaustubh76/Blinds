@@ -14,14 +14,29 @@ const listing = {
   maxPublishAgeSecs: 172800,
 };
 const marks = vi.fn();
+const mint = vi.fn();
 vi.mock("../../config", () => ({ config: { cluster: "devnet", adminUrl: "https://admin.example" } }));
 vi.mock("../../lib/queries", () => ({
   useDeployment: () => ({ data: { listings: [{ source: "pyth" }, listing] } }),
   useQuote: () => ({ data: { price: 105143999341n, expo: -8, publishTime: now - 600, postedSlot: 100n } }),
   useSlot: () => ({ data: 1000 }),
   useMarks: () => marks(),
+  useMainnetMint: () => mint(),
 }));
 const { PreStocksMark, snapshotFor } = await import("./PreStocksMark");
+
+const REAL = {
+  program: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  decimals: 9,
+  supply: 7381.829092847,
+  extensions: [
+    "permanentDelegate",
+    "transferFeeConfig",
+    "confidentialTransferMint",
+    "scaledUiAmountConfig",
+    "transferHook",
+  ],
+};
 
 const snap = {
   key: "prestocks_anthropic",
@@ -32,6 +47,9 @@ const snap = {
   mark_e8: 105_143_999_341,
   implied_e8: 103_987_682_509,
   basis_bps: -110,
+  mark_valuation_usd: 1_721_033_511_558,
+  implied_valuation_usd: 1_726_843_818_616,
+  supply_e8: 738_182_909_284,
   fetched_at: now - 30,
 };
 
@@ -43,6 +61,7 @@ describe("the PreStocks mark card", () => {
   });
   it("shows the mark, the implied price and the basis when the keeper answers", () => {
     marks.mockReturnValue({ data: { prestocks_anthropic: snap }, isFetching: false });
+    mint.mockReturnValue({ data: REAL, isError: false });
     const { container } = render(<PreStocksMark />);
     const t = container.textContent ?? "";
     expect(t).toContain("$1,051.44");
@@ -50,10 +69,35 @@ describe("the PreStocks mark card", () => {
     expect(t).toMatch(/−?-?110 bps|-110|−110/);
     expect(t).toContain("200%");
     expect(t).toContain("attested");
+    expect(t).toContain("$1.72T marked vs $1.73T implied"); // the same gap at company scale
     expect(t).not.toContain("NaN");
+  });
+
+  it("reads the real mainnet token and says what its extensions mean", () => {
+    marks.mockReturnValue({ data: null, isFetching: false });
+    mint.mockReturnValue({ data: REAL, isError: false });
+    const { container } = render(<PreStocksMark />);
+    const t = container.textContent ?? "";
+    expect(t).toContain("the real token · mainnet");
+    expect(t).toContain("7,382 ANTHROPIC");
+    expect(t).toContain("Token-2022 · 9 dp");
+    expect(t).toContain("confidentialTransferMint");
+    expect(t).toContain("transferHook");
+    expect(t).toContain("a bonding curve cannot quote in it");
+  });
+
+  it("drops the real-token block when mainnet does not answer", () => {
+    marks.mockReturnValue({ data: null, isFetching: false });
+    mint.mockReturnValue({ data: null, isError: true });
+    const { container } = render(<PreStocksMark />);
+    const t = container.textContent ?? "";
+    expect(t).toContain("mainnet RPC unreachable");
+    expect(t).not.toContain("What the real token is");
+    expect(t).toContain("$1,051.44"); // the on-chain mark still shows
   });
   it("says what the implied price waits on when the keeper does not answer", () => {
     marks.mockReturnValue({ data: null, isFetching: false });
+    mint.mockReturnValue({ data: null, isError: false });
     const { container } = render(<PreStocksMark />);
     const t = container.textContent ?? "";
     expect(t).toContain("$1,051.44");

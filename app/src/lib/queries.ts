@@ -22,6 +22,7 @@ import {
 } from "@thewindow/solana-sdk";
 import { config } from "../config";
 import { fetchDeployment, rpc } from "./chain";
+import { mainnetRpc } from "./pyth";
 
 // Public devnet RPC rate-limits browsers hard, and a devnet epoch lasts minutes, so poll slowly
 // there; a localnet epoch is seconds and the validator is ours.
@@ -79,6 +80,60 @@ export const useQuote = (listing: QuoteSource | undefined) =>
     refetchInterval: SLOT_MS * 2,
   });
 
+/** A Token-2022 mint as the cluster holds it: what a browser can check about a token we only mirror. */
+export interface MintFacts {
+  program: string;
+  decimals: number;
+  /** Raw supply, and the same figure in whole tokens. */
+  supply: number;
+  /** Token-2022 extensions, in the order the RPC lists them (`transferFeeConfig`, `confidentialTransferMint`, …). */
+  extensions: string[];
+}
+
+/** Parse a `jsonParsed` mint account; `null` for anything that is not an initialised mint. */
+export function mintFacts(value: unknown): MintFacts | null {
+  const v = value as
+    | {
+        owner?: string;
+        data?: { parsed?: { type?: string; info?: Record<string, unknown> } };
+      }
+    | null
+    | undefined;
+  const info = v?.data?.parsed?.info;
+  if (!v?.owner || !info || v.data?.parsed?.type !== "mint") return null;
+  const decimals = Number(info.decimals);
+  const supply = Number(info.supply);
+  if (!Number.isFinite(decimals) || !Number.isFinite(supply)) return null;
+  const extensions = Array.isArray(info.extensions)
+    ? (info.extensions as Array<{ extension?: string }>).map((e) => String(e.extension)).filter(Boolean)
+    : [];
+  return { program: v.owner, decimals, supply: supply / 10 ** decimals, extensions };
+}
+
+/**
+ * A mint on **mainnet**, read straight from this browser — the real token behind a devnet twin.
+ * Never blocks a card: `null` when the public RPC does not answer.
+ */
+export const useMainnetMint = (address: string | undefined) =>
+  useQuery<MintFacts | null>({
+    queryKey: ["mainnet-mint", address ?? ""],
+    queryFn: async () => {
+      if (!address) return null;
+      try {
+        const res = await mainnetRpc
+          .getAccountInfo(address as Address, { encoding: "jsonParsed", commitment: "confirmed" })
+          .send();
+        return mintFacts(res.value);
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!address,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: 1,
+  });
+
 /** What the keeper last read from an attested mark's API: the mark it posted and the implied price it did not. */
 export interface MarkSnapshot {
   key: string;
@@ -89,6 +144,10 @@ export interface MarkSnapshot {
   mark_e8: number;
   implied_e8: number | null;
   basis_bps: number | null;
+  /** The company behind the token, as the API publishes it: valuations in whole USD, supply ×1e8. */
+  mark_valuation_usd?: number;
+  implied_valuation_usd?: number;
+  supply_e8?: number;
   fetched_at: number;
 }
 

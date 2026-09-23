@@ -191,10 +191,16 @@ function AgentBlock({ s }: { s: LaunchState | null }) {
   );
 }
 
-export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
+/**
+ * `card` (the Market): the numbers, with one line of context and a link to the Agent page, which owns
+ * the long story. `page` (the Agent page): the numbers only — the page's own sections say the rest.
+ */
+export function LenderAgent({ focus = false, variant = "card" }: { focus?: boolean; variant?: "card" | "page" } = {}) {
   const l = useLaunch();
   const s = l.data?.kind === "ok" ? l.data.state : null;
   const rehearsal = LAUNCH.cluster !== "mainnet";
+  // After a relaunch the finished pool's DAMM address lives under `previousGraduation`.
+  const dammPool = LAUNCH.graduated?.dammPool ?? LAUNCH.previousGraduation?.dammPool;
   // `#/market/lender`: scroll here once and lift the card for a moment, so the link from Home lands on it.
   const ref = useRef<HTMLDivElement>(null);
   const [lifted, setLifted] = useState(focus);
@@ -220,15 +226,15 @@ export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
           : "pool unreadable";
 
   return (
-    <div ref={ref} id="lender-agent" className="scroll-mt-20">
+    <div ref={ref} id={variant === "page" ? "lender-agent-page" : "lender-agent"} className="scroll-mt-20">
       <Card
         tone={lifted ? "accent" : "default"}
         eyebrow={`the lender agent · ${LAUNCH.token.symbol} on Meteora DBC · ${LAUNCH.cluster}`}
         title={title}
         right={
           <span className="flex flex-wrap items-center gap-2">
-            {s?.pool.isMigrated && LAUNCH.graduated?.dammPool && (
-              <ExplorerLink address={LAUNCH.graduated.dammPool} cluster={launchCluster}>
+            {s?.pool.isMigrated && dammPool && (
+              <ExplorerLink address={dammPool} cluster={launchCluster}>
                 DAMM v2 pool
               </ExplorerLink>
             )}
@@ -277,22 +283,15 @@ export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
           </span>
         }
         footer={
-          <>
-            The desk&apos;s lender is an autonomous agent: it lends every overnight window against tokenized-stock
-            collateral proven solvent in zero knowledge and earns the xONIA rate. Its token launches on a Dynamic
-            Bonding Curve quoted in a tokenized stock, and the curve is set from the desk&apos;s numbers — the raise
-            target is {usd(LAUNCH.numbers.migrationUsd)} of fully diluted value converted into the quote stock through
-            Pyth&apos;s read of the stock, the fee decays {LAUNCH.numbers.feeBps.open} → {LAUNCH.numbers.feeBps.rest} bp
-            over one tenor ({LAUNCH.numbers.feeBps.durationSecs / 3600} h), every graduated LP position is locked for
-            good, and {LAUNCH.numbers.creatorFeePct} % of the trading fee plus {LAUNCH.numbers.raiseToAgentPct} % of the
-            raise go to the agent&apos;s wallet.
-            {LAUNCH.clawpump
-              ? " Clawpump's own launch venue is pump.fun, which is where the agent's identity coin lives; the Meteora pool is ours."
-              : ""}{" "}
-            Honest limit: the pool and its fees are real on the cluster named above; the lending loop the agent earns
-            from is the devnet desk.
-            {rehearsal ? " On devnet, `pnpm --filter @thewindow/launch buy 5` moves the curve." : ""}
-          </>
+          variant === "page" ? undefined : (
+            <>
+              The pool and its fees are real on {LAUNCH.cluster}; the lending loop the agent earns from is the devnet
+              desk.{" "}
+              <a href="#/agent" className="text-accent hover:underline">
+                the agent, its curve and its identity →
+              </a>
+            </>
+          )
         }
       >
         {s ? (
@@ -323,7 +322,7 @@ export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
             launch record against the chain before trusting anything here.
           </EmptyState>
         )}
-        <AgentBlock s={s} />
+        {variant === "card" && <AgentBlock s={s} />}
         <p className="mono mt-2 text-[11px] text-ink-3">
           config <ExplorerLink address={LAUNCH.config} cluster={launchCluster} /> · creator{" "}
           <ExplorerLink address={LAUNCH.creator} cluster={launchCluster} /> · quote{" "}

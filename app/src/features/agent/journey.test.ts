@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LaunchRecord } from "../../lib/launch";
-import { journey, LAUNCH_KEY } from "./journey";
+import { journey, LAUNCH_KEY_FALLBACK } from "./journey";
 
 const devnet = {
   cluster: "devnet",
@@ -24,7 +24,7 @@ describe("the lender agent's journey", () => {
       ["coin", "blocked"],
       ["graduation", "pending"],
     ]);
-    expect(s[2]?.detail).toContain(`${LAUNCH_KEY.slice(0, 4)}…`);
+    expect(s[2]?.detail).toContain(`${LAUNCH_KEY_FALLBACK.slice(0, 4)}…`);
     expect(s[3]?.detail).toContain("39VK");
     expect(s[4]?.detail).toContain("2.9 %");
   });
