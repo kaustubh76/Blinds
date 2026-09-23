@@ -7,6 +7,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # avm's provenance check calls GitHub's attestation API; unauthenticated it is rate-limited (403).
+  GITHUB_TOKEN: ${{ github.token }}
   SOLANA_VERSION: 4.2.1
   ANCHOR_VERSION: 1.1.2
 
@@ -38,7 +40,11 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cargo install --git https://github.com/solana-foundation/anchor avm --locked
-          avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
+          # avm verifies the prebuilt binary's build provenance against GitHub's attestation API, which
+          # answered 403 on 23 Sep (unauthenticated rate limit) and failed the whole job. GITHUB_TOKEN
+          # (set at the top of this file) authenticates that call; a source build is the fallback.
+          avm install ${ANCHOR_VERSION} || avm install ${ANCHOR_VERSION} --from-source
+          avm use ${ANCHOR_VERSION}
       - run: anchor build
       - run: ./scripts/sync_idl.sh --check
       - name: deployed Token-2022 + ATA (LiteSVM's bundled Token-2022 lacks zk-ops)
@@ -88,7 +94,11 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cargo install --git https://github.com/solana-foundation/anchor avm --locked
-          avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
+          # avm verifies the prebuilt binary's build provenance against GitHub's attestation API, which
+          # answered 403 on 23 Sep (unauthenticated rate limit) and failed the whole job. GITHUB_TOKEN
+          # (set at the top of this file) authenticates that call; a source build is the fallback.
+          avm install ${ANCHOR_VERSION} || avm install ${ANCHOR_VERSION} --from-source
+          avm use ${ANCHOR_VERSION}
       # The prebuilt x86_64 Linux solana-test-validator (4.2.1, 4.2.2, 4.3.0) refuses pubkey-validity
       # proofs that the macOS build of the same commit, LiteSVM and devnet accept (see RUNBOOK §5 and
       # `window-admin zk-probe`); one built from source on this runner accepts them. Cached by
