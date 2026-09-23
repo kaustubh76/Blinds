@@ -8,7 +8,7 @@ use solana_signer::Signer;
 use tracing::{info, warn};
 use window_clearing::Side;
 use window_client::{
-    accounts, ix, pda, AuctionConfig, Bid, EpochStatus, Loan, LoanStatus, PriceCache,
+    accounts, ix, pda, AuctionConfig, Bid, EpochStatus, Loan, LoanStatus, PriceCache, PrintStatus,
 };
 
 use crate::{chain::read, deployment::ListingRecord, price::PriceSource, Ctx};
@@ -233,6 +233,11 @@ fn close_settled_bids(
         .filter(|(_, l)| l.status == LoanStatus::Pending as u8)
         .map(|(_, l)| (l.epoch, l.borrower))
         .collect();
+    // A bid is also off limits while its epoch still owes matches: `post_matches` decrypts the bid
+    // accounts themselves, so closing them first destroys the input and the window prints a rate that
+    // becomes no loans at all. `stale_after_slots` used to be ~20 minutes of wall clock and the
+    // administrator always won this race; at devnet's 2026-09-23 slot pace it is under eight, and it
+    // stopped winning. The rule is now explicit rather than a timing accident.
     let mut settled: BTreeMap<u64, bool> = BTreeMap::new();
     let mut closable = Vec::new();
     for bid in bids {
@@ -251,6 +256,16 @@ fn close_settled_bids(
                         done && e.close_slot > 0
                             && slot >= e.close_slot.saturating_add(config.stale_after_slots)
                     });
+                // Printed with volume but no matches posted yet: the administrator still needs these bids.
+                let v = v
+                    && chain
+                        .account_data(&pda::print(bid.epoch))?
+                        .and_then(|d| accounts::decode_print(&d))
+                        .is_none_or(|p| {
+                            p.status != PrintStatus::Printed as u8
+                                || p.matched_volume == 0
+                                || p.matches_posted > 0
+                        });
                 settled.insert(bid.epoch, v);
                 v
             }
