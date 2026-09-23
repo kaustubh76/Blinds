@@ -231,6 +231,20 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
 | judge path at the new pace, hosted, fresh burner `4zcm…nmef` | faucet join `4vWpaX…` → confidential account `2bHEWZ…` → wrap `7KkHbD…` → sealed borrow bid `2tnay8…` (4.25 %, 50 bp past the last print; a first bid at 3.50 % sat under the 3.75 % print, as designed) → **matched epoch 496 at 3.75 %**, 77.3 % marginal fill → lock `4nKwa4…` (ANTHROPIC at $1,051.43, 200 %) → deposit interrupted by a public-RPC 429 at 4/6, **resumed from Positions**: `2XoJJ2…` (confidential transfer to escrow + `deposit_collateral`) |
 | keeper | matured loans on a listing whose quote the chain would refuse now wait quietly (one note per pass) instead of a refused seize per loan per tick (`55a163a`) |
 
+## 23 Sep: the agent is running, and a pool went the whole way
+
+| step | evidence |
+|---|---|
+| Clawpump showed **0 agents deployed** | the agent existed but was `stopped`, and the update that was meant to give it a persona had been dropped: `solana` is not one of Clawpump's skill slugs, and its update endpoint takes **snake_case** — probed 23 Sep, `avatar_url` and `is_public` apply, while `avatarUrl`, `isPublic`, `persona`, `system_prompt`, `description` and `bio` all answer *"No allowed fields in request body"* |
+| fixed | `services/launch agent` now sends only what the API accepts, **starts** the agent, then reads it back and records what took. `GET /agents/0044b672…`: **`status: running`**, name `The Window Lender`, `is_public`, avatar `…/launch/lender.png`, wallet `39VKQn…cA7sM`. Honest limit, stated on the Agent page: it carries **no persona** — a persona can only be set when an agent is created, and this one was made in Clawpump's own console |
+| Meteora: `graduate` could not have worked | `migrateToDammV2` builds one instruction and reads a **migration metadata account the SDK never creates** (`migration_damm_v2_create_metadata`), and our `dammConfig` was hard-coded to `7F6dnUcR…` = `FixedBps25` while the plan uses `Customizable` → `A8gMrEPJ…`. Both now handled: the metadata instruction is built from the IDL, and `dammConfigFor(migrationFeeOption)` derives the config (unit-tested) |
+| the whole lifecycle, on devnet | `buy --to-graduation`: 4.85 → **168.50157356 of 168.50157355 quote** (the fee rides on the input, so the last units take care) · metadata `5mFe2DCd1kSf…` · migration **`uBG36giq2rdd9KaHhxwU7menP84ZRabJUdrHvEuWAfpyRZX8NwdqJqBxGGiYuvzmt8niQ8XVpbpfssK9xaS64q3`** → **DAMM v2 pool `BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`** (owner `cpamdpZCGKUy…`, 1,112 B). The DBC pool reads `isMigrated 1`, `migrationProgress 3`; fees at graduation 0.2936 quote to the creator, 0.2936 to the partner, 0.5873 traded in total |
+| and a live curve beside it | a fresh devnet pool `B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm` (base `7n3bcPaq…`, priced from `Crypto.TSLAX/USD` at $378.30), `buy 6` → the record keeps the finished rehearsal as `previousGraduation`, so the Agent page shows both |
+| the market | stopped to save devnet SOL (0.97 left). `market.sh status` now reports the **measured** cost from the log — 88 epochs in 23.2 h ≈ 0.12 SOL/h of epoch rent — instead of a model |
+
+Mainnet still waits on the two transfers: **0.05 SOL** → `3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX` (the Meteora
+pool) and **0.02 SOL** → `39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM` (the agent pays its own pump.fun launch).
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a

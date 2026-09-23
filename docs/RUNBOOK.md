@@ -126,8 +126,10 @@ pnpm --filter @thewindow/launch plan               # Pyth-priced curve → deplo
 pnpm --filter @thewindow/launch launch             # createConfigAndPool: the pool mints WLEND; ~0.03 SOL + rents
 pnpm --filter @thewindow/launch status             # progress, raised vs threshold (quote and USD), spot, fees
 pnpm --filter @thewindow/launch buy 5              # devnet only: swap 5 twin-quote into WLEND to move the curve
-pnpm --filter @thewindow/launch graduate           # once the threshold is met: migrate to DAMM v2, LP locked
-CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent             # the lender's Clawpump identity: reuse + rename, or create
+pnpm --filter @thewindow/launch buy -- --to-graduation   # devnet: keep buying until the curve is complete
+pnpm --filter @thewindow/launch graduate           # metadata + migrate to DAMM v2 (config from the pool's fee option), LP locked
+CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent             # identity: reuse + rename, avatar, public, and START it
+CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch agent-status      # what Clawpump reports right now (read-only)
 CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its identity coin on pump.fun, paired with TSLAx (agent pays)
 ```
 
@@ -142,6 +144,13 @@ CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its
   recorded agent wallet (`LAUNCH_CREATOR` overrides). (4) `clawpump-launch` — a 402 means the agent wallet is
   not funded yet; nothing is retried blindly. (5) `status`, commit `deployments/launch-mainnet.json` (the
   dashboard prefers it the moment it exists, `app/src/lib/launch.ts`), `python3 scripts/render_devnet_docs.py`.
+- **Graduation.** `migrateToDammV2` reads a migration-metadata account that Meteora's SDK does not create, so
+  `graduate` builds `migration_damm_v2_create_metadata` first, and the DAMM v2 config comes from the pool's own
+  `migrationFeeOption` (`Customizable` → `A8gMrEPJ…`, not the SDK example's `7F6dnUcR…`). Rehearsed on devnet
+  23 Sep, end to end.
+- **Clawpump status.** Its dashboard counts only a **running** agent; `agent` starts it and records what the API
+  reports back. The update endpoint takes snake_case and refuses `persona` — only a newly created agent can carry
+  one, so `agent --new` is the way to get a persona if that ever matters.
 - **Two coins, two roles.** `WLEND` (Meteora DBC, the desk-configured capital curve) and the identity coin
   `LENDER` (pump.fun via Clawpump, TSLAx pair). Clawpump cannot launch on Meteora; the card says so.
 - **Devnet.** The quote is a plain 8-dp twin mint the tool creates and funds (1,000 units to the payer);
