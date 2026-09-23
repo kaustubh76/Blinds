@@ -108,3 +108,22 @@ describe("the agent's identity fields", () => {
     expect(() => agentFields("x", img, ["solana"])).toThrow(/not Clawpump skill slugs: solana/);
   });
 });
+
+describe("the Clawpump cost quote", () => {
+  it("is read from the API, never assumed", async () => {
+    const fetchImpl = (async (url: string | URL) => {
+      expect(String(url)).toContain("/launch/self-funded?quoteMint=XsDoVfqe");
+      return new Response(JSON.stringify({ creationFeeSol: 0.009218, payTo: "49CfXAr5", meta: {} }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = await clawpump<{ creationFeeSol: number; payTo: string }>(
+      "cpk_test",
+      "GET",
+      `/launch/self-funded?quoteMint=${TSLAX_MINT}`,
+      undefined,
+      1000,
+      fetchImpl,
+    );
+    expect(r.data.creationFeeSol).toBe(0.009218);
+    expect(r.data.payTo).toBe("49CfXAr5");
+  });
+});

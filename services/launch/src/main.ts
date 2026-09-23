@@ -4,6 +4,7 @@
  *
  *   pnpm --filter @thewindow/launch plan      # read TSLAx/USD from Pyth, write deployments/launch-plan.json
  *   pnpm --filter @thewindow/launch launch    # create config + pool (+ metadata) — WINDOW_LAUNCH_KEYPAIR pays
+ *   pnpm --filter @thewindow/launch launch -- --dry-run   # every check the launch depends on, nothing sent
  *   pnpm --filter @thewindow/launch status    # progress to graduation, price in quote and USD, fees
  *   pnpm --filter @thewindow/launch buy 5     # buy with 5 quote tokens (moves the curve; devnet test balance)
  *   pnpm --filter @thewindow/launch buy -- --to-graduation   # keep buying until the curve is complete
@@ -216,23 +217,111 @@ async function plan(conn: Connection, payer: Keypair | null): Promise<{ file: Pl
   return { file, plan: p };
 }
 
-async function launch(conn: Connection, payer: Keypair) {
-  const { file, plan: p } = await plan(conn, payer);
-  if (CLUSTER === "mainnet" && file.quote.ageSecs > 3 * 24 * 3600) {
-    throw new Error(
-      `the Pyth ${file.quote.feed} quote is ${file.quote.ageSecs} s old — refuse to price a mainnet launch on it`,
-    );
-  }
+/** One thing the launch depends on, and whether it holds. */
+export interface Check {
+  what: string;
+  ok: boolean;
+  detail: string;
+  /** A check that only the operator can clear (send SOL); not a bug to fix in code. */
+  needsYou?: boolean;
+}
+
+/** Everything `launch` will rely on, gathered without sending anything. */
+export async function preflight(conn: Connection, payer: Keypair, file: PlanFile, p: LaunchPlan): Promise<Check[]> {
+  const checks: Check[] = [];
+  const quoteMint = new PublicKey(file.quote.mint);
   const balance = (await conn.getBalance(payer.publicKey)) / LAMPORTS;
-  if (balance < LAUNCH_MIN_SOL) {
-    throw new Error(
-      `the launch key ${payer.publicKey.toBase58()} holds ${balance} SOL on ${CLUSTER}; the pool needs ~${LAUNCH_MIN_SOL} — send ${(LAUNCH_MIN_SOL - balance).toFixed(3)} SOL and run again (nothing was sent)`,
+  checks.push({
+    what: "the launch key holds enough SOL",
+    ok: balance >= LAUNCH_MIN_SOL,
+    detail: `${payer.publicKey.toBase58()} holds ${balance.toFixed(4)} SOL; the pool costs ~0.027 and nothing is sent below ${LAUNCH_MIN_SOL}`,
+    needsYou: balance < LAUNCH_MIN_SOL,
+  });
+  const maxAge = 3 * 24 * 3600;
+  checks.push({
+    what: "the Pyth quote is fresh enough to price the curve",
+    ok: CLUSTER !== "mainnet" || file.quote.ageSecs <= maxAge,
+    detail: `${file.quote.feed ?? "Crypto.TSLAX/USD"} at $${file.quote.usd.toFixed(2)}, ${Math.round(file.quote.ageSecs / 3600)} h old (limit ${maxAge / 3600} h on mainnet)`,
+  });
+  const quoteInfo = await conn.getParsedAccountInfo(quoteMint);
+  const parsed = quoteInfo.value?.data as { parsed?: { info?: { decimals?: number } } } | undefined;
+  const decimals = parsed?.parsed?.info?.decimals;
+  checks.push({
+    what: "the quote mint is what the plan priced",
+    ok: !!quoteInfo.value && decimals === file.quote.decimals,
+    detail: `${file.quote.mint} · ${decimals ?? "no account"} decimals (plan: ${file.quote.decimals}) · owner ${quoteInfo.value?.owner.toBase58() ?? "—"}`,
+  });
+  const badge = deriveTokenBadgeAddress(quoteMint);
+  const badgeInfo = await conn.getAccountInfo(badge);
+  const token2022 = quoteInfo.value?.owner.toBase58() === "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+  checks.push({
+    what: "a Token-2022 quote carries a Meteora token badge",
+    ok: !token2022 || !!badgeInfo,
+    detail: badgeInfo
+      ? `badge ${badge.toBase58()}`
+      : token2022
+        ? `no badge at ${badge.toBase58()} — Meteora will refuse this quote`
+        : "a plain SPL quote needs no badge",
+  });
+  const feeOption = p.config.migrationFeeOption;
+  const dammConfig = new PublicKey(dammConfigFor(feeOption, process.env.LAUNCH_DAMM_CONFIG));
+  const dammInfo = await conn.getAccountInfo(dammConfig);
+  checks.push({
+    what: "the DAMM v2 config this pool will migrate into exists",
+    ok: !!dammInfo,
+    detail: `${dammConfig.toBase58()} (migration fee option ${feeOption}) — ${dammInfo ? `${dammInfo.data.length} B` : "missing on this cluster"}`,
+  });
+  const agent = recordedAgent();
+  const creator = process.env.LAUNCH_CREATOR ?? agent?.walletAddress ?? payer.publicKey.toBase58();
+  checks.push({
+    what: "the pool's creator and fee claimer is the agent's wallet",
+    ok: !!agent && creator === agent.walletAddress,
+    detail: agent
+      ? creator === agent.walletAddress
+        ? `${creator} (${agent.name}, Clawpump status ${agent.status ?? "unknown"})`
+        : `creator would be ${creator}, not the agent's ${agent.walletAddress}`
+      : `no Clawpump agent recorded — the payer ${creator} would take the fees; run \`agent\` first`,
+  });
+  return checks;
+}
+
+function reportPreflight(checks: Check[], file: PlanFile, p: LaunchPlan): boolean {
+  const n = file.numbers;
+  console.log(`\npreflight · ${CLUSTER}`);
+  for (const c of checks) console.log(` ${c.ok ? "ok  " : c.needsYou ? "you " : "FAIL"} ${c.what}\n      ${c.detail}`);
+  console.log(
+    `\nthe curve: $${n.initialUsd.toLocaleString()} → $${n.migrationUsd.toLocaleString()} fully diluted · raises ${(Number(p.config.migrationQuoteThreshold.toString()) / 10 ** file.quote.decimals).toFixed(4)} quote · fee ${n.feeBps.open} → ${n.feeBps.rest} bp over ${n.feeBps.durationSecs / 3600} h · ${n.supply.toLocaleString()} ${file.token?.symbol ?? "tokens"}`,
+  );
+  const blocked = checks.filter((c) => !c.ok);
+  if (blocked.length === 0) console.log("\neverything the launch depends on is in place.");
+  else console.log(`\n${blocked.length} check(s) not clear: ${blocked.map((c) => c.what).join("; ")}`);
+  return blocked.length === 0;
+}
+
+async function launch(conn: Connection, payer: Keypair, dryRun: boolean) {
+  const { file, plan: p } = await plan(conn, payer);
+  const checks = await preflight(conn, payer, file, p);
+  if (dryRun) {
+    const clear = reportPreflight(checks, file, p);
+    console.log(
+      clear
+        ? `\nnext: pnpm --filter @thewindow/launch launch${CLUSTER === "mainnet" ? "   (LAUNCH_CLUSTER=mainnet)" : ""}`
+        : "\nnothing was sent.",
     );
+    if (!clear) process.exitCode = 1;
+    return;
+  }
+  const blocking = checks.filter((c) => !c.ok && c.what !== "the pool's creator and fee claimer is the agent's wallet");
+  if (blocking.length) {
+    reportPreflight(checks, file, p);
+    throw new Error(`preflight refused the launch; nothing was sent (${blocking.map((c) => c.what).join("; ")})`);
   }
   const client = DynamicBondingCurveClient.create(conn, "confirmed");
   const config = Keypair.generate();
   const baseMint = Keypair.generate();
   const quoteMint = new PublicKey(file.quote.mint);
+  const badge = deriveTokenBadgeAddress(quoteMint);
+  const badgeInfo = await conn.getAccountInfo(badge);
   // The creator is the agent: fees and the migration fee go to its wallet. LAUNCH_CREATOR overrides;
   // the recorded Clawpump wallet is the default; the payer only when there is neither.
   const agent = recordedAgent();
@@ -241,8 +330,6 @@ async function launch(conn: Connection, payer: Keypair) {
     : agent
       ? new PublicKey(agent.walletAddress)
       : payer.publicKey;
-  const badge = deriveTokenBadgeAddress(quoteMint);
-  const badgeInfo = await conn.getAccountInfo(badge);
   log("creating config + pool", {
     config: config.publicKey.toBase58(),
     baseMint: baseMint.publicKey.toBase58(),
@@ -609,7 +696,7 @@ async function agentStatus() {
  * The agent's identity coin, launched by Clawpump on pump.fun and paired with TSLAx; the agent's own
  * wallet pays (`selfFunded`), so it must hold the launch cost (0.0092 SOL for a custom pair, 21 Sep).
  */
-async function clawpumpLaunch(again: boolean) {
+async function clawpumpLaunch(again: boolean, preflightOnly: boolean) {
   const key = clawpumpKey();
   const a = recordedAgent();
   if (!a) throw new Error("no Clawpump agent recorded — run `agent` first");
@@ -630,6 +717,30 @@ async function clawpumpLaunch(again: boolean) {
     creatorFeeBps: Number(process.env.CLAWPUMP_CREATOR_FEE_BPS ?? 100),
     website: "https://kaustubh76.github.io/Blinds/#/market",
   });
+  if (preflightOnly) {
+    // Clawpump's own cost discovery, and whether the agent's wallet can pay it. Sends nothing.
+    const q = await clawpump<{ creationFeeSol?: number; payTo?: string; quoteMint?: string }>(
+      key,
+      "GET",
+      `/launch/self-funded?quoteMint=${body.pumpQuoteMint}`,
+      undefined,
+      30_000,
+    );
+    const cost = Number(q.data.creationFeeSol ?? 0);
+    const mainnet = new Connection(MAINNET_RPC, "confirmed");
+    const sol = (await mainnet.getBalance(new PublicKey(a.walletAddress))) / LAMPORTS;
+    console.log(`\npreflight · Clawpump identity coin`);
+    console.log(` ok   the agent is recorded and its wallet is known\n      ${a.name} · ${a.walletAddress}`);
+    console.log(
+      ` ok   Clawpump quotes this stock pair\n      ${body.symbol} paired with ${body.pumpQuoteMint} · ${cost} SOL to ${q.data.payTo ?? "?"}`,
+    );
+    console.log(
+      ` ${sol >= cost ? "ok  " : "you "} the agent's wallet can pay for its own launch\n      holds ${sol.toFixed(4)} SOL, needs ${cost} SOL${sol >= cost ? "" : ` — send ${(cost - sol).toFixed(4)} SOL to ${a.walletAddress}`}`,
+    );
+    console.log(`\n${sol >= cost ? "next: pnpm --filter @thewindow/launch clawpump-launch" : "nothing was sent."}`);
+    if (sol < cost) process.exitCode = 1;
+    return;
+  }
   log("launching the identity coin through Clawpump", {
     agent: a.id,
     wallet: a.walletAddress,
@@ -683,17 +794,18 @@ if (!payer && cmd === "plan") {
 }
 try {
   if (cmd === "plan") await plan(conn, payer);
-  else if (cmd === "launch") await launch(conn, payer as Keypair);
+  else if (cmd === "launch") await launch(conn, payer as Keypair, process.argv.includes("--dry-run"));
   else if (cmd === "status") await status(conn);
   else if (cmd === "graduate") await graduate(conn, payer as Keypair);
   else if (cmd === "buy")
     await buy(conn, payer as Keypair, Number(process.argv[3]) || 0, process.argv.includes("--to-graduation"));
   else if (cmd === "agent") await agent(process.argv.includes("--new"), !process.argv.includes("--no-start"));
   else if (cmd === "agent-status") await agentStatus();
-  else if (cmd === "clawpump-launch") await clawpumpLaunch(process.argv.includes("--again"));
+  else if (cmd === "clawpump-launch")
+    await clawpumpLaunch(process.argv.includes("--again"), process.argv.includes("--preflight"));
   else {
     console.error(
-      "usage: main.ts plan|launch|status|buy <quote>|buy --to-graduation|graduate|agent [--new] [--no-start]|agent-status|clawpump-launch [--again]",
+      "usage: main.ts plan|launch [--dry-run]|status|buy <quote>|buy --to-graduation|graduate|agent [--new] [--no-start]|agent-status|clawpump-launch [--preflight] [--again]",
     );
     process.exit(2);
   }
