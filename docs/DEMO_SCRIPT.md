@@ -11,22 +11,30 @@ Figures written `‹screen›` change every window — read them off the page, n
 ## Pre-flight — the five minutes before
 
 ```bash
-./scripts/market.sh start          # faucet line must say (ok); note the ?admin=… link it prints
-WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule   # today's marks, and which listing is ACCEPTED
-grep -aoE "[0-9T:]+Z.*epoch (opened|closed)" /tmp/window-admin-devnet.log | tail -2   # where the window is
+./scripts/judging_day.sh up        # market + tunnel watchdog + published faucet URL, then it waits for a
+                                   # window to open and checks every route and recipe on the hosted site
+./scripts/judging_day.sh status    # where the window is, what it is costing, the share link
 ```
 
-1. **Wait for a window to open. This is the one thing that can break the demo.** A window is open
-   only ~8–9 minutes out of every ~14½, and a bid can only be sealed while it is open. Measured on
-   22 Sep: with a window open the autopilot reaches a confirmed bid in **37 seconds**; with the window
-   closed it prints *"no window is open — waiting for the keeper to open the next one"* and sits there
-   for **up to six minutes**. Start when the header reads `closes in 8:…` — ideally within a minute of
-   a window opening, which gives you the whole demo inside one window.
+It prints the `?admin=…` share link, which listing the chain would accept right now, and the window's phase.
+(`market.sh start` alone still works; it refuses to run a `target/release/window-admin` older than the source.)
+
+1. **Wait for a window to open. This is the one thing that can break the demo.** A bid can only be
+   sealed while a window is open. Measured again on 23 Sep (epochs 565–570): a window is open
+   **~8½ minutes** of a **~15 minute** cycle, the print lands ~20 s after it closes, and the next window
+   opens ~6 minutes later. `epoch_slots` is a slot count and devnet now runs ~0.17 s/slot, so what paces
+   a window in wall-clock terms is how long a keeper tick takes — measure it, never assume it. With a
+   window open the autopilot reaches a confirmed bid in **~37 seconds**; with it closed the Desk says
+   *"no window is open"* and waits. Start within a minute of a window opening.
 2. **Fresh browser window** (or incognito): no extensions, no saved settings. Zoom 110 %, DevTools closed.
 3. Open the site from the `?admin=…` link — that is what makes *Try it with a devnet burner* work.
-4. Know which listing is accepting today (`pnpm schedule`). On 22 Sep it was **ANTHROPIC** —
-   pick that one on the Desk.
-5. Second tab on `#/explorer`, in case you are asked to prove a print.
+4. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). On
+   23 Sep it was **ANTHROPIC** (TSLAx is refused while Pyth's wrapper account is stale — that refusal
+   is part of the story, see 0:35). Pick the accepting one on the Desk.
+5. A funded loan now runs its whole life inside the demo: the tenor starts when the operator funds it
+   and is ~8 minutes at today's slot pace, with repayment attested about half way. Do not be surprised
+   when a loan you just funded is already repaid.
+6. Second tab on `#/explorer`, in case you are asked to prove a print.
 
 ---
 
@@ -41,8 +49,9 @@ grep -aoE "[0-9T:]+Z.*epoch (opened|closed)" /tmp/window-admin-devnet.log | tail
 | **1:05** | transactions landing in the rail (~37 s of work; this narration covers it) | "While that lands: the size of my bid is encrypted to my key and the desk's auditor key before it leaves the tab. What goes on chain is a ciphertext and a 320-byte proof that it's well formed. The chain adds up everyone's encrypted bids **without opening them** — that's Token-2022 confidential balances plus homomorphic addition." |
 | **1:25** | the confirmed bid | "Sealed bid, on devnet, ‹screen: three transactions›. What's public: that I'm a member, which side I took, the rate tick, the timing. What isn't: how much." |
 | **1:35** | **Market** → the Pyth mark card | "When my bid matches, I have to prove my collateral covers the loan. Pyth's price isn't a label next to the number — it's a **coefficient inside the zero-knowledge proof**: collateral × price ≥ 150 % × loan, proven without revealing either amount. The same price gates every seizure. That's what makes this a margin desk and not a spreadsheet." |
-| **2:05** | **Agent** (key 5) | "One more thing — the lender on the other side is an autonomous agent. Its capital token, WLEND, launched on a **Meteora** Dynamic Bonding Curve quoted in a tokenized stock, and every parameter came from the desk's own numbers: the raise target converted through Pyth's read of TSLAx, the fee decaying 300 to 30 basis points over exactly one loan tenor. ‹screen: 2.9 % to graduation, fee 30.1 bp›. Its identity and fee wallet are a **Clawpump** coin." |
-| **2:30** | back to **Home** (or Explorer) | "All of it is live on devnet — five programs, ‹screen: 206› prints. And you don't have to trust me about any print: the Explorer re-derives it from the raw accounts in *your* browser. One honest limit: the administrator holds the auditor key and can read individual amounts to run the market — it proves every aggregate it publishes. That's accountable privacy, and we say so on every page." |
+| **1:55** | **Market**, scroll to the PreStocks card | "The pre-IPO side is **PreStocks**. The mark on chain is their published price, copied by our keeper and stamped with the fetch time — we say that, we don't dress it up as a signed feed. Beside it, what the token actually trades at and the gap in basis points ‹screen: −117 bp›, and the same gap at company scale. This line is the real token on **mainnet**, read in your browser: Token-2022, confidential transfers, a rebasing amount — the machinery this desk wraps — and a transfer hook, which is exactly why a bonding curve cannot quote it." |
+| **2:10** | **Agent** (key 5) | "The lender on the other side is an autonomous agent. Its capital token launched on a **Meteora** Dynamic Bonding Curve quoted in a tokenized stock, and every parameter came from the desk's own numbers: the raise target converted through Pyth's read of TSLAx, the fee decaying 300 to 30 basis points over exactly one loan tenor ‹screen: the fee curve and where it is now›. And we ran the whole lifecycle, not a slide — one pool filled its curve and **migrated into a DAMM v2 pool with its liquidity locked for good** ‹screen: the journey, step 5 done›. Its identity and fee wallet are a **Clawpump** agent: running, and the pool's creator." |
+| **2:35** | back to **Home** (or Explorer) | "All of it is live on devnet — five programs, ‹screen: the print count› prints. And you don't have to trust me about any print: the Explorer re-derives it from the raw accounts in *your* browser. One honest limit: the administrator holds the auditor key and can read individual amounts to run the market — it proves every aggregate it publishes. That's accountable privacy, and we say so on every page." |
 
 Roughly 400 words. If you are running long, cut the 1:05 beat to its first sentence — never the
 0:35 badges or the 1:35 proof, which are the two beats judges remember.

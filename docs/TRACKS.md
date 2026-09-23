@@ -224,7 +224,7 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
 
 | step | evidence |
 |---|---|
-| the integrations on the dashboard | **Agent** page (`#/agent`, key 5): five-step journey from the records (identity ✓ · devnet rehearsal ✓ · mainnet pool waits on 0.05 SOL · identity coin waits on 0.02 SOL · graduation pending), the agent on the desk, the Meteora card, "the curve, set from the desk's numbers", the Clawpump card, the dev column. Home **"built with"** strip: Pyth $375.19 · PreStocks $1,051.40 · Meteora 2.9 % · Clawpump "The Window Lender". Market **PreStocks mark card** (`#/market/prestocks`). Verified on Pages (`16c05db`, `ada036f`), screenshots in `docs/screens/` |
+| the integrations on the dashboard (figures are that afternoon's snapshot) | **Agent** page (`#/agent`, key 5): five-step journey from the records (identity ✓ · devnet rehearsal ✓ · mainnet pool waits on 0.05 SOL · identity coin waits on 0.02 SOL · graduation pending), the agent on the desk, the Meteora card, "the curve, set from the desk's numbers", the Clawpump card, the dev column. Home **"built with"** strip: Pyth $375.19 · PreStocks $1,051.40 · Meteora 2.9 % · Clawpump "The Window Lender". Market **PreStocks mark card** (`#/market/prestocks`). Verified on Pages (`16c05db`, `ada036f`), screenshots in `docs/screens/` |
 | the PreStocks basis, for real | `GET /marks` on the admin (`bd07f2f`): `{"prestocks_anthropic": {mark_e8: 105155741317, implied_e8: 102802912200, basis_bps: -223, fetched_at: 1790061527, …}}`; the hosted card via the published tunnel: **implied $1,034.28 · basis −162.7 bp**. The keeper reads `implied_field = "tokenPrice"` beside `markPrice`; never on chain |
 | devnet's slot pace | measured 304 slots / 52 s = **~0.17 s/slot** (0.44–0.55 until mid-Sep). `max_price_age_slots = 1200` ≈ 3.4 min; the pre-22-Sep admin posted only from its main loop (~5 min apart) → Home said "post stale", agents logged "price not usable", locks failed `PriceStale`. Fixed (`5aa2848`): the admin posts prices from a dedicated 20 s thread (log: posts every ≤ 2 min, `/metrics` publish age 0 for ANTHROPIC); the dashboard measures the rate (`lib/slotTime.ts`); `market.sh status` measures it for the runway (~0.44 SOL/h today) |
 | after the restart | `pnpm schedule`: ANTHROPIC posted 582 slots ago, quote 108 s old → **ACCEPTED**; TSLAx posted 63 slots ago, quote 11.4 h old → REFUSED (`QuoteStale`, by design without a Pyth key); Home pill **accepting** on ANTHROPIC |
@@ -254,21 +254,40 @@ We read Hermes with a key, fall back to Pyth's on-chain accounts, enforce the qu
 per listing, and show the xStock quote against the underlying equity feed with the basis, because the overnight
 window opens exactly when the equity market closes. The Pyth listing can run with no keeper in the price path at
 all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, feed, verification level, age),
-posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it the moment a Pyth key is present).
+posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it
+the moment a Pyth key is present). When the wrapper feed's only push account goes quiet — it did, on 12 Sep —
+we say so and price from the underlying `Equity.US.TSLA/USD` instead, recording which feed did it, rather than
+letting a stale number pass as fresh.
 
 **Meteora DBC.** THE WINDOW's lender is an autonomous agent that lends against tokenized stocks every
 overnight window and earns the xONIA rate. Its token, WLEND, launches on a Dynamic Bonding Curve **quoted in
 TSLAx**, and the curve is set from the desk's numbers: the raise target is the agent's lending capital in USD,
 converted into the quote stock through the same Pyth read the desk marks collateral with; the fee decays over
 one tenor of the desk; the creator fee stream is the agent's wallet; graduated liquidity is locked for good.
-The dashboard reads the pool from raw bytes (no SDK in the browser) and shows progress, raise, fees and spot
-beside the desk's own schedule. Devnet rehearsal verified end to end; the mainnet pool is one command.
+The dashboard reads the pool from raw bytes (no SDK in the browser) and shows progress, the raise, the fee in
+force right now with its schedule drawn, and the fee stream. We ran the **whole lifecycle** on devnet, not a
+slide: a pool filled its curve (168.50157356 of 168.50157355 quote), we built the migration-metadata
+instruction Meteora's SDK does not expose, derived the DAMM v2 config from the pool's own migration fee option,
+and migrated — pool `BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`, both LP positions permanently locked. The
+mainnet pool is one command behind a preflight that checks the balance, the Pyth quote's age, the quote mint's
+decimals, TSLAx's Meteora token badge and the DAMM v2 config before a lamport moves.
 
-**Clawpump.** The lender agent gets a Clawpump identity and wallet; that wallet is the creator and fee claimer
-of its stock-paired Meteora pool. Everything the agent earns — trading fees, its share of the raise, and the
-xONIA it lends at — flows to one address a judge can watch.
+**Clawpump.** The lender agent has a Clawpump identity and wallet, and it is **running** — Clawpump's own API
+says so, and the dashboard shows what the API reports rather than what we hoped it would. That wallet is the
+creator and fee claimer of its stock-paired Meteora pool, so everything the agent earns — trading fees, its
+share of the raise, and the xONIA it lends at — flows to one address a judge can watch. Its identity coin is
+launched through Clawpump onto pump.fun paired with TSLAx, priced by Clawpump's own quote (0.0092 SOL, paid by
+the agent's wallet). Honest notes we keep on the page: Clawpump's venue is pump.fun, not Meteora, so the agent
+has two coins with two jobs; and its partner API accepts a persona only at creation, so this agent (made in
+Clawpump's console) carries none.
 
-**PreStocks.** ANTHROPIC, the only pre-IPO token on the desk, listed next to a tokenized stock under one rate, marked by PreStocks' published price with
-its implied-vs-mark basis on the Market's PreStocks card: wrap, prove `collateral ≥ 200 % × loan` against the mark without revealing
-the position, borrow at the print, and — for developers — a Build page that shows the listing's PDAs, the account
-the program prices from, and the exact SDK calls, runnable in the tab.
+**PreStocks.** ANTHROPIC, the only pre-IPO token on the desk, listed next to a tokenized stock under one rate:
+wrap, prove `collateral ≥ 200 % × loan` against PreStocks' mark without revealing the position, borrow at the
+print. The Market's PreStocks card is the whole integration on one screen — the mark as the chain holds it, the
+price the token actually trades at and the basis between them (the keeper reads `tokenPrice` beside `markPrice`
+and serves it; it is never posted on chain), the same gap at company scale from `markValuation` vs
+`impliedValuation`, the two freshness rules with the verdict the chain would give right now, and **the real
+mainnet token read in your own browser**: Token-2022, 9 decimals, 7,381.83 outstanding, with confidential
+transfers and a rebasing scaled-UI amount — the machinery this desk wraps — and a transfer hook, which is
+exactly why a bonding curve cannot quote it. Developers get the listing's PDAs, the account the program prices
+from and the SDK calls, runnable in the tab.

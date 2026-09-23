@@ -23,6 +23,12 @@ fails every transaction and burns nothing — but shows nothing either.
 
 ## 2. Start
 
+**Judging day, in one command:** `./scripts/judging_day.sh up` — market, tunnel watchdog, published faucet URL,
+then it waits for a window to open and checks every route and every wallet-free recipe on the hosted site before
+anyone is watching; `status` shows the window and the measured burn; `down` stops everything and clears the
+pointer. It refuses to start below 0.3 SOL and names the faucet. Everything below is what it runs.
+
+
 ```bash
 ./scripts/market.sh start        # keeper, administrator, operator, agents; opens the faucet tunnel
 #   prints:  faucet  https://<x>.trycloudflare.com
@@ -73,6 +79,12 @@ resumes on the next keeper tick.
 [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the 2–3 minute walkthrough: what to click, what to say, the
 fallbacks, and the drop-in line for each sponsor. Its one hard requirement is timing — start within a
 minute of a window opening, or the autopilot waits for the next one in front of your audience.
+
+**What paces a window.** `epoch_slots` is a slot count; devnet's slot time is not a constant (0.45 s until
+mid-September 2026, ~0.17 s since the 22nd). The keeper closes an epoch on the first tick after
+`start + epoch_slots`, and a tick also scans every loan over the public RPC — so the wall-clock cadence is set
+by the tick, not by the arithmetic. Measured 23 Sep: a window is open **~8.5 min** of a **~15 min** cycle, the
+print lands ~20 s after the close. Measure before you plan a demo around it (`judging_day.sh status`).
 
 ## 3. Watch
 

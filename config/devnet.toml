@@ -10,8 +10,10 @@
 #   With ~2 loans per print that is ~0.0362 SOL per epoch = ~0.33 SOL/hour at the cadence below.
 #   Transaction fees (~35/epoch at 5,000 lamports) are ~0.5% of that.
 [market]
-epoch_slots = 900            # ~6-8 min at the 0.44-0.55 s/slot devnet ran until mid-Sep 2026; ~2.6 min at the
-                             # ~0.17 s/slot measured on 2026-09-22 — every slot count below scales the same way
+epoch_slots = 900            # A slot count, so its wall-clock length follows devnet's pace (0.44-0.55 s/slot until
+                             # mid-Sep 2026, ~0.17 s since 22 Sep). In practice a window runs longer than the slots
+                             # alone imply — measured 23 Sep: ~8.5 min open of a ~15 min cycle — because the keeper
+                             # closes an epoch on its next tick, and a tick scans every loan over a public RPC.
 tenor_slots = 2700           # a loan lives ~3 epochs, so repay/seize both land inside a demo
 keeper_grace_slots = 450     # anyone may close after start + epoch_slots + grace
 stale_after_slots = 2700     # print deadline after close; also gates permissionless close_bid
