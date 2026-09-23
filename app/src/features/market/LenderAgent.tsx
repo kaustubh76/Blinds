@@ -227,6 +227,11 @@ export function LenderAgent({ focus = false }: { focus?: boolean } = {}) {
         title={title}
         right={
           <span className="flex flex-wrap items-center gap-2">
+            {s?.pool.isMigrated && LAUNCH.graduated?.dammPool && (
+              <ExplorerLink address={LAUNCH.graduated.dammPool} cluster={launchCluster}>
+                DAMM v2 pool
+              </ExplorerLink>
+            )}
             {s &&
               (s.pool.isMigrated ? (
                 <Badge tone="good" icon="check">

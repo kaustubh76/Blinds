@@ -14,6 +14,57 @@ export interface ClawpumpAgent {
   name: string;
   walletAddress: string;
   status?: string;
+  persona?: string | null;
+  avatarUrl?: string | null;
+  skills?: string[];
+}
+
+/**
+ * The skill slugs Clawpump accepts (developer reference, 22 Sep). An unknown slug is dropped
+ * silently — and a body carrying one left the rest of the update unapplied, which is how the agent
+ * ended up with a name but no persona.
+ */
+export const CLAWPUMP_SKILLS = [
+  "trading",
+  "perps",
+  "token-launch",
+  "portfolio",
+  "market-intelligence",
+  "social",
+  "sniper",
+  "wallet",
+  "image-generation",
+] as const;
+
+/** What the lender agent needs: launch its coin, hold and move its own funds, watch its market. */
+export const LENDER_SKILLS = ["token-launch", "wallet", "portfolio", "market-intelligence", "trading"];
+
+const checkSkills = (skills: string[]) => {
+  const bad = skills.filter((s) => !(CLAWPUMP_SKILLS as readonly string[]).includes(s));
+  if (bad.length) throw new Error(`not Clawpump skill slugs: ${bad.join(", ")}`);
+  return skills;
+};
+
+/**
+ * What `POST /agents/{id}` accepts — **snake_case**, and only these. Probed on 23 Sep: `avatar_url`
+ * and `is_public` apply; `avatarUrl`, `isPublic`, `persona`, `system_prompt`, `description` and `bio`
+ * all come back "No allowed fields in request body". A persona can therefore only be set when the
+ * agent is created; an agent made in Clawpump's own UI keeps whatever it was made with.
+ */
+export function agentFields(name: string, avatarUrl: string, skills: string[] = LENDER_SKILLS) {
+  return { name, avatar_url: avatarUrl, is_public: true, skills: checkSkills(skills) };
+}
+
+/** `POST /agents` (creation) takes more than an update does: the persona and the model belong here. */
+export function newAgentFields(name: string, avatarUrl: string, skills: string[] = LENDER_SKILLS) {
+  return {
+    name,
+    persona: LENDER_PERSONA,
+    system_prompt: LENDER_PERSONA,
+    skills: checkSkills(skills),
+    avatar_url: avatarUrl,
+    is_public: true,
+  };
 }
 
 export const LENDER_PERSONA =

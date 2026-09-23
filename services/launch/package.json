@@ -11,6 +11,7 @@
     "buy": "tsx src/main.ts buy",
     "graduate": "tsx src/main.ts graduate",
     "agent": "tsx src/main.ts agent",
+    "agent-status": "tsx src/main.ts agent-status",
     "clawpump-launch": "tsx src/main.ts clawpump-launch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

@@ -6,8 +6,10 @@
  *   pnpm --filter @thewindow/launch launch    # create config + pool (+ metadata) — WINDOW_LAUNCH_KEYPAIR pays
  *   pnpm --filter @thewindow/launch status    # progress to graduation, price in quote and USD, fees
  *   pnpm --filter @thewindow/launch buy 5     # buy with 5 quote tokens (moves the curve; devnet test balance)
+ *   pnpm --filter @thewindow/launch buy -- --to-graduation   # keep buying until the curve is complete
  *   pnpm --filter @thewindow/launch graduate  # migrate to DAMM v2 once the threshold is met
- *   pnpm --filter @thewindow/launch agent     # the Clawpump agent (CLAWPUMP_API_KEY): reuse + rename, or create → wallet
+ *   pnpm --filter @thewindow/launch agent     # the Clawpump agent: reuse + rename, persona, avatar, start
+ *   pnpm --filter @thewindow/launch agent-status      # what Clawpump reports about it now (read-only)
  *   pnpm --filter @thewindow/launch clawpump-launch   # the agent's identity coin on pump.fun, paired with TSLAx (agent pays)
  *
  * Cluster: LAUNCH_CLUSTER=mainnet|devnet (default devnet). On devnet the quote is a plain SPL mint this
@@ -18,23 +20,35 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   DynamicBondingCurveClient,
+  deriveDammV2MigrationMetadataAddress,
+  deriveDammV2PoolAddress,
+  deriveDbcEventAuthority,
   deriveDbcPoolAddress,
   deriveTokenBadgeAddress,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
 import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, type Transaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  sendAndConfirmTransaction,
+  type Transaction,
+  TransactionInstruction,
+  Transaction as Web3Transaction,
+} from "@solana/web3.js";
 import BN from "bn.js";
 import {
+  agentFields,
   type ClawpumpAgent,
   type ClawpumpError,
   clawpump,
   describe402,
-  LENDER_PERSONA,
   launchBody,
+  newAgentFields,
   pickAgent,
   TSLAX_MINT,
 } from "./clawpump.js";
-import { buildPlan, DEFAULTS, type LaunchPlan } from "./plan.js";
+import { buildPlan, DEFAULTS, dammConfigFor, type LaunchPlan } from "./plan.js";
 import { fetchQuoteUsd } from "./pyth.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -99,7 +113,17 @@ interface LaunchFile extends PlanFile {
   creator: string;
   feeClaimer: string;
   txs: Record<string, string>;
-  agent?: { id: string; walletAddress: string; name: string };
+  agent?: {
+    id: string;
+    walletAddress: string;
+    name: string;
+    /** As Clawpump reports it after the call: `running` is what its dashboard counts as deployed. */
+    status?: string;
+    /** Whether the persona and avatar actually took (read back, never assumed). */
+    persona?: boolean;
+    avatarUrl?: string | null;
+    checkedAt?: string;
+  };
   clawpump?: {
     agentId: string;
     symbol: string;
@@ -111,7 +135,17 @@ interface LaunchFile extends PlanFile {
     launchedAt: string;
     requestId?: string;
   };
-  graduated?: { tx: string; at: string };
+  graduated?: {
+    tx: string;
+    at: string;
+    /** The DAMM v2 pool the liquidity moved into, and the config the migration named. */
+    dammPool?: string;
+    dammConfig?: string;
+    metadata?: string;
+    metadataTx?: string;
+  };
+  /** An earlier rehearsal on this cluster that ran the whole way (this record's pool is the live one). */
+  previousGraduation?: { pool: string; dammPool?: string; tx: string; at: string };
 }
 
 /** The recorded agent (from `agent`), wherever it was written: the launch file first, else the plan file. */
@@ -248,6 +282,20 @@ async function launch(conn: Connection, payer: Keypair) {
     txs: { createConfigAndPool: sig },
     ...(agent ? { agent } : {}),
     ...(existing?.clawpump ? { clawpump: existing.clawpump } : {}),
+    // A pool that already graduated is not lost when a fresh one is launched beside it: the record
+    // keeps the finished rehearsal so the dashboard can show both.
+    ...(existing?.graduated
+      ? {
+          previousGraduation: {
+            pool: existing.pool,
+            ...(existing.graduated.dammPool ? { dammPool: existing.graduated.dammPool } : {}),
+            tx: existing.graduated.tx,
+            at: existing.graduated.at,
+          },
+        }
+      : existing?.previousGraduation
+        ? { previousGraduation: existing.previousGraduation }
+        : {}),
   };
   writeJson(LAUNCH_FILE, out);
   log("launched", { pool: out.pool, tx: sig, file: LAUNCH_FILE });
@@ -310,45 +358,149 @@ async function status(conn: Connection) {
   return out;
 }
 
+/** `migration_damm_v2_create_metadata` — the account `migration_damm_v2` reads; the SDK builds no helper for it. */
+const CREATE_METADATA_DISCRIMINATOR = Buffer.from([109, 189, 19, 36, 195, 183, 222, 82]);
+const DBC_PROGRAM = new PublicKey("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN");
+const SYSTEM_PROGRAM = new PublicKey("11111111111111111111111111111111");
+
+function createMigrationMetadataIx(pool: PublicKey, config: PublicKey, payer: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: DBC_PROGRAM,
+    data: CREATE_METADATA_DISCRIMINATOR,
+    keys: [
+      { pubkey: pool, isSigner: false, isWritable: false },
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: deriveDammV2MigrationMetadataAddress(pool), isSigner: false, isWritable: true },
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: SYSTEM_PROGRAM, isSigner: false, isWritable: false },
+      { pubkey: deriveDbcEventAuthority(), isSigner: false, isWritable: false },
+      { pubkey: DBC_PROGRAM, isSigner: false, isWritable: false },
+    ],
+  });
+}
+
+/**
+ * Graduation: the curve is complete, so the liquidity moves to DAMM v2 and both LP positions are
+ * locked for good. Two instructions, in order — the metadata account the migration reads, then the
+ * migration itself against the DAMM v2 config that matches this pool's `migrationFeeOption`.
+ */
 async function graduate(conn: Connection, payer: Keypair) {
   const l = readJson<LaunchFile>(LAUNCH_FILE);
   if (!l) throw new Error("no launch yet");
   const client = DynamicBondingCurveClient.create(conn, "confirmed");
   const pool = new PublicKey(l.pool);
+  const vp = await client.state.getPool(pool);
+  if (!vp) throw new Error("pool account missing");
+  if (vp.poolState.isMigrated) {
+    log("already graduated", { pool: l.pool, dammPool: l.graduated?.dammPool ?? null });
+    return;
+  }
   const progress = await client.state.getPoolQuoteTokenCurveProgress(pool);
   if (progress < 1) throw new Error(`the curve is ${(progress * 100).toFixed(1)} % of the way to graduation`);
-  const dammConfig = new PublicKey(process.env.LAUNCH_DAMM_CONFIG ?? "7F6dnUcRuyM2TwR8myT1dYypFXpPSxqwKNSFNkxyNESd");
+  const cfgKey = vp.poolState.config;
+  const cfg = await client.state.getPoolConfig(cfgKey);
+  if (!cfg) throw new Error("pool config account missing");
+  const dammConfig = new PublicKey(dammConfigFor(cfg.migrationFeeOption, process.env.LAUNCH_DAMM_CONFIG));
+  const metadata = deriveDammV2MigrationMetadataAddress(pool);
+  let metadataTx: string | undefined;
+  if (!(await conn.getAccountInfo(metadata))) {
+    const tx = new Web3Transaction().add(createMigrationMetadataIx(pool, cfgKey, payer.publicKey));
+    metadataTx = await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" });
+    log("migration metadata created", { metadata: metadata.toBase58(), tx: metadataTx });
+  }
   const r = await client.migration.migrateToDammV2({ payer: payer.publicKey, pool, dammConfig });
   const sig = await sendAndConfirmTransaction(
     conn,
     r.transaction,
     [payer, r.firstPositionNftKeypair, r.secondPositionNftKeypair],
-    {
-      commitment: "confirmed",
-    },
+    { commitment: "confirmed" },
   );
-  writeJson(LAUNCH_FILE, { ...l, graduated: { tx: sig, at: new Date().toISOString() } });
-  log("graduated to DAMM v2", { tx: sig });
+  const dammPool = deriveDammV2PoolAddress(dammConfig, vp.poolState.baseMint, cfg.quoteMint);
+  writeJson(LAUNCH_FILE, {
+    ...l,
+    graduated: {
+      tx: sig,
+      at: new Date().toISOString(),
+      dammPool: dammPool.toBase58(),
+      dammConfig: dammConfig.toBase58(),
+      metadata: metadata.toBase58(),
+      ...(metadataTx ? { metadataTx } : {}),
+    },
+  });
+  log("graduated to DAMM v2", {
+    tx: sig,
+    dammPool: dammPool.toBase58(),
+    dammConfig: dammConfig.toBase58(),
+    migrationFeeOption: cfg.migrationFeeOption,
+  });
 }
 
-/** Buy the agent's token with `amount` quote tokens (whole units) — the trade that moves the curve. */
-async function buy(conn: Connection, payer: Keypair, amount: number) {
-  const l = readJson<LaunchFile>(LAUNCH_FILE);
-  if (!l) throw new Error("no launch yet");
-  if (!(amount > 0)) throw new Error("usage: buy <quote amount>");
+/** One swap: `amount` quote tokens into the curve. Returns the signature. */
+async function swap(conn: Connection, payer: Keypair, l: LaunchFile, amount: number): Promise<string> {
   const client = DynamicBondingCurveClient.create(conn, "confirmed");
-  const pool = new PublicKey(l.pool);
-  const amountIn = new BN(Math.round(amount * 10 ** l.quote.decimals));
   const tx = await client.pool.swap({
     owner: payer.publicKey,
-    pool,
-    amountIn,
+    pool: new PublicKey(l.pool),
+    amountIn: new BN(Math.round(amount * 10 ** l.quote.decimals)),
     minimumAmountOut: new BN(0),
     swapBaseForQuote: false,
     referralTokenAccount: null,
   });
-  const sig = await sendAndConfirmTransaction(conn, tx as Transaction, [payer], { commitment: "confirmed" });
-  log("bought", { quoteIn: amount, tx: sig });
+  return sendAndConfirmTransaction(conn, tx as Transaction, [payer], { commitment: "confirmed" });
+}
+
+/**
+ * Buy the agent's token with quote tokens — the trade that moves the curve. `--to-graduation` keeps
+ * buying what is left of the migration threshold until the curve is complete: fees are taken from the
+ * quote, so the reserve grows by less than the amount in and one swap never quite finishes it.
+ */
+async function buy(conn: Connection, payer: Keypair, amount: number, toGraduation: boolean) {
+  const l = readJson<LaunchFile>(LAUNCH_FILE);
+  if (!l) throw new Error("no launch yet");
+  const client = DynamicBondingCurveClient.create(conn, "confirmed");
+  const pool = new PublicKey(l.pool);
+  if (!toGraduation) {
+    if (!(amount > 0)) throw new Error("usage: buy <quote amount> | buy --to-graduation");
+    const sig = await swap(conn, payer, l, amount);
+    log("bought", { quoteIn: amount, tx: sig });
+    return;
+  }
+  const dec = 10 ** l.quote.decimals;
+  const threshold = Number((await client.state.getPoolMigrationQuoteThreshold(pool)).toString()) / dec;
+  const chunk = amount > 0 ? amount : 50;
+  const txs: string[] = [];
+  for (let round = 0; round < 24; round++) {
+    const vp = await client.state.getPool(pool);
+    if (!vp) throw new Error("pool account missing");
+    const reserve = Number(vp.poolState.quoteReserve.toString()) / dec;
+    const progress = await client.state.getPoolQuoteTokenCurveProgress(pool);
+    if (progress >= 1 || reserve >= threshold) {
+      log("curve complete", { progress, raised: reserve, threshold, txs });
+      return;
+    }
+    // What is still missing, never more: the curve holds only the base tokens the threshold buys, and
+    // an amount past that is refused outright (`InsufficientLiquidity`). The fee comes out of the input,
+    // so the reserve grows by a little less than the ask and the next round closes the rest.
+    // Down to one base unit of the quote: the fee rides on the input, so the reserve lands a few
+    // units short of the threshold and the program calls the curve complete only at `>=`.
+    // Three units, not one: the fee rounds up, so a smaller ask leaves the reserve where it was.
+    const unit = 3 / dec;
+    let want = Math.min(chunk, Math.max(unit, threshold - reserve));
+    let sig: string | null = null;
+    for (let attempt = 0; attempt < 8 && sig === null; attempt++) {
+      try {
+        sig = await swap(conn, payer, l, want);
+      } catch (e) {
+        const text = `${String(e)} ${JSON.stringify((e as { logs?: string[] }).logs ?? [])}`;
+        if (!text.includes("InsufficientLiquidity") || attempt === 7) throw e;
+        // The curve's last base tokens cost less quote than the gap, because the fee rides on top.
+        want *= 0.9;
+      }
+    }
+    if (sig) txs.push(sig);
+    log("bought", { quoteIn: Number(want.toFixed(6)), raisedBefore: reserve, threshold, tx: sig });
+  }
+  throw new Error(`still short of the threshold after 12 rounds (txs: ${txs.join(", ")})`);
 }
 
 /** The Clawpump key, or a clear refusal. Never printed. */
@@ -360,31 +512,94 @@ function clawpumpKey(): string {
 
 /**
  * The lender's Clawpump identity: the account's one agent is reused and renamed (an explicit
- * CLAWPUMP_AGENT_ID wins; `--new` creates another). Its wallet becomes the pool's creator and fee wallet.
+ * CLAWPUMP_AGENT_ID wins; `--new` creates another), given the lender's persona, avatar and skills,
+ * and **started** — Clawpump counts only a running agent as deployed. Whatever the API then reports
+ * is what gets recorded: a write is never assumed to have taken.
  */
-async function agent(forceNew: boolean) {
+async function agent(forceNew: boolean, start: boolean) {
   const key = clawpumpKey();
   const name = process.env.CLAWPUMP_AGENT_NAME ?? "The Window Lender";
-  const fields = { name, persona: LENDER_PERSONA, skills: ["solana"] };
+  const avatar = process.env.CLAWPUMP_TOKEN_IMAGE_URL ?? "https://kaustubh76.github.io/Blinds/launch/lender.png";
   const list = await clawpump<{ agents: ClawpumpAgent[] }>(key, "GET", "/agents");
   const pick = pickAgent(list.data.agents ?? [], process.env.CLAWPUMP_AGENT_ID, forceNew);
-  let a: ClawpumpAgent;
+  const unwrap = (d: ClawpumpAgent | { agent: ClawpumpAgent }) => ("agent" in d ? d.agent : d);
+  let id: string;
   if (pick.action === "update") {
-    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "POST", `/agents/${pick.agent.id}`, fields);
-    const got = "agent" in r.data ? r.data.agent : r.data;
-    a = { ...pick.agent, ...got, name: got?.name ?? name };
-    log("Clawpump agent updated", { id: a.id, from: pick.agent.name, to: a.name, requestId: r.requestId });
+    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(
+      key,
+      "POST",
+      `/agents/${pick.agent.id}`,
+      agentFields(name, avatar),
+    );
+    id = unwrap(r.data)?.id ?? pick.agent.id;
+    log("Clawpump agent updated", { id, from: pick.agent.name, to: name, requestId: r.requestId });
   } else {
-    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "POST", "/agents", fields);
-    a = "agent" in r.data ? r.data.agent : r.data;
-    log("Clawpump agent created", { id: a.id, requestId: r.requestId });
+    const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(
+      key,
+      "POST",
+      "/agents",
+      newAgentFields(name, avatar),
+    );
+    id = unwrap(r.data).id;
+    log("Clawpump agent created", { id, requestId: r.requestId });
   }
-  if (!a.walletAddress) throw new Error("Clawpump returned an agent without a walletAddress");
-  const record = { id: a.id, walletAddress: a.walletAddress, name: a.name };
+  if (start) {
+    try {
+      const r = await clawpump<unknown>(key, "POST", `/agents/${id}/start`);
+      log("Clawpump agent started", { id, requestId: r.requestId });
+    } catch (e) {
+      const err = e as ClawpumpError;
+      // A start that needs credits is no reason to lose the identity just written.
+      console.error(`start refused (${err.status ?? "?"}): ${err.message.slice(0, 200)}`);
+    }
+  }
+  // Read it back: the API drops what it does not recognise, so only what it returns is true.
+  const back = unwrap((await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "GET", `/agents/${id}`)).data);
+  if (!back.walletAddress) throw new Error("Clawpump returned an agent without a walletAddress");
+  const record = {
+    id: back.id,
+    walletAddress: back.walletAddress,
+    name: back.name,
+    status: back.status ?? "unknown",
+    persona: !!back.persona,
+    avatarUrl: back.avatarUrl ?? null,
+    checkedAt: new Date().toISOString(),
+  };
   const l = readJson<LaunchFile>(LAUNCH_FILE);
   if (l) writeJson(LAUNCH_FILE, { ...l, agent: record });
   else writeJson(PLAN_FILE, { ...(readJson<PlanFile>(PLAN_FILE) ?? { cluster: CLUSTER }), agent: record });
-  log("the lender agent", { ...record, recordedIn: l ? LAUNCH_FILE : PLAN_FILE });
+  log("the lender agent", { ...record, skills: back.skills?.length ?? 0, recordedIn: l ? LAUNCH_FILE : PLAN_FILE });
+  if (record.status !== "running")
+    console.error(`note: Clawpump reports status "${record.status}" — its dashboard counts only running agents`);
+  if (!record.persona && pick.action === "update")
+    console.error(
+      "note: this agent has no persona — Clawpump's update endpoint refuses `persona`; only a newly created agent (`--new`) can carry one",
+    );
+}
+
+/** Read-only: what Clawpump says about the recorded agent right now. */
+async function agentStatus() {
+  const key = clawpumpKey();
+  const a = recordedAgent();
+  if (!a) throw new Error("no Clawpump agent recorded — run `agent` first");
+  const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "GET", `/agents/${a.id}`);
+  const back = "agent" in r.data ? r.data.agent : r.data;
+  console.log(
+    JSON.stringify(
+      {
+        id: back.id,
+        name: back.name,
+        status: back.status,
+        walletAddress: back.walletAddress,
+        persona: !!back.persona,
+        avatarUrl: back.avatarUrl ?? null,
+        skills: back.skills ?? [],
+        recorded: a,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 /**
@@ -460,11 +675,15 @@ try {
   else if (cmd === "launch") await launch(conn, payer as Keypair);
   else if (cmd === "status") await status(conn);
   else if (cmd === "graduate") await graduate(conn, payer as Keypair);
-  else if (cmd === "buy") await buy(conn, payer as Keypair, Number(process.argv[3]));
-  else if (cmd === "agent") await agent(process.argv.includes("--new"));
+  else if (cmd === "buy")
+    await buy(conn, payer as Keypair, Number(process.argv[3]) || 0, process.argv.includes("--to-graduation"));
+  else if (cmd === "agent") await agent(process.argv.includes("--new"), !process.argv.includes("--no-start"));
+  else if (cmd === "agent-status") await agentStatus();
   else if (cmd === "clawpump-launch") await clawpumpLaunch(process.argv.includes("--again"));
   else {
-    console.error("usage: main.ts plan|launch|status|buy <quote>|graduate|agent [--new]|clawpump-launch [--again]");
+    console.error(
+      "usage: main.ts plan|launch|status|buy <quote>|buy --to-graduation|graduate|agent [--new] [--no-start]|agent-status|clawpump-launch [--again]",
+    );
     process.exit(2);
   }
 } catch (e) {

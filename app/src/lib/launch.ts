@@ -47,8 +47,18 @@ export interface LaunchRecord {
   creator: string;
   feeClaimer: string;
   txs: Record<string, string>;
-  /** The Clawpump identity (`services/launch agent`). */
-  agent?: { id: string; walletAddress: string; name: string };
+  /** The Clawpump identity (`services/launch agent`), as Clawpump reported it when last checked. */
+  agent?: {
+    id: string;
+    walletAddress: string;
+    name: string;
+    /** `running` is what Clawpump's dashboard counts as deployed. */
+    status?: string;
+    /** Whether a persona is set — the partner API refuses to add one to an existing agent. */
+    persona?: boolean;
+    avatarUrl?: string | null;
+    checkedAt?: string;
+  };
   /** The identity coin Clawpump launched for the agent (`services/launch clawpump-launch`). */
   clawpump?: {
     agentId: string;
@@ -60,7 +70,16 @@ export interface LaunchRecord {
     quoteMint: string;
     launchedAt: string;
   };
-  graduated?: { tx: string; at: string };
+  graduated?: {
+    tx: string;
+    at: string;
+    dammPool?: string;
+    dammConfig?: string;
+    metadata?: string;
+    metadataTx?: string;
+  };
+  /** An earlier pool on this cluster that ran the whole way; this record's pool is the live one. */
+  previousGraduation?: { pool: string; dammPool?: string; tx: string; at: string };
 }
 
 const mainnetModules = import.meta.glob("../../../deployments/launch-mainnet.json", { eager: true, import: "default" });

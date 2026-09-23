@@ -217,6 +217,15 @@ function Clawpump() {
       title={a ? a.name : "no Clawpump identity yet"}
       right={
         <span className="flex flex-wrap items-center gap-2">
+          {a?.status === "running" ? (
+            <Badge tone="good" icon="check">
+              agent running
+            </Badge>
+          ) : a ? (
+            <Badge tone="warn" icon="alert">
+              agent {a.status ?? "status unknown"}
+            </Badge>
+          ) : null}
           {c ? (
             <Badge tone="good" icon="check">
               identity coin live
@@ -238,8 +247,9 @@ function Clawpump() {
         <>
           Clawpump gives an agent an identity and a wallet, and launches a coin for it on pump.fun — paired here with
           TSLAx from Clawpump&apos;s own stock pairs. It does not create Meteora pools, and a Meteora DBC pool mints its
-          own token; so the agent has two coins with two roles. Honest limit: the lending loop the agent earns from is
-          the devnet desk.
+          own token; so the agent has two coins with two roles. Honest limits: the lending loop the agent earns from is
+          the devnet desk, and this agent carries no persona — Clawpump&apos;s partner API takes a persona only when an
+          agent is created, and this one was made in Clawpump&apos;s own console.
         </>
       }
     >
@@ -248,7 +258,9 @@ function Clawpump() {
           label="agent"
           value={a ? a.name : "—"}
           hint={
-            a ? `Clawpump id ${a.id.slice(0, 8)}… · persona: the desk's autonomous lender` : "run services/launch agent"
+            a
+              ? `Clawpump id ${a.id.slice(0, 8)}… · ${a.status === "running" ? "running — what Clawpump counts as deployed" : `status ${a.status ?? "unknown"}`}`
+              : "run services/launch agent"
           }
         />
         <Stat

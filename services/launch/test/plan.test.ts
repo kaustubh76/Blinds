@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPlan, DEFAULTS } from "../src/plan.js";
+import { buildPlan, DEFAULTS, dammConfigFor } from "../src/plan.js";
 import { pickQuote, QUOTE_MAX_AGE_SECS } from "../src/pyth.js";
 
 describe("the lender agent's launch plan", () => {
@@ -51,5 +51,16 @@ describe("which Pyth read prices the quote", () => {
     expect(pickQuote(dead, at(2000, 5))?.feed).toBe("Equity.US.TSLA/USD");
     expect(pickQuote(dead, null)?.feed).toBe("Crypto.TSLAX/USD");
     expect(pickQuote(null, null)).toBeNull();
+  });
+});
+
+describe("which DAMM v2 config a migration names", () => {
+  it("follows the pool's own migration fee option", () => {
+    expect(dammConfigFor(0)).toBe("7F6dnUcRuyM2TwR8myT1dYypFXpPSxqwKNSFNkxyNESd"); // FixedBps25
+    expect(dammConfigFor(6)).toBe("A8gMrEPJkacWkcb3DGwtJwTe16HktSEfvwtuDh2MCtck"); // Customizable — what the plan uses
+    expect(dammConfigFor(6, "OverRide1111111111111111111111111111111111")).toBe(
+      "OverRide1111111111111111111111111111111111",
+    );
+    expect(() => dammConfigFor(99)).toThrow(/no DAMM v2 config/);
   });
 });

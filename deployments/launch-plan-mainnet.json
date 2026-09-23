@@ -35,6 +35,10 @@
   "agent": {
     "id": "0044b672-ec2c-4cdf-b327-7c0e9a449c1b",
     "walletAddress": "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
-    "name": "The Window Lender"
+    "name": "The Window Lender",
+    "status": "running",
+    "persona": false,
+    "avatarUrl": "https://kaustubh76.github.io/Blinds/launch/lender.png",
+    "checkedAt": "2026-09-23T04:57:15.112Z"
   }
 }

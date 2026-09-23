@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { clawpump, describe402, launchBody, pickAgent, TSLAX_MINT } from "../src/clawpump.js";
+import {
+  agentFields,
+  clawpump,
+  describe402,
+  launchBody,
+  newAgentFields,
+  pickAgent,
+  TSLAX_MINT,
+} from "../src/clawpump.js";
 
 const agent = (id: string, name: string) => ({ id, name, walletAddress: `${id}wallet` });
 
@@ -75,5 +83,28 @@ describe("the API call", () => {
     const r = await clawpump<{ agents: unknown[] }>("cpk_test", "GET", "/agents", undefined, 1000, fetchImpl);
     expect(r.data.agents).toEqual([]);
     expect(r.requestId).toBe("r2");
+  });
+});
+
+describe("the agent's identity fields", () => {
+  const img = "https://kaustubh76.github.io/Blinds/launch/lender.png";
+  it("updates with what the API allows — snake_case, no persona", () => {
+    const f = agentFields("The Window Lender", img);
+    expect(f).toEqual({
+      name: "The Window Lender",
+      avatar_url: img,
+      is_public: true,
+      skills: ["token-launch", "wallet", "portfolio", "market-intelligence", "trading"],
+    });
+    expect(f).not.toHaveProperty("persona"); // "No allowed fields in request body" on an update
+    expect(f).not.toHaveProperty("avatarUrl");
+  });
+  it("carries the persona only where creation accepts it", () => {
+    expect(newAgentFields("The Window Lender", img)).toMatchObject({
+      persona: expect.stringContaining("autonomous lender"),
+    });
+  });
+  it("refuses a skill slug Clawpump does not know (this is what dropped the first update)", () => {
+    expect(() => agentFields("x", img, ["solana"])).toThrow(/not Clawpump skill slugs: solana/);
   });
 });

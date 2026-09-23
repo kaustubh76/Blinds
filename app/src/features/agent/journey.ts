@@ -24,6 +24,7 @@ export function journey(
   live: { isMigrated: boolean; progress: number } | null,
 ): JourneyStep[] {
   const agent = mainnet?.agent ?? devnet?.agent ?? null;
+  const past = mainnet?.previousGraduation ?? devnet?.previousGraduation ?? null;
   const coin = mainnet?.clawpump ?? devnet?.clawpump ?? null;
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
   const steps: JourneyStep[] = [
@@ -32,7 +33,7 @@ export function journey(
           id: "identity",
           title: "A Clawpump identity",
           state: "done",
-          detail: `${agent.name} · wallet ${short(agent.walletAddress)} — the pool's creator and fee wallet`,
+          detail: `${agent.name} · ${agent.status === "running" ? "running on Clawpump" : `status ${agent.status ?? "unknown"}`} · wallet ${short(agent.walletAddress)} — the pool's creator and fee wallet`,
           href: `https://explorer.solana.com/address/${agent.walletAddress}`,
         }
       : {
@@ -87,16 +88,26 @@ export function journey(
           id: "graduation",
           title: "Graduation to DAMM v2",
           state: "done",
-          detail: "the curve reached its threshold; liquidity is locked on DAMM v2",
+          detail: "this pool reached its threshold; its liquidity is locked on DAMM v2",
         }
-      : {
-          id: "graduation",
-          title: "Graduation to DAMM v2",
-          state: "pending",
-          detail: live
-            ? `${(live.progress * 100).toFixed(1)} % of the raise so far — buyers move the curve, nothing else does`
-            : "once the pool reads, its progress shows here",
-        },
+      : past
+        ? {
+            id: "graduation",
+            title: "Graduation to DAMM v2",
+            state: "done",
+            detail: `rehearsed end to end: pool ${short(past.pool)} filled its curve and migrated${past.dammPool ? ` into DAMM v2 pool ${short(past.dammPool)}` : ""} — the pool above is the live one${live ? `, ${(live.progress * 100).toFixed(1)} % of the way` : ""}`,
+            href: past.dammPool
+              ? `https://explorer.solana.com/address/${past.dammPool}?cluster=devnet`
+              : `https://explorer.solana.com/tx/${past.tx}?cluster=devnet`,
+          }
+        : {
+            id: "graduation",
+            title: "Graduation to DAMM v2",
+            state: "pending",
+            detail: live
+              ? `${(live.progress * 100).toFixed(1)} % of the raise so far — buyers move the curve, nothing else does`
+              : "once the pool reads, its progress shows here",
+          },
   ];
   return steps;
 }

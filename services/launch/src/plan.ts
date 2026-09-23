@@ -18,6 +18,7 @@ import {
   buildCurveWithMarketCap,
   CollectFeeMode,
   type ConfigParameters,
+  DAMM_V2_MIGRATION_FEE_ADDRESS,
   DammV2DynamicFeeMode,
   MigratedCollectFeeMode,
   MigrationFeeOption,
@@ -152,4 +153,16 @@ export function buildPlan(n: DeskNumbers): LaunchPlan {
       supply: n.supply,
     },
   };
+}
+
+/**
+ * The DAMM v2 config a migration must name: Meteora keeps one per `MigrationFeeOption`, and the pool's
+ * own config says which. Getting this wrong (a hard-coded FixedBps25 against a Customizable pool) is a
+ * migration that cannot pass the program's checks.
+ */
+export function dammConfigFor(migrationFeeOption: number, override?: string): string {
+  if (override) return override;
+  const addr = DAMM_V2_MIGRATION_FEE_ADDRESS[migrationFeeOption];
+  if (!addr) throw new Error(`no DAMM v2 config for migration fee option ${migrationFeeOption}`);
+  return addr.toString();
 }
