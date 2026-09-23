@@ -22,12 +22,17 @@ pub fn tick(ctx: &Ctx, prices: &mut PriceSources) -> Result<()> {
     tick_with(ctx, prices, false)
 }
 
-pub fn tick_with(ctx: &Ctx, prices: &mut PriceSources, prices_elsewhere: bool) -> Result<()> {
+/**
+ * The window itself: open the next epoch, or close the open one once its slots have elapsed. This is
+ * the one thing that must never wait behind anything else — a judge can only seal a bid while a window
+ * is open — so `main.rs` runs it on its own short clock. The rest of the keeper's work (loans, seizes,
+ * bid rent) scans every account over a rate-limited RPC and can take minutes.
+ */
+pub fn epoch_tick(ctx: &Ctx) -> Result<()> {
     let chain = ctx.chain.as_ref();
     let admin = &ctx.keys.admin;
     let slot = chain.slot()?;
     let Some(config) = read::<AuctionConfig>(chain, &pda::auction_config())? else { return Ok(()) };
-
     if !config.has_open_epoch {
         // open the next epoch unless the previous one is still Closed and unprinted for long — the
         // spec says the next opens regardless; the administrator handles late prints.
@@ -35,19 +40,26 @@ pub fn tick_with(ctx: &Ctx, prices: &mut PriceSources, prices_elsewhere: bool) -
         chain.send(admin, &[ix::open_epoch(&admin.pubkey(), index)], &[])?;
         ctx.metrics.epochs_opened.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         info!(epoch = index, slot, "epoch opened");
-        // a fresh price for every listing each epoch
-        post_prices(ctx, prices, slot, true)?;
-    } else {
-        let e = chain
-            .account_data(&pda::epoch(config.current_epoch))?
-            .and_then(|d| accounts::decode_epoch(&d));
-        if let Some(e) = e {
-            if e.status == EpochStatus::Open as u8 && slot >= e.start_slot + config.epoch_slots {
-                chain.send(admin, &[ix::close_epoch(&admin.pubkey(), e.index)], &[])?;
-                ctx.metrics.epochs_closed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                info!(epoch = e.index, slot, "epoch closed");
-            }
+    } else if let Some(e) = chain
+        .account_data(&pda::epoch(config.current_epoch))?
+        .and_then(|d| accounts::decode_epoch(&d))
+    {
+        if e.status == EpochStatus::Open as u8 && slot >= e.start_slot + config.epoch_slots {
+            chain.send(admin, &[ix::close_epoch(&admin.pubkey(), e.index)], &[])?;
+            ctx.metrics.epochs_closed.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            info!(epoch = e.index, slot, "epoch closed");
         }
+    }
+    Ok(())
+}
+
+pub fn tick_with(ctx: &Ctx, prices: &mut PriceSources, prices_elsewhere: bool) -> Result<()> {
+    let chain = ctx.chain.as_ref();
+    let admin = &ctx.keys.admin;
+    let slot = chain.slot()?;
+    let Some(config) = read::<AuctionConfig>(chain, &pda::auction_config())? else { return Ok(()) };
+    if !prices_elsewhere {
+        epoch_tick(ctx)?;
     }
     // Refresh each listing's price at half its freshness window so credit never sees a stale
     // cache. This is a staleness check, not `slot % period == 0`: the loop samples one slot per

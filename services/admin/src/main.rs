@@ -340,6 +340,30 @@ fn main() -> Result<()> {
                     std::thread::sleep(Duration::from_millis(price_tick_ms));
                 });
             }
+            // The window on its own clock, for the same reason. A judge can only seal a bid while one
+            // is open, and the main loop below can spend tens of minutes scanning loans on a
+            // rate-limited RPC — on 23 Sep that stretched the gap between windows past forty minutes.
+            {
+                let epoch_tick_ms: u64 = std::env::var("WINDOW_EPOCH_TICK_MS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(10_000);
+                let epoch_ctx = Ctx {
+                    chain: Box::new(RpcChain::new(&rpc)),
+                    keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
+                    profile: profile.clone(),
+                    deployment: deployment.clone(),
+                    metrics: metrics.clone(),
+                    backfill_epochs: 0,
+                    default_every,
+                };
+                std::thread::spawn(move || loop {
+                    if let Err(e) = keeper::epoch_tick(&epoch_ctx) {
+                        error!("epoch thread: {e:#}");
+                    }
+                    std::thread::sleep(Duration::from_millis(epoch_tick_ms));
+                });
+            }
             let admin = Administrator::new(profile.print.bsgs_baby_bits);
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");

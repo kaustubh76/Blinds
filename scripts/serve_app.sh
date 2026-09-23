@@ -49,7 +49,9 @@ case "${1:-status}" in
     }
     url=""
     for _ in $(seq 1 30); do
-      url="$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" | tail -1 || true)"
+      # `api.trycloudflare.com` is cloudflared's own control host — it appears in the log when a quick
+    # tunnel fails to start, and publishing it points the dashboard at nothing. Take a named tunnel only.
+    url="$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" | grep -v '^https://api\.' | tail -1 || true)"
       [ -n "$url" ] && break
       sleep 1
     done
