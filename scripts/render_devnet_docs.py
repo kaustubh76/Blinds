@@ -50,6 +50,19 @@ def launch_block():
             ("creator · fee wallet" + (" (the Clawpump agent)" if l.get("agent") else ""), l["creator"]),
         ]
         table = "\n".join(f"| {k} | [`{v}`]({exl(v)}) |" for k, v in rows)
+        past = l.get("previousGraduation") or {}
+        grad = l.get("graduated") or {}
+        done = grad or past
+        graduation = ""
+        if done:
+            pool_addr = l["pool"] if grad else past.get("pool", "")
+            damm = (grad or past).get("dammPool", "")
+            graduation = (
+                f"\nThe whole lifecycle has been run on this cluster: pool [`{pool_addr}`]({exl(pool_addr)}) filled its"
+                f" curve and migrated into DAMM v2 pool [`{damm}`]({exl(damm)})"
+                f" ([tx](https://explorer.solana.com/tx/{(grad or past).get('tx','')}"
+                f"{'' if cluster == 'mainnet' else '?cluster=devnet'})), with both LP positions permanently locked.\n"
+            )
         tx = l.get("txs", {}).get("createConfigAndPool", "")
         note = ("the mainnet pool, quoted in TSLAx" if cluster == "mainnet"
                 else "a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6)")
@@ -65,7 +78,10 @@ over one tenor, {n['creatorFeePct']} % of fees and {n['raiseToAgentPct']} % of t
 {table}
 {f"| launch tx | [`{tx}`](https://explorer.solana.com/tx/{tx}{'' if cluster == 'mainnet' else '?cluster=devnet'}) |" if tx else ""}
 
-The Market page's card and the Build page's `launch-status` recipe read this pool from raw bytes (`sdk.fetchDbc`).
+{graduation}
+The **Agent** page (`#/agent`) is where this lives: the journey from identity to graduation, the curve set from
+the desk's numbers beside what the chain says, and the Clawpump identity. The Market page carries the same card,
+and the Build page's `launch-status` recipe reads the pool from raw bytes (`sdk.fetchDbc`) in your tab.
 """
     return ""
 

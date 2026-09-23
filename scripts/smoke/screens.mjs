@@ -1,4 +1,4 @@
-// Re-takes docs/screens/*.png from the hosted site (or a dev server): the four pages in light and dark at
+// Re-takes docs/screens/*.png from the hosted site (or a dev server): five pages in light and dark at
 // 1280×1100, the Home page on a phone, and the lender agent's card on desktop and phone.
 // usage: node screens.mjs [base-url] [out-dir]
 import { mkdirSync } from "node:fs";

@@ -29,24 +29,26 @@ WINDOW_PROFILE=demo ./scripts/localnet.sh up &      # validator + setup (6 simul
 cd app && cp .env.example .env && pnpm dev           # http://localhost:5173
 ```
 
-The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Four pages, keys 1–4:
+The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Seven pages — *Home* (1),
+*Desk* (2), *Positions* (3), *Market* (4), *Agent* (5), *Explorer* (6), *Build* (7); the number keys switch
+between them. The four that carry the desk itself:
 
-1. **Market** — the hero xONIA figure with its sparkline, and *the window*: a ring that fills as the
+1. **Market** (key 4) — the hero xONIA figure with its sparkline, and *the window*: a ring that fills as the
    open epoch's slots elapse, then shows the print being proven tick by tick, then stamps the rate
    and keeps it until the next window opens. Below: the series (no-trade windows as hollow markers),
    the last proven curve, how-a-print-is-made tiles, and the public price with its feed's own
    timestamp.
-2. **Explorer** (`#/explorer/<epoch>`, linkable) — the 74 accumulators as sealed ciphertexts next
+2. **Explorer** (key 6, `#/explorer/<epoch>`, linkable) — the 74 accumulators as sealed ciphertexts next
    to the sums the print proved, the clearing rate row marked; *Re-verify in this browser* shows each
    stage of the work with its timing (fetch the accounts, find the attest transactions, extract the
    proofs, verify them in wasm, recompute r\*) and ends in a verdict that compares the printed rate
    with the recomputed one.
-3. **Desk** — five steps that say why they are blocked: *Derive keys* (two wallet signatures;
+3. **Desk** (key 2) — five steps that say why they are blocked: *Derive keys* (two wallet signatures;
    nothing leaves the tab) → *Join* (the demo faucet registers the key, mints 10,000 mock shares and
    sends 0.1 SOL) → *confidential account* → *Wrap* → *Seal and submit* a bid. Your own balances
    open in place, labelled "decrypted in this tab"; every transaction of a plan is listed with an
    explorer link.
-4. **Positions** — loan cards with a lifecycle track (matched → solvency proven → collateral in
+4. **Positions** (key 3) — loan cards with a lifecycle track (matched → solvency proven → collateral in
    escrow → locked → funded → repaid / defaulted), sizes and collateral sealed, and the one action
    that applies.
 
@@ -87,20 +89,25 @@ ours, and the depth they provide is not organic demand.
 
 **The lender agent's token** ([`docs/TRACKS.md`](TRACKS.md) Part B): `WLEND` on a Meteora Dynamic
 Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — $25,000 → $250,000
-fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $365.23 per quote
-(the curve raises 168.50 quote before it graduates), fee 300 → 30 bp
+fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $378.30 per quote
+(the curve raises 162.68 quote before it graduates), fee 300 → 30 bp
 over one tenor, 50 % of fees and 10 % of the raise to the agent. This is a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6).
 
 | | address |
 |---|---|
-| pool (Meteora DBC) | [`EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg`](https://explorer.solana.com/address/EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg?cluster=devnet) |
-| WLEND mint | [`72QJmsn48nkLKM6zDr5hjVvoEuJGrRRtS81iv8geZL1m`](https://explorer.solana.com/address/72QJmsn48nkLKM6zDr5hjVvoEuJGrRRtS81iv8geZL1m?cluster=devnet) |
-| config | [`HsfeZeTwmebMbu1Mtj2dLBU5EW2BvAhZErayN8RJGPZr`](https://explorer.solana.com/address/HsfeZeTwmebMbu1Mtj2dLBU5EW2BvAhZErayN8RJGPZr?cluster=devnet) |
+| pool (Meteora DBC) | [`B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm`](https://explorer.solana.com/address/B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm?cluster=devnet) |
+| WLEND mint | [`7n3bcPaqD3cSBndsW39uKavDJu4rwhMSbwwN2hiV8jpP`](https://explorer.solana.com/address/7n3bcPaqD3cSBndsW39uKavDJu4rwhMSbwwN2hiV8jpP?cluster=devnet) |
+| config | [`9UARa2GAvLc6aWnNGdnkP4DNJuTFD9zYgg8ghAGd8GAG`](https://explorer.solana.com/address/9UARa2GAvLc6aWnNGdnkP4DNJuTFD9zYgg8ghAGd8GAG?cluster=devnet) |
 | quote mint (a devnet twin of TSLAx) | [`GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn`](https://explorer.solana.com/address/GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn?cluster=devnet) |
 | creator · fee wallet | [`8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5`](https://explorer.solana.com/address/8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5?cluster=devnet) |
-| launch tx | [`5aadUBptReDHXuZkQzKDyA73JS6TuXvZQV5QPtrkdP9TcrErnTmhH2v4WgePdShhGzGMedYj4Akzbdqq5BY9AmmP`](https://explorer.solana.com/tx/5aadUBptReDHXuZkQzKDyA73JS6TuXvZQV5QPtrkdP9TcrErnTmhH2v4WgePdShhGzGMedYj4Akzbdqq5BY9AmmP?cluster=devnet) |
+| launch tx | [`3ASS2WF5ppFmfTk79tNadi9YoTMTKzB2xqo84JysijJ4xyqhJW6FGcUTee53BTuqR7KJ6MauY1GqZDun35j4SruA`](https://explorer.solana.com/tx/3ASS2WF5ppFmfTk79tNadi9YoTMTKzB2xqo84JysijJ4xyqhJW6FGcUTee53BTuqR7KJ6MauY1GqZDun35j4SruA?cluster=devnet) |
 
-The Market page's card and the Build page's `launch-status` recipe read this pool from raw bytes (`sdk.fetchDbc`).
+
+The whole lifecycle has been run on this cluster: pool [`EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg`](https://explorer.solana.com/address/EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg?cluster=devnet) filled its curve and migrated into DAMM v2 pool [`BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`](https://explorer.solana.com/address/BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe?cluster=devnet) ([tx](https://explorer.solana.com/tx/uBG36giq2rdd9KaHhxwU7menP84ZRabJUdrHvEuWAfpyRZX8NwdqJqBxGGiYuvzmt8niQ8XVpbpfssK9xaS64q3?cluster=devnet)), with both LP positions permanently locked.
+
+The **Agent** page (`#/agent`) is where this lives: the journey from identity to graduation, the curve set from
+the desk's numbers beside what the chain says, and the Clawpump identity. The Market page carries the same card,
+and the Build page's `launch-status` recipe reads the pool from raw bytes (`sdk.fetchDbc`) in your tab.
 
 ### Watch it yourself
 
@@ -132,10 +139,7 @@ your browser; pick a listing, and *Autopilot* runs derive → join → set up �
 every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
 the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
-key. *Agent* (key 5) is the lender agent — its journey to a token on mainnet, the Meteora curve set from the
-desk's numbers, its Clawpump identity. *Build* (key 7) has the recipes, the IDLs and the API for anyone who
-wants to integrate. Home's "built with" strip and the Market's PreStocks card (`#/market/prestocks`) are where
-Pyth, PreStocks, Meteora and Clawpump each show a live number.
+key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 

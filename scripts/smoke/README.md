@@ -10,7 +10,7 @@
 | `PROFILE=/tmp/judge node demo.mjs "<base>?admin=<faucet>" [listingKey]` | fresh burner → Autopilot → sealed bid |
 | `PROFILE=/tmp/judge node positions.mjs "<base>?admin=<faucet>"` | after the print: derive, lock, deposit |
 | `node shot.mjs <url> <out.png> [ms] [js]` | a screenshot and an evaluated expression |
-| `node screens.mjs [base] [out-dir]` | re-takes `docs/screens/*.png`: four pages light + dark, the Home phone, the lender agent's card |
+| `node screens.mjs [base] [out-dir]` | re-takes `docs/screens/*.png`: five pages light + dark, the Home phone, the lender agent's card |
 | `node png.mjs in.svg out.png [size]` | rasterises an SVG (token images for launch venues) |
 
 `RESOLVE="host ip"` maps a fresh trycloudflare name past a stale local resolver.
