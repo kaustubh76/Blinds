@@ -84,8 +84,8 @@ function RecipeCard({ r }: { r: Recipe }) {
           v = await r.run({ ...ctx, signal: c.signal });
           break;
         } catch (e) {
-          if (attempt >= 4 || c.signal.aborted || !/429/.test(e instanceof Error ? e.message : String(e))) throw e;
-          setLines((l) => [...l, `RPC answered 429 — retrying (${attempt}/3)`]);
+          if (attempt >= 4 || c.signal.aborted || !ctx.sdk.isTransientRpcError(e)) throw e;
+          setLines((l) => [...l, `the RPC did not answer (rate limit) — retrying (${attempt}/3)`]);
           await new Promise((res) => setTimeout(res, 1500 * attempt));
         }
       }

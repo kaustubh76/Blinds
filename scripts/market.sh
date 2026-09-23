@@ -61,6 +61,16 @@ open_tunnel() {
 case "${1:-status}" in
   start)
     [ -f "$BIN" ] || { echo "build it first: cargo build -p window-admin --release"; exit 1; }
+    # A release binary older than the source runs yesterday's keeper: that is how a market once served
+    # /marks without the fields the code already had. Refuse rather than mislead (WINDOW_SKIP_BUILD_CHECK=1 to skip).
+    if [ -z "${WINDOW_SKIP_BUILD_CHECK:-}" ]; then
+      newer=$(find services/admin/src crates programs -name '*.rs' -newer "$BIN" -print -quit 2>/dev/null || true)
+      if [ -n "$newer" ]; then
+        echo "refusing to start: $BIN is older than $newer"
+        echo "  cargo build -p window-admin --release   # then start again"
+        exit 1
+      fi
+    fi
     [ -f .env ] && { set -a; . ./.env; set +a; }
     : "${WINDOW_AUDITOR_SEED_HEX:?the auditor seed must be the same one the deployment was set up with}"
     pgrep -f "window-admin --cluster $CLUSTER" >/dev/null && { echo "already running"; exit 0; }

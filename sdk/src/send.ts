@@ -157,6 +157,12 @@ export function isTransientRpcError(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
   const status = (e as { context?: { statusCode?: number } }).context?.statusCode;
   if (status === 429 || (status !== undefined && status >= 500)) return true;
+  // `@solana/kit` reports an HTTP failure as error 8100002 with the status inside its context, so the
+  // message a caller sees says "Solana error #8100002" and nothing about 429. Treat the code as transient.
+  const code = (e as { context?: { __code?: number }; cause?: unknown }).context?.__code;
+  if (code === 8100002) return true;
   const message = e instanceof Error ? e.message.toLowerCase() : "";
-  return /too many requests|timed out|timeout|connection|socket|fetch failed|econnreset/.test(message);
+  if (/8100002/.test(message)) return true;
+  if ((e as { cause?: unknown }).cause && isTransientRpcError((e as { cause?: unknown }).cause)) return true;
+  return /too many requests|timed out|timeout|connection|socket|fetch failed|econnreset|429/.test(message);
 }

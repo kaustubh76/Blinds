@@ -1,6 +1,7 @@
 {
   "cluster": "devnet",
-  "createdAt": "2026-09-23T05:05:20.280Z",
+  "createdAt": "2026-09-23T07:27:48.321Z",
+  "payer": "8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5",
   "quote": {
     "mint": "GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn",
     "decimals": 8,
@@ -8,7 +9,7 @@
     "feed": "Crypto.TSLAX/USD",
     "pythAccount": "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY",
     "publishTime": 1790077381,
-    "ageSecs": 62539
+    "ageSecs": 71087
   },
   "numbers": {
     "quoteUsd": 378.29961651,
