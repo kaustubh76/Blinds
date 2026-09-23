@@ -153,7 +153,10 @@ interface LaunchFile extends PlanFile {
 
 /** The recorded agent (from `agent`), wherever it was written: the launch file first, else the plan file. */
 const recordedAgent = () =>
-  readJson<LaunchFile>(LAUNCH_FILE)?.agent ?? readJson<PlanFile & { agent?: LaunchFile["agent"] }>(PLAN_FILE)?.agent;
+  readJson<LaunchFile>(LAUNCH_FILE)?.agent ??
+  readJson<PlanFile & { agent?: LaunchFile["agent"] }>(PLAN_FILE)?.agent ??
+  // The identity is one wallet on mainnet whichever cluster a pool lives on: the mainnet plan holds it.
+  readJson<PlanFile & { agent?: LaunchFile["agent"] }>(resolve(ROOT, "deployments", "launch-plan-mainnet.json"))?.agent;
 const LAMPORTS = 1_000_000_000;
 /** Pool creation cost 0.0266 SOL on devnet (tx 5aadUBpt…); this leaves room for fees and a retry. */
 const LAUNCH_MIN_SOL = 0.04;
@@ -276,6 +279,8 @@ export async function preflight(conn: Connection, payer: Keypair, file: PlanFile
   checks.push({
     what: "the pool's creator and fee claimer is the agent's wallet",
     ok: !!agent && creator === agent.walletAddress,
+    // Whose wallet takes the fees is the operator's call, not a bug: `launch` warns and proceeds.
+    needsYou: true,
     detail: agent
       ? creator === agent.walletAddress
         ? `${creator} (${agent.name}, Clawpump status ${agent.status ?? "unknown"})`

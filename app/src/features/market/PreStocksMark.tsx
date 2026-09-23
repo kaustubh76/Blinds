@@ -154,7 +154,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             }
           />
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Stat
             label="haircut"
             value={listing ? `${Number(listing.haircutBps) / 100}%` : "—"}
