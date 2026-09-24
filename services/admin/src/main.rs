@@ -364,15 +364,38 @@ fn main() -> Result<()> {
                     std::thread::sleep(Duration::from_millis(epoch_tick_ms));
                 });
             }
-            let admin = Administrator::new(profile.print.bsgs_baby_bits);
+            // The administrator on its own clock too: a window that closes on time is no use if the
+            // print and the matches then wait behind a loan scan. Same pattern as prices and epochs.
+            {
+                let admin_tick_ms: u64 = std::env::var("WINDOW_ADMIN_TICK_MS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(10_000);
+                let admin_ctx = Ctx {
+                    chain: Box::new(RpcChain::new(&rpc)),
+                    keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
+                    profile: profile.clone(),
+                    deployment: deployment.clone(),
+                    metrics: metrics.clone(),
+                    backfill_epochs: 25,
+                    default_every,
+                };
+                let bsgs = profile.print.bsgs_baby_bits;
+                std::thread::spawn(move || {
+                    let administrator = Administrator::new(bsgs);
+                    loop {
+                        if let Err(e) = administrator.tick(&admin_ctx) {
+                            error!("administrator thread: {e:#}");
+                        }
+                        std::thread::sleep(Duration::from_millis(admin_tick_ms));
+                    }
+                });
+            }
             let solver = window_admin::administrator::solver(16);
             info!(cluster = %cli.cluster, profile = %cli.profile, "admin service running (administrator + keeper + operator + price poster; one disclosed key)");
             loop {
                 if let Err(e) = keeper::tick_with(&ctx, &mut prices, true) {
                     error!("keeper: {e:#}");
-                }
-                if let Err(e) = admin.tick(&ctx) {
-                    error!("administrator: {e:#}");
                 }
                 if let Err(e) = operator::tick(&ctx, &solver) {
                     error!("operator: {e:#}");
