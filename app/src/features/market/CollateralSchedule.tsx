@@ -58,12 +58,12 @@ export function CollateralSchedule() {
         ))}
       </div>
       <details className="group">
-        <summary className="cursor-pointer list-none text-sm text-accent hover:underline">
+        <summary className="-my-2 cursor-pointer list-none py-2 text-sm text-accent hover:underline">
           <span className="group-open:hidden">show the rules per listing →</span>
           <span className="hidden group-open:inline">hide the table</span>
         </summary>
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="mono text-[11px] uppercase tracking-[0.14em] text-ink-3">
               <tr>
                 <th className="py-2 pr-4 font-medium">listing</th>

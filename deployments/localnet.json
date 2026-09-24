@@ -1,6 +1,6 @@
 {
   "cluster": "localnet",
-  "profile": "integration",
+  "profile": "demo",
   "programs": {
     "window_auction": "HGToTRudawYs9WXSxQdi854A7PiEfUeiNi5GDSXfXQb6",
     "window_credit": "3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr",
@@ -8,10 +8,10 @@
     "window_registry": "3Q49UcynVxvbrV9zw4M9bkMKrsQ2x6YvHtY1tgAjgKpi",
     "window_wrap": "E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3"
   },
-  "mock_mint": "7J3kt8ocU7qDaF6xtQ7ohXeaVDP9jj9NFLavpDRXqUQp",
-  "cstock_mint": "2GbuFQcJaGmzzvwyuhYtTfTrhmT1XHrKXAt6GFzzVxp1",
+  "mock_mint": "5HTSZCEQYQtX7xKfE3Hmnhz43xUwpSJpFDXafTTxgXx1",
+  "cstock_mint": "5UYwQmM4soizuHUrr6ftTqMyJHzRahStc5E3jPpUCNDS",
   "decimals": 3,
-  "escrow_account": "GTXQRvYcDBdWvSCRUWRH5ZyevxWcK6EWbJWzJk29pk5W",
+  "escrow_account": "6viCGhD56dT74xrL9zLbJX5fV5yo7dWRfmStHPovnVGF",
   "feed_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
   "auditor_elgamal_pubkey_hex": "e43662e0937c9de3ae783b774c7160920ad3b1ab766a61b30df4e4ebe0bea70a",
   "listings": [
@@ -19,77 +19,79 @@
       "key": "mock_tsla",
       "symbol": "TSLAx-mock",
       "source": "mock",
-      "listing": "43sSDsZ4vw6a6tbeSMzS9wv3A7zeXnjYisugjhgfSB25",
-      "mock_mint": "7J3kt8ocU7qDaF6xtQ7ohXeaVDP9jj9NFLavpDRXqUQp",
-      "cstock_mint": "2GbuFQcJaGmzzvwyuhYtTfTrhmT1XHrKXAt6GFzzVxp1",
-      "escrow_account": "GTXQRvYcDBdWvSCRUWRH5ZyevxWcK6EWbJWzJk29pk5W",
+      "listing": "9TqFvEdpvdFBAKwv7ztcp7qA6AMJnuzqQjiRGyCtVLPy",
+      "mock_mint": "5HTSZCEQYQtX7xKfE3Hmnhz43xUwpSJpFDXafTTxgXx1",
+      "cstock_mint": "5UYwQmM4soizuHUrr6ftTqMyJHzRahStc5E3jPpUCNDS",
+      "escrow_account": "6viCGhD56dT74xrL9zLbJX5fV5yo7dWRfmStHPovnVGF",
       "feed_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
       "decimals": 3,
       "haircut_bps": 15000,
-      "max_price_age_slots": 30,
-      "max_publish_age_secs": 3600
+      "max_price_age_slots": 75,
+      "max_publish_age_secs": 3600,
+      "price_source": 3
     },
     {
       "key": "mock_preipo",
       "symbol": "PREIPO-mock",
       "source": "mock",
-      "listing": "65EENMPKQPYwgZuihJvSLKdJLpDfoeNxxyH8dpN8kHiM",
-      "mock_mint": "BQzbPgutKxusjMTgdvNUyxwATqprnWfZXkLyaqxUEXJW",
-      "cstock_mint": "2PsJjNJS5YdiR9yXu7WRS1TKM3Tq1j8LAQ2VoqkDGGbC",
-      "escrow_account": "DhraaY4fzS76GcYnkK9DxGHiyomejcaiHzqGJnSjEbUM",
+      "listing": "8X4ewFAUU8Se8g4igCf9sWXhJu8hLQq892zEbAjNn1n9",
+      "mock_mint": "9nXQrFBLnZ1fuN83BmyZjxNJWg52orRkae7KNoN26NAh",
+      "cstock_mint": "A3q9Etf3ZoQwqKDWZGSrVrLvMMkigpw56zwvFcBp8bmn",
+      "escrow_account": "8QbGe8y8wTXbkeRs7gnFWoSt3CymsXKCZWc1Rng685KE",
       "feed_id_hex": "0000000000000000000000000000000000000000000000000000000000000000",
       "decimals": 3,
       "haircut_bps": 20000,
-      "max_price_age_slots": 30,
-      "max_publish_age_secs": 172800
+      "max_price_age_slots": 75,
+      "max_publish_age_secs": 172800,
+      "price_source": 3
     }
   ],
   "agents": [
     {
       "index": 0,
       "wallet": "Dt9QKR34p3ruaaG6zNHkTvEDmsMDXs3oxAdbHLoaf5Q",
-      "mock_account": "ExTPhzBnmBsbPXx3xdDoYvbo26UwKPx6Rvp2KSsx4kz1",
-      "cstock_account": "5gS8hwTz3hX848PCUC25hhGiTwyDvYUWrBsgBxqMpQDB",
+      "mock_account": "fPsp9P5gy2RMhYNs1yjmfcs3Tf3DwDzPdhAq6Y5AmHH",
+      "cstock_account": "87aHGDNhCKAiegGVRSQwzQvu9uCdnC6hAyvEkPrnYrV5",
       "role": "lender",
       "listing": 0
     },
     {
       "index": 1,
       "wallet": "3hBNpbpceSufgwzhmqtGVWyAiQDwVkgT6N6tLwnH6KvQ",
-      "mock_account": "GtGaFPfPcY9YHHkUPywbqygA1XERMU3he8Sd2TWDZueN",
-      "cstock_account": "Ga3vXFT19BMdPfQLhd1f7wFCYtzeoD7LfpAoQoJU13W8",
+      "mock_account": "C24V4umWd58mu4yDo2YzCvnYHkiuSXfsh9RZ2DsaufYq",
+      "cstock_account": "9Q43VGuGLWdsYEnB1K9Y9JG2ccPeofs25yvzZMdmVQUB",
       "role": "borrower",
       "listing": 0
     },
     {
       "index": 2,
       "wallet": "9EZ3r23CqXboSLDKaVjoqMvCSWQWT8tbzsAi24UrCjLW",
-      "mock_account": "4azKm9gw5dX1B5LhLHhLPXCN5SPUouRSdWXioGjvyESo",
-      "cstock_account": "93Y1ghrL1PnZ7kne9mu4eSJatXV5hxNCvbC8BehpqGrf",
+      "mock_account": "6acK4S8pKfgEe7BCb5d41TiHJxVUPYwarce1a4WHBFYG",
+      "cstock_account": "6T4UXyfuEPvNxCT26XzgqknkM9FxbPk49kmqcnodNgDi",
       "role": "lender",
       "listing": 0
     },
     {
       "index": 3,
       "wallet": "3YqysNXwf7mBdZpkexTTezdr64WjDu2fJGoTGuog7CcP",
-      "mock_account": "CXt8NHRoz3fGfZz2NBd5ozjSV8r7kBCDtqA3KWY5aURJ",
-      "cstock_account": "DuNco36L9hyGyHDn7soomuKNMQ2Mub231nezuBwXGVDC",
+      "mock_account": "7d67TH36jZHjxn7NoZLCJf1XQ6epp3TF6Z4G2CaeL2hr",
+      "cstock_account": "3UVPjxK53VKrshbMqUKBpDUyn7N8A6UaYAvc1VKRfQAx",
       "role": "borrower",
       "listing": 1
     },
     {
       "index": 4,
       "wallet": "BdZzw1HaDPb5J33pRgJ8K2UJRQR6Rayv3gJpjVEfFZz5",
-      "mock_account": "HzcpRPNEiqiwTbFKFyixUZCWwGY9DR7LqWQZdyuFcwdd",
-      "cstock_account": "5EbubHV11uVpJ5hucPhewSYCDNYSUcWzrW46pPUhbFZA",
+      "mock_account": "73vMY2Hk5FcyByZ5WQnu6FwAUZyYuARgZam4evugyg7h",
+      "cstock_account": "5jVCw61r2UqEBkKcnkxJsJySXsviLUGZskiqYaT42oih",
       "role": "lender",
       "listing": 0
     },
     {
       "index": 5,
       "wallet": "BbZCEcHnfKpg67rqU5CHNaNTQR5khnhrZNujPuma9cX4",
-      "mock_account": "y4Nz7Fhi6f9jPXkeJJXciUev95wTgVmbqgS4578vPVk",
-      "cstock_account": "HVCJdDwZccpsinvnQNc1LXkwJKTDELbGbFC61vgQNnk3",
+      "mock_account": "76p5sBiZs2TmLJL6p5rmWhWzrBWMKyKNBdaKMdup3LHV",
+      "cstock_account": "9KwtG8nfJWpbFQTxaKKcZChwpDZdrPH2WHSyP29uqqGz",
       "role": "borrower",
       "listing": 0
     }

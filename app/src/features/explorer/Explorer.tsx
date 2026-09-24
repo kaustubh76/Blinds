@@ -17,9 +17,9 @@ import { formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
 import { useAuctionConfig, useEpoch, usePrint, useSlot } from "../../lib/queries";
 import { useHashRoute } from "../../lib/useHashRoute";
 import { popcount } from "../../lib/useWindowClock";
-import { AccumulatorWall } from "./AccumulatorWall";
+import { ACCUMULATORS, AccumulatorWall } from "./AccumulatorWall";
 import { DepthChart } from "./DepthChart";
-import { useVerify } from "./useVerify";
+import { onChainPrint, useVerify } from "./useVerify";
 
 const STATUS: Record<number, { label: string; tone: "good" | "mute" | "accent" | "warn" }> = {
   [EpochStatus.Open]: { label: "open", tone: "good" },
@@ -150,7 +150,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
             Epochs are numbered from 0; the latest is {latest?.toString() ?? "—"}.
           </EmptyState>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
             <Stat
               label="clearing rate"
               value={p?.status === PrintStatus.Printed ? formatRate(p.rStarTick) : p ? PSTATUS[p.status] : "—"}
@@ -191,9 +191,9 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <Card
             eyebrow="accumulators · what anyone can read"
-            title="74 sealed sums"
+            title={`${ACCUMULATORS} sealed sums`}
             right={
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-2">
+              <label className="-my-2 flex cursor-pointer items-center gap-2 py-2 text-xs text-ink-2">
                 <input type="checkbox" checked={showAll} onChange={(ev) => setShowAll(ev.target.checked)} />
                 show all {quietTicks > 0 ? `(${quietTicks} rates without bids)` : "rates"}
               </label>
@@ -236,9 +236,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
                 running={verify.running}
                 result={verify.result}
                 error={verify.error}
-                onChain={
-                  p ? { rStar: p.status === PrintStatus.Printed ? p.rStarTick : null, matched: p.matchedVolume } : null
-                }
+                onChain={onChainPrint(p ?? null)}
                 cluster={config.cluster === "devnet" ? "devnet" : "custom"}
               />
             </Card>
@@ -251,7 +249,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
               }
             >
               {depth ? (
-                <DepthChart curve={cumulative(depth.curve)} rStar={clearing?.rStar ?? null} height={200} />
+                <DepthChart curve={cumulative(depth.curve)} rStar={clearing?.rStar ?? null} height={220} />
               ) : (
                 <EmptyState title="The curve appears with the print." />
               )}

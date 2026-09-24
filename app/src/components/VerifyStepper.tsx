@@ -2,8 +2,8 @@
  * The trust moment, shown as work: what is fetched, from where, and what is checked, with the
  * elapsed time of each stage. The copy says exactly what is and is not being trusted.
  */
-import type { PrintVerdict } from "@thewindow/solana-sdk";
-import type { StageRecord, UiStage, VerifyResult } from "../features/explorer/useVerify";
+import { type PrintVerdict, TICKS } from "@thewindow/solana-sdk";
+import { type StageRecord, type UiStage, type VerifyResult, verified } from "../features/explorer/useVerify";
 import { formatRate, formatUsdc } from "../lib/format";
 import { Icon } from "./Icon";
 import { Badge, ExplorerLink } from "./ui";
@@ -14,7 +14,7 @@ const TITLE: Record<UiStage, string> = {
   signatures: "Find the attest transactions on the Print account",
   transactions: "Download them and extract the inline zero-ciphertext proofs",
   proofs: "Assemble the proof data",
-  verify: "Verify every proof against the 74 on-chain accumulators, in wasm",
+  verify: `Verify every proof against the ${2 * TICKS} on-chain accumulators, in wasm`,
   clear: "Recompute r* and the matched volume from the proven sums",
 };
 
@@ -110,7 +110,7 @@ export function Verdict({
   const v: PrintVerdict = result.verdict;
   const agree =
     onChain && result.local ? onChain.rStar === result.local.rStar && onChain.matched === result.local.matched : null;
-  const ok = v.ok && agree !== false;
+  const ok = verified(result, onChain);
   return (
     <div
       className={`mt-4 rounded-[var(--radius-md)] border px-4 py-3 animate-stamp ${

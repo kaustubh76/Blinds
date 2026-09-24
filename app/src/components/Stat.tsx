@@ -32,7 +32,7 @@ export function Stat({
         <div
           className={
             hero
-              ? "text-[56px] leading-none font-semibold tracking-tight text-ink-1"
+              ? "text-[clamp(38px,9vw,56px)] leading-none font-semibold tracking-tight text-ink-1"
               : "text-2xl font-semibold text-ink-1"
           }
         >

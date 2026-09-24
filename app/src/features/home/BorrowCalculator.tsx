@@ -8,6 +8,7 @@ import {
   collateralPledge,
   collateralRequired,
   multiplierScaled,
+  PLEDGE_CUSHION_PCT,
   priceCents,
   solvencyScalars,
 } from "@thewindow/solana-sdk";
@@ -24,7 +25,7 @@ type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "
 export interface Quote {
   /** Milli-shares the program requires (`c·k_c ≥ ℓ·k_l`). */
   required: bigint;
-  /** The desk's pledge policy (160 % of the requirement). */
+  /** The desk's pledge policy (`PLEDGE_RATIO` of the requirement). */
   pledge: bigint;
   /** USD value of the pledge at the mark. */
   pledgeUsd: number;
@@ -79,16 +80,16 @@ export function BorrowCalculator({
         <div>
           <div className="t-eyebrow">borrow</div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl font-semibold text-ink-1">$</span>
+            <span className="shrink-0 text-2xl font-semibold text-ink-1">$</span>
             <input
               inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               aria-label="USDC to borrow"
-              className="num w-full bg-transparent text-4xl font-semibold tracking-tight text-ink-1 outline-none placeholder:text-ink-3"
+              className="num min-w-0 flex-1 bg-transparent text-4xl font-semibold tracking-tight text-ink-1 outline-none placeholder:text-ink-3"
               placeholder="1000"
             />
-            <span className="text-sm text-ink-3">USDC</span>
+            <span className="shrink-0 text-sm text-ink-3">USDC</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {[250, 1_000, 5_000, 25_000].map((v) => (
@@ -96,7 +97,7 @@ export function BorrowCalculator({
                 key={v}
                 type="button"
                 onClick={() => setAmount(String(v))}
-                className="rounded-full border border-line px-2.5 py-0.5 text-xs text-ink-2 hover:border-line-strong hover:text-ink-1"
+                className="rounded-full border border-line px-3 py-0.5 text-xs text-ink-2 hover:border-line-strong hover:text-ink-1 [@media(pointer:coarse)]:min-h-11"
               >
                 ${v.toLocaleString("en-US")}
               </button>
@@ -140,7 +141,7 @@ export function BorrowCalculator({
             </div>
             <div className="mt-1 text-sm text-ink-2">
               {q
-                ? `≈ ${q.pledgeUsd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} at the live mark — ${Number(listing?.haircutBps ?? 0n) / 100}% coverage plus the desk's 60% cushion`
+                ? `≈ ${q.pledgeUsd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} at the live mark — ${Number(listing?.haircutBps ?? 0n) / 100}% coverage plus the desk's ${PLEDGE_CUSHION_PCT}% cushion`
                 : price
                   ? "enter an amount"
                   : "no quote for this listing yet"}

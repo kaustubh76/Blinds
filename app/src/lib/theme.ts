@@ -9,12 +9,17 @@ const cache = new Map<string, string>();
 export type Theme = "light" | "dark" | "system";
 export const THEME_KEY = "thewindow:theme";
 const listeners = new Set<() => void>();
+/** Set once the visitor picks a theme here, which retires the `?theme=` link for this page load. */
+let chosenHere = false;
 
 function readTheme(): Theme {
   try {
-    // `?theme=light|dark` wins for this page load (demos, screenshots).
-    const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("theme") : null;
-    if (q === "light" || q === "dark") return q;
+    // `?theme=light|dark` wins for this page load (demos, screenshots) — until the visitor uses the
+    // header toggle, which must then be able to move it back. Without this the toggle worked once.
+    if (!chosenHere) {
+      const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("theme") : null;
+      if (q === "light" || q === "dark") return q;
+    }
     const v = localStorage.getItem(THEME_KEY);
     return v === "light" || v === "dark" ? v : "system";
   } catch {
@@ -32,6 +37,7 @@ export function applyTheme(t: Theme): void {
 }
 
 export function setTheme(t: Theme): void {
+  chosenHere = true;
   try {
     if (t === "system") localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, t);
@@ -53,10 +59,16 @@ export function resolvedTheme(): "light" | "dark" {
 const subscribe = (l: () => void) => {
   listeners.add(l);
   const mq = typeof window !== "undefined" ? window.matchMedia?.("(prefers-color-scheme: dark)") : null;
-  mq?.addEventListener?.("change", l);
+  // The system flipping theme changes every token, so the cache must go with it — `applyTheme` does
+  // this for an explicit choice; without it here, `token()` kept serving the old theme's values.
+  const onChange = () => {
+    cache.clear();
+    l();
+  };
+  mq?.addEventListener?.("change", onChange);
   return () => {
     listeners.delete(l);
-    mq?.removeEventListener?.("change", l);
+    mq?.removeEventListener?.("change", onChange);
   };
 };
 
@@ -77,6 +89,21 @@ export function token(name: string): string {
     typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(key).trim();
   if (v) cache.set(key, v);
   return v || "currentColor";
+}
+
+/**
+ * The chart palette, re-read whenever the theme changes.
+ *
+ * `chartTheme()` alone is not enough in a route: `App` does not re-render on a theme change, so the
+ * element it passes as `Shell`'s children is the same object and React bails out of the whole route
+ * subtree — a chart would keep the previous theme's hexes until its next poll. Subscribing here
+ * re-renders the chart itself, whatever its parents do.
+ */
+export function useChartTheme(): ReturnType<typeof chartTheme> {
+  // The subscription is the point, not its value: it re-renders this chart on a theme change. By
+  // then `applyTheme` has dropped the token cache, so `chartTheme()` reads what is now on screen.
+  useSyncExternalStore(subscribe, resolvedTheme, () => "light" as const);
+  return chartTheme();
 }
 
 export const chartTheme = () => ({

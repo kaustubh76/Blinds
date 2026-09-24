@@ -7,7 +7,7 @@ import { ListingCard } from "../../components/ListingCard";
 import { Button, Callout, Pill, Section } from "../../components/ui";
 import { WindowClock } from "../../components/WindowClock";
 import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
-import { formatRate, formatUsdc } from "../../lib/format";
+import { capitalize, countWord, formatRate, formatUsdc } from "../../lib/format";
 import { LAUNCH } from "../../lib/launch";
 import { useSelectedListing } from "../../lib/listings";
 import { useDeployment, useOracle, usePrices, useSeries, useSlot } from "../../lib/queries";
@@ -124,7 +124,7 @@ export function Home() {
       {/* Collateral */}
       <Section
         eyebrow="what you can bring"
-        title={`${["No", "One", "Two", "Three", "Four"][listings.length] ?? listings.length} collateral${listings.length === 1 ? "" : "s"}, one rate`}
+        title={`${capitalize(countWord(listings.length))} collateral${listings.length === 1 ? "" : "s"}, one rate`}
         lead="Each listing is marked by its own source and carries its own haircut; the chain refuses a lock or a seizure when the quote is not fresh."
         right={
           <a href="#/market" className="text-sm text-accent hover:underline">

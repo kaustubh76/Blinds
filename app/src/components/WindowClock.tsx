@@ -125,7 +125,7 @@ export function PhaseDot({ phase }: { phase: Phase }) {
       ? "bg-lend"
       : phase === "printing" || phase === "printed"
         ? "bg-accent"
-        : phase === "closed" || phase === "overdue"
+        : phase === "overdue"
           ? "bg-status-warning"
           : "bg-ink-3";
   return (

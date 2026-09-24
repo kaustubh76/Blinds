@@ -17,6 +17,7 @@ import {
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { asCode } from "../../lib/asCode";
+import { backdrop } from "../../lib/backdrop";
 import { saveBid } from "../../lib/bidBook";
 import { bytesToHex, joinDesk, rentFor, retry, rpc } from "../../lib/chain";
 import { devConsole } from "../../lib/console";
@@ -24,6 +25,16 @@ import { useSelectedListing } from "../../lib/listings";
 import { useAuctionConfig, useDeployment, useMember, useTokenAccounts } from "../../lib/queries";
 import { type OnStep, type StepReport, sendPlan } from "../../lib/send";
 import { useAccountSigners, useSession } from "../../lib/wallet";
+
+/**
+ * How far past the last print the autopilot bids, in ticks. Exported because the Desk states it in
+ * words: a margin changed in one place and not the other is how the page came to claim 50 bp while
+ * the code moved four ticks.
+ */
+export const AUTOPILOT_TICK_MARGIN = 4;
+
+/** Where the autopilot bids when nothing has printed yet and there is no clearing rate to beat. */
+export const AUTOPILOT_FALLBACK_TICK = 8;
 
 export function useSteps() {
   const [steps, setSteps] = useState<StepReport[]>([]);
@@ -264,7 +275,10 @@ export function useDesk(account: UiWalletAccount) {
       });
       return sigs;
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      backdrop.pulse("bid");
+    },
   });
 
   // The latest rendered state, for the autopilot to wait on between steps (queries refetch after
@@ -333,12 +347,12 @@ export function useDesk(account: UiWalletAccount) {
       // last print was tick 13, this bid went in at 15, and the window cleared at 16, so it missed
       // by one tick and the demo had nothing to lock.
       const oracle = await retry(() => fetchOracle(rpc));
-      let tick = 8;
+      let tick = AUTOPILOT_FALLBACK_TICK;
       if (oracle?.hasPrinted) {
         const last = await retry(() => fetchPrint(rpc, oracle.lastPrintEpoch));
         if (last?.status === PrintStatus.Printed) tick = last.rStarTick;
       }
-      const margin = 4;
+      const margin = AUTOPILOT_TICK_MARGIN;
       tick = Math.max(0, Math.min(TICKS - 1, tick + (opts.side === 1 ? margin : -margin)));
       note(
         `sealing a ${opts.side === 1 ? "borrow" : "lend"} bid at tick ${tick} (last print ${opts.side === 1 ? "+" : "−"} ${margin}; everyone matched clears at r*, so this only buys fill probability)`,

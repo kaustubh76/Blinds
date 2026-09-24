@@ -15,6 +15,8 @@ interface Window {
     rpc: import("./lib/chain").Rpc;
     config: import("./config").Resolved;
     console: typeof import("./lib/console").devConsole;
+    /** The backdrop's store — `thewindow.backdrop.pulse("print")` stamps the field on stage. */
+    backdrop: typeof import("./lib/backdrop").backdrop;
     queryClient: import("@tanstack/react-query").QueryClient;
     /** Every listing with its mark, both freshness verdicts and PDAs — `await thewindow.schedule()`. */
     schedule: () => Promise<unknown>;

@@ -177,6 +177,39 @@ export const useMarks = () => {
   });
 };
 
+/** What `GET <admin>/faucet` answers: the demo faucet's remaining budget this hour. */
+export interface FaucetStatus {
+  remaining_this_hour: number;
+  max_per_hour: number;
+  min_balance_sol: number;
+}
+
+/**
+ * `GET <admin>/faucet` — how much of the demo faucet's hourly budget is left. The Desk says so
+ * before a Join rather than letting a rate limit arrive as an unexplained failure. `null` without an
+ * admin URL, or from a service older than the route.
+ */
+export const useFaucet = () => {
+  const dep = useDeployment();
+  const base = dep.data?.adminUrl ?? config.adminUrl ?? "";
+  return useQuery<FaucetStatus | null>({
+    queryKey: ["faucet", base],
+    queryFn: async () => {
+      if (!base) return null;
+      try {
+        const res = await fetch(`${base}/faucet`, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return null;
+        return (await res.json()) as FaucetStatus;
+      } catch {
+        return null;
+      }
+    },
+    enabled: dep.isFetched,
+    refetchInterval: 60_000,
+    retry: 0,
+  });
+};
+
 /** All listings' price caches in one call (the public RPC rate-limits a query per row); retried through 429s. */
 /** Every listing's quote, read the way the program reads it (cache PDA, or the Pyth account for source 4), in one RPC call. */
 export const usePrices = (listings: QuoteSource[] | undefined) =>

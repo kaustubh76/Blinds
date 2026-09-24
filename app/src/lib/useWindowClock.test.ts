@@ -1,7 +1,16 @@
 import type { auction, oracle } from "@thewindow/solana-sdk";
 import { EpochStatus, PrintStatus } from "@thewindow/solana-sdk";
-import { describe, expect, it } from "vitest";
-import { derivePhase, popcount } from "./useWindowClock";
+import { beforeEach, describe, expect, it } from "vitest";
+import { SLOT_SECONDS_DEFAULT, setSlotSeconds, slotSeconds } from "./slotTime";
+import {
+  type Clock,
+  derivePhase,
+  estimatedSlot,
+  popcount,
+  recordPolledSlot,
+  resetSlotEstimate,
+  transitionNote,
+} from "./useWindowClock";
 
 const epoch = (over: Partial<auction.Epoch>): auction.Epoch =>
   ({ index: 7n, startSlot: 1_000n, closeSlot: 0n, status: EpochStatus.Open, totalBids: 3, ...over }) as auction.Epoch;
@@ -78,5 +87,107 @@ describe("window clock", () => {
 
   it("no epoch at all is idle", () => {
     expect(derivePhase({ ...base, epoch: null, print: null, slot: 5 }).phase).toBe("idle");
+  });
+});
+
+const clock = (over: Partial<Clock>): Clock =>
+  ({
+    phase: "open",
+    epoch: 7n,
+    progress: 0.5,
+    secondsLeft: 60,
+    bids: 3,
+    attested: 0,
+    nonzero: 0,
+    rStar: null,
+    matched: null,
+    slot: 1_500,
+    ...over,
+  }) as Clock;
+
+describe("transitionNote", () => {
+  it("says nothing while loading, or before the first slot of an open window", () => {
+    expect(transitionNote(clock({ phase: "loading" }), "")).toBeNull();
+    expect(transitionNote(clock({ phase: "open", slot: null }), "")).toBeNull();
+  });
+
+  // The key used to live in a `useRef`, so every mounted clock announced the same transition again —
+  // two or three console lines and two or three backdrop pulses for one fact.
+  it("announces a transition once, however many callers ask", () => {
+    const c = clock({ phase: "printed", epoch: 7n });
+    const first = transitionNote(c, "");
+    expect(first).not.toBeNull();
+    expect(transitionNote(c, first?.key ?? "")).toBeNull();
+    expect(transitionNote(c, first?.key ?? "")).toBeNull();
+  });
+
+  it("marks only the very first transition of a page load as on-load", () => {
+    expect(transitionNote(clock({ phase: "open" }), "")?.first).toBe(true);
+    expect(transitionNote(clock({ phase: "open" }), "7:printed")?.first).toBe(false);
+  });
+
+  it("pulses a print, pulses an open window that was watched, and nothing else", () => {
+    expect(transitionNote(clock({ phase: "printed" }), "7:printing")?.pulse).toBe("print");
+    expect(transitionNote(clock({ phase: "open" }), "6:printed")?.pulse).toBe("event");
+    // An open window found on load was not an event anyone saw happen.
+    expect(transitionNote(clock({ phase: "open" }), "")?.pulse).toBeNull();
+    expect(transitionNote(clock({ phase: "notrade" }), "7:printing")?.pulse).toBeNull();
+  });
+
+  it("treats the same phase in a new epoch as a new transition", () => {
+    expect(transitionNote(clock({ phase: "open", epoch: 8n }), "7:open")?.key).toBe("8:open");
+  });
+});
+
+describe("the shared slot estimate", () => {
+  beforeEach(() => {
+    resetSlotEstimate();
+    setSlotSeconds(SLOT_SECONDS_DEFAULT);
+  });
+
+  it("ignores a repeat of the same poll, so N callers cost one measurement", () => {
+    recordPolledSlot(1_000);
+    const after = slotSeconds();
+    for (let i = 0; i < 5; i++) recordPolledSlot(1_000);
+    expect(slotSeconds()).toBe(after);
+  });
+
+  // The race this replaced: each caller kept its own EMA seeded at the default and raced the others
+  // to write, so a freshly mounted route dragged the measured rate back toward 0.45 — and that rate
+  // is what every slots→time figure on the page is rendered through.
+  it("keeps the measured rate when another caller folds the same polls in", () => {
+    for (let i = 0; i <= 40; i++) recordPolledSlot(1_000 + i * 60);
+    const measured = slotSeconds();
+    recordPolledSlot(1_000 + 40 * 60);
+    recordPolledSlot(1_000 + 40 * 60);
+    expect(slotSeconds()).toBe(measured);
+  });
+
+  it("clamps to what a cluster can plausibly run at", () => {
+    recordPolledSlot(0);
+    recordPolledSlot(1);
+    expect(slotSeconds()).toBeGreaterThanOrEqual(0.1);
+    expect(slotSeconds()).toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * The estimate only moves forward and the rate is only re-measured once a poll has passed it, so an
+   * estimate that gets ahead of the chain can never be corrected: it runs away and the clock reads
+   * `overdue` with every countdown at zero until the page is reloaded. A restarted validator does it
+   * instantly — which is exactly what `judging_day.sh down` then `up` does.
+   */
+  it("follows the chain again after the validator restarts at a lower slot", () => {
+    for (let i = 0; i <= 30; i++) recordPolledSlot(500_000 + i * 18);
+    expect(estimatedSlot() ?? 0).toBeGreaterThan(500_000);
+    // The chain comes back near genesis.
+    for (let i = 0; i < 5; i++) recordPolledSlot(1_000 + i * 18);
+    expect(estimatedSlot() ?? 0).toBeLessThan(2_000);
+  });
+
+  it("does not re-seed on a single poll that merely lags", () => {
+    for (let i = 0; i <= 30; i++) recordPolledSlot(500_000 + i * 18);
+    const before = estimatedSlot() ?? 0;
+    recordPolledSlot(500_000 + 29 * 18); // one stale read from a lagging replica
+    expect(estimatedSlot() ?? 0).toBeGreaterThanOrEqual(before);
   });
 });

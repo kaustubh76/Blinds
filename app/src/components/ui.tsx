@@ -37,6 +37,8 @@ export function Button({
   icon,
   className = "",
   title,
+  expanded,
+  hasPopup,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -48,9 +50,13 @@ export function Button({
   icon?: IconName;
   className?: string;
   title?: string;
+  /** For a button that opens a menu: announces whether it is open, and that it opens one. */
+  expanded?: boolean;
+  hasPopup?: boolean;
 }) {
+  // A finger needs 44px; a mouse does not, and the desk is denser for it.
   const base =
-    "inline-flex items-center gap-1.5 rounded-[var(--radius-md)] font-medium transition-colors disabled:cursor-not-allowed";
+    "inline-flex items-center gap-1.5 rounded-[var(--radius-md)] font-medium transition-colors disabled:cursor-not-allowed [@media(pointer:coarse)]:min-h-11";
   const sizing =
     size === "sm" ? "px-2.5 py-1 text-xs" : size === "lg" ? "px-5 py-3 text-base rounded-full" : "px-3.5 py-2 text-sm";
   const look = {
@@ -67,6 +73,8 @@ export function Button({
       disabled={disabled || loading}
       className={`${base} ${sizing} ${look} ${className}`}
       title={title}
+      aria-expanded={expanded}
+      aria-haspopup={hasPopup ? "menu" : undefined}
     >
       {loading ? (
         <Icon name="refresh" size={14} className="animate-spin" />
@@ -87,6 +95,12 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     </div>
   );
 }
+
+/**
+ * The 44px touch target, for controls a finger has to find. Not folded into `Button`: the desk's
+ * density on a pointer device is deliberate, and most buttons on this site are never tapped.
+ */
+export const tapCls = "min-h-11 min-w-11 justify-center";
 
 export const inputCls =
   "w-full rounded-[var(--radius-md)] border border-line bg-surface-0 px-3 py-2 text-sm text-ink-1 placeholder:text-ink-3 focus:border-accent focus:outline-none";

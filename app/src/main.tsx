@@ -7,6 +7,7 @@ import { App } from "./App";
 import { ErrorScreen } from "./components/ErrorScreen";
 import "./index.css";
 import { config } from "./config";
+import { backdrop } from "./lib/backdrop";
 import { registerBurnerWallet } from "./lib/burner";
 import { rpc } from "./lib/chain";
 import { devConsole } from "./lib/console";
@@ -38,6 +39,7 @@ window.thewindow = {
   rpc,
   config,
   console: devConsole,
+  backdrop,
   queryClient,
   // The collateral schedule as the chain would judge it now (the Build page's "schedule" recipe).
   schedule: () => runRecipe("schedule"),

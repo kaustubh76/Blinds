@@ -32,7 +32,7 @@ function Journey({ live }: { live: { isMigrated: boolean; progress: number } | n
         </Badge>
       }
     >
-      <ol className="grid gap-2 md:grid-cols-5">
+      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {steps.map((s, i) => (
           <li
             key={s.id}
@@ -185,7 +185,7 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
       }
     >
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[560px] text-left text-xs">
           <thead className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
             <tr>
               <th className="py-1.5 pr-3 font-normal">parameter</th>
@@ -270,7 +270,7 @@ function Clawpump() {
         />
         <Stat
           label="identity coin"
-          value={c ? c.symbol : "LENDER"}
+          value={c ? c.symbol : "—"}
           hint={
             c ? (
               <span className="flex flex-wrap gap-2">

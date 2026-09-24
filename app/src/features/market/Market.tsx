@@ -151,7 +151,7 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
       </div>
 
       {/* How a print is made: live counts, each a door into the explorer. */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Tile n="1" label="sealed bids" value={clock.bids} hint="this window · summed on chain as ciphertexts" />
         <Tile
           n="2"

@@ -1,14 +1,15 @@
 /**
- * The 74 accumulators as they sit in the Epoch account: one sealed ciphertext per (side, tick),
+ * Every accumulator as it sits in the Epoch account: one sealed ciphertext per (side, tick),
  * each the homomorphic sum of every bid at that tick. Beside each, the sum the administrator
  * published for it once proven. The administrator holds the auditor key and therefore reads these
  * sums first; anyone can check the published ones against the proofs (the panel next door).
  */
-import type { auction, oracle } from "@thewindow/solana-sdk";
+import { type auction, type oracle, TICKS } from "@thewindow/solana-sdk";
 import { EncryptedValue } from "../../components/EncryptedValue";
 import { formatRate, formatUsdc } from "../../lib/format";
 
-const TICKS = 37;
+/** Two sides of the ladder: the number the Epoch account actually holds. */
+export const ACCUMULATORS = 2 * TICKS;
 
 function proven(bitmap: ArrayLike<number> | undefined, side: 0 | 1, tick: number): boolean {
   if (!bitmap) return false;
@@ -35,7 +36,7 @@ export function AccumulatorWall({
     .filter((t) => !onlyNonzero || (epoch.bidCount[0]?.[t] ?? 0) + (epoch.bidCount[1]?.[t] ?? 0) > 0 || t === rStar);
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-separate border-spacing-0 text-xs">
+      <table className="w-full min-w-[560px] border-separate border-spacing-0 text-xs">
         <thead>
           <tr className="mono text-[10px] uppercase tracking-[0.12em] text-ink-3">
             <th className="w-16 py-1 text-left font-normal">rate</th>

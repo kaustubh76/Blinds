@@ -12,6 +12,7 @@ import { useConnect, useDisconnect, useWallets } from "@wallet-standard/react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { chain } from "../config";
 import { BURNER_WALLET_NAME, hasBurner } from "./burner";
+import { devConsole } from "./console";
 import { readPref, writePref } from "./prefs";
 
 export interface Session {
@@ -31,6 +32,21 @@ export interface Session {
   /** The same, for any listing's cSTOCK mint (a loan may be bound to a listing other than the selected one). */
   tokenSignatureFor: (cstockMint: Address) => Uint8Array | null;
   setSignatures: (s: { member?: Uint8Array; token?: Uint8Array; tokenFor?: Address }) => void;
+}
+
+/**
+ * The account, but only while the registry still has it.
+ *
+ * A wallet drops its account the moment it is disconnected — from `disconnect` here, or from the
+ * extension's own window, which never calls through this file at all. Anything still holding that
+ * account throws WALLET_ACCOUNT_NOT_FOUND *during render*, which lands on the error screen rather
+ * than showing a message, and clearing it in an effect is too late: the throwing render has already
+ * happened. So the session stops offering it the moment it is gone.
+ */
+export function liveAccountOf(wallets: readonly UiWallet[], account: UiWalletAccount | null): UiWalletAccount | null {
+  if (!account) return null;
+  const held = wallets.some((w) => w.accounts.some((a) => a.address === account.address));
+  return held ? account : null;
 }
 
 const SessionContext = createContext<Session | null>(null);
@@ -55,23 +71,49 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     writePref("burner-session", w.name === BURNER_WALLET_NAME);
   }, []);
   const disconnect = useCallback(async () => {
-    if (wallet) await disconnectWallet(wallet);
+    const w = wallet;
+    // Let go of the session *before* telling the wallet. `disconnectWallet` removes the account from
+    // the registry, which re-renders this tree — and anything still holding the old account (the
+    // Desk's signers) throws WALLET_ACCOUNT_NOT_FOUND mid-render, which lands on the error screen
+    // rather than showing a message.
     setWallet(null);
     setAccount(null);
     setMember(null);
     setTokens({});
     writePref("burner-session", false);
+    // The session is already let go, so a wallet that refuses (a dismissed prompt, a locked
+    // extension) must not surface as an unhandled rejection — but it does mean the wallet may still
+    // be authorised for this origin even though the header says Connect.
+    if (w)
+      await disconnectWallet(w).catch((e: unknown) =>
+        devConsole.push({
+          kind: "note",
+          title: "the wallet refused to disconnect — this tab has let go of it either way",
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
   }, [wallet]);
+
+  const liveAccount = useMemo(() => liveAccountOf(wallets, account), [wallets, account]);
 
   // A burner chosen in this browser stays connected across reloads and tabs — a judge who set up on
   // the Desk and opens Positions later should not meet "Connect" again. Signatures are re-derived
   // on demand (they never persist), so nothing secret is restored here.
   useEffect(() => {
-    if (account || !readPref("burner-session", false) || !hasBurner()) return;
+    if (liveAccount || !readPref("burner-session", false) || !hasBurner()) return;
     const w = wallets.find((x) => x.name === BURNER_WALLET_NAME);
     if (!w || !bridges.has(w.name)) return;
     void connect(w).catch(() => writePref("burner-session", false));
-  }, [wallets, account, connect]);
+  }, [wallets, liveAccount, connect]);
+  useEffect(() => {
+    if (account && !liveAccount) {
+      setWallet(null);
+      setAccount(null);
+      setMember(null);
+      setTokens({});
+    }
+  }, [account, liveAccount]);
+
   const setSignatures = useCallback(
     (s: { member?: Uint8Array; token?: Uint8Array; tokenFor?: Address }) => {
       if (s.member) setMember(s.member);
@@ -89,8 +131,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       wallets,
       wallet,
-      account,
-      address: account ? address(account.address) : null,
+      account: liveAccount,
+      address: liveAccount ? address(liveAccount.address) : null,
       connect,
       disconnect,
       memberSignature,
@@ -103,7 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [
       wallets,
       wallet,
-      account,
+      liveAccount,
       connect,
       disconnect,
       memberSignature,

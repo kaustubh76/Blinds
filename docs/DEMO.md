@@ -23,13 +23,29 @@ account for the plaintext sizes.
 ## B. Dashboard against localnet
 
 ```bash
-WINDOW_PROFILE=demo ./scripts/localnet.sh up &      # validator + setup (6 simulated agents)
-./target/release/window-admin run &                  # administrator + keeper + operator + price poster (:9090)
-./target/release/window-admin agents &               # simulated members
-cd app && cp .env.example .env && pnpm dev           # http://localhost:5173
+cargo build -p window-admin --release                # §A's `make build` is anchor only; this is separate
+export WINDOW_AUDITOR_SEED_HEX=1111111111111111111111111111111111111111111111111111111111111111
+WINDOW_PROFILE=demo ./scripts/localnet.sh up &       # validator + setup (6 simulated agents)
+./target/release/window-admin --cluster localnet --profile demo run &     # keeper + operator + faucet (:9090)
+./target/release/window-admin --cluster localnet --profile demo agents &  # simulated members
+cd app && pnpm dev                                   # http://localhost:5173
 ```
 
-The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Seven pages — *Home* (1),
+Three things that will otherwise cost you a cycle each. The seed **must be the one `setup` ran with** —
+`localnet.sh` defaults to that value, and it derives the auditor key, the escrows *and* all six agent
+wallets, so a different one silently keeps a different market. Pass `--cluster` and `--profile`
+explicitly: both are environment-backed arguments, so a shell that has sourced `.env` would point a bare
+`window-admin run` at devnet. And `pnpm dev` needs no environment at all — a dev build resolves localnet,
+`127.0.0.1:8899` and `:9090` by itself — but it refuses to start on a stale `sdk/dist`, so run §A first.
+
+Expect the first window or two to print `no trade`: on a fresh ledger nothing has printed, so the
+autopilot falls back to 3.00 % while the simulated lenders ask higher, and they do not cross. Once one
+window has printed it bids past that rate and clears. A field animates behind every page; it is off under
+the system's reduced-motion setting, toggleable in Settings → **Background motion**, and off for one page
+load with `?motion=off` placed **before** the hash.
+
+The wallet must expose a `solana:localnet` account (Phantom and Solflare do) — if it does not, the
+header's wallet chip turns amber and its menu says so. Seven pages — *Home* (1),
 *Desk* (2), *Positions* (3), *Market* (4), *Agent* (5), *Explorer* (6), *Build* (7); the number keys switch
 between them. The four that carry the desk itself:
 
@@ -44,7 +60,8 @@ between them. The four that carry the desk itself:
    proofs, verify them in wasm, recompute r\*) and ends in a verdict that compares the printed rate
    with the recomputed one.
 3. **Desk** (key 2) — five steps that say why they are blocked: *Derive keys* (two wallet signatures;
-   nothing leaves the tab) → *Join* (the demo faucet registers the key, mints 10,000 mock shares and
+   nothing leaves the tab) → *Join* (the demo faucet registers the key, mints a starting balance of every
+   listed collateral — 10,000 shares each today — and
    sends 0.1 SOL) → *confidential account* → *Wrap* → *Seal and submit* a bid. Your own balances
    open in place, labelled "decrypted in this tab"; every transaction of a plan is listed with an
    explorer link.
@@ -139,7 +156,7 @@ your browser; pick a listing, and *Autopilot* runs derive → join → set up �
 every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
 the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
-key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
+key. *Build* (key 7) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const dist = join(root, "sdk/dist/index.js");
-const hint = "run: pnpm --filter @thewindow/solana-sdk build   (docs/DEMO.md → Quickstart)";
+const hint = "run: pnpm --filter @thewindow/solana-sdk build   (README.md → Quickstart)";
 if (!existsSync(dist)) {
   console.error(`\n✗ sdk/dist is missing — the dashboard cannot start without the SDK build.\n  ${hint}\n`);
   process.exit(1);

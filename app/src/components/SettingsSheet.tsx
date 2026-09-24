@@ -4,8 +4,9 @@
  */
 import { useState } from "react";
 import { clearSettings, config, saveSettings } from "../config";
+import { backdrop, useBackdropEnabled } from "../lib/backdrop";
 import { BURNER_WALLET_NAME, burnerAddress, exportBurnerSecretHex, forgetBurner, hasBurner } from "../lib/burner";
-import { readPref, writePref } from "../lib/prefs";
+import { clearPrefs, readPref, writePref } from "../lib/prefs";
 import { useDeployment, useSolBalance } from "../lib/queries";
 import { useSession } from "../lib/wallet";
 import { Icon } from "./Icon";
@@ -16,6 +17,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [ws, setWs] = useState(config.wsUrl);
   const [admin, setAdmin] = useState(config.adminUrl);
   const [live, setLive] = useState(() => readPref("live", true));
+  const motion = useBackdropEnabled();
   const dep = useDeployment();
   const s = useSession();
   const burnerAddr = burnerAddress();
@@ -30,6 +32,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   };
   const reset = () => {
     clearSettings();
+    clearPrefs(); // the toggles below are preferences, and "defaults" has to mean them too
     location.reload();
   };
   const src = (k: keyof typeof config.source) => <Badge>{config.source[k]}</Badge>;
@@ -89,9 +92,19 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               spellCheck={false}
             />
           </Field>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />
+          <label className="-my-2 flex items-center gap-2 py-2 text-sm">
+            <input type="checkbox" data-pref="live" checked={live} onChange={(e) => setLive(e.target.checked)} />
             Real-time: subscribe over WebSocket and decode program events (polling stays on either way)
+          </label>
+          <label className="-my-2 flex items-center gap-2 py-2 text-sm">
+            <input
+              type="checkbox"
+              data-pref="backdrop"
+              checked={motion}
+              onChange={(e) => backdrop.setEnabled(e.target.checked)}
+            />
+            Background motion: the field behind the page follows the window — sealed bids drift, a print converges and
+            stamps. Applies at once (close this sheet to see it). Always off when your system asks for reduced motion.
           </label>
           <div className="flex gap-2">
             <Button onClick={save} icon="check">

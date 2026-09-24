@@ -151,7 +151,7 @@ export function DevConsole() {
   const shown = (filter === "all" ? entries : entries.filter((e) => e.kind === filter)).slice(-200).reverse();
   return (
     <section
-      className="fixed inset-x-0 bottom-0 z-30 flex h-[42vh] min-h-[220px] flex-col border-t border-line bg-surface-1/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 flex h-[42vh] min-h-[220px] flex-col border-t border-line bg-surface-1/95 backdrop-blur lg:bottom-0"
       aria-label="developer console"
     >
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-1.5">

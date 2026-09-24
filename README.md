@@ -28,8 +28,8 @@ Average: the first on-chain borrow rate for tokenized equities.
 | **Home** — the live window, the two collaterals with their marks and whether the chain would accept them right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
 | [![Market](docs/screens/market.png)](docs/screens/market.png) | [![Explorer](docs/screens/explorer.png)](docs/screens/explorer.png) |
 | **Market** — xONIA by epoch, the last proven curve, the collateral schedule, the Pyth mark beside the underlying equity, and the PreStocks mark with its implied price and basis. | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
-| [![Agent](docs/screens/agent.png)](docs/screens/agent.png) | [![Build](docs/screens/home-phone.png)](docs/screens/home-phone.png) |
-| **Agent** — the lender agent: its journey from a Clawpump identity to a graduated pool, the Meteora curve set from the desk's numbers beside what the chain says, and its identity coin. | **On a phone** — the same pages, the same numbers; every card wraps rather than truncates. |
+| [![Agent](docs/screens/agent.png)](docs/screens/agent.png) | [![On a phone](docs/screens/home-phone.png)](docs/screens/home-phone.png) |
+| **Agent** — the lender agent: its journey from a Clawpump identity to a graduated pool, the Meteora curve set from the desk's numbers beside what the chain says, and its identity coin. | **On a phone** — the same pages, the same numbers; every card wraps rather than truncates. The tab bar is the nav on a tablet too, up to 1024 px. |
 
 Light and dark themes (the header toggle, or `?theme=light|dark`); the same pages on a phone: [`docs/screens/home-phone.png`](docs/screens/home-phone.png).
 
@@ -41,12 +41,14 @@ crates/     window-elgamal · window-clearing · window-proofs · window-proofs-
 services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join (rate-limited faucet) for the dashboard) · pyth-poster (Node: carries Pyth's signed update into Pyth's receiver on devnet so the Pyth listing can be priced from Pyth's own account) · launch (Node: the lender agent's token on a stock-quoted Meteora DBC pool, priced from Pyth, and its Clawpump identity)
 sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated clients; transaction plans; wasm proofs; print re-verification)
 app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a
-            developer console, an Agent page, a Build page; `pnpm dev` refuses a stale sdk/dist via scripts/check-sdk.mjs)
+            developer console, an Agent page, a Build page; a backdrop that follows the window — sealed bids drift,
+            a print converges and stamps — off under reduced motion, behind a preference, and off with `?motion=off`;
+            `pnpm dev` refuses a stale sdk/dist via scripts/check-sdk.mjs)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
 config/     demo.toml · integration.toml · devnet.toml · prod.toml — the single source of market parameters
 scripts/    market.sh · serve_app.sh · watch_tunnels.sh · localnet.sh · deploy_devnet.sh · upgrade_devnet.sh · freeze.sh
             check_claims.sh · check_lineage.sh · render_devnet_docs.py · tracks_diagram.mjs · schedule.ts · watch_epoch.ts
-            leak_audit.ts · vercel/ (an RPC proxy) · smoke/ (headless drivers: routes, recipes, screens, judge path)
+            leak_audit.ts · vercel/ (an RPC proxy) · smoke/ (headless drivers: routes, recipes, interactive, screens, judge path)
 deployments/ devnet.json · localnet.json (the desk) · launch-<cluster>.json + launch-plan-<cluster>.json (the lender
             agent's pool and the plan it was built from) · launch-devnet-graduated.json (a finished rehearsal)
             · admin-url.txt · app-url.txt (what the hosted dashboard reads) · program-keypairs/ · external/

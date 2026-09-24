@@ -12,7 +12,8 @@ import { Badge, Button, ExplorerLink, Note } from "../../components/ui";
 import { config } from "../../config";
 import { rentFor, rpc } from "../../lib/chain";
 import { devConsole, jsonSafe } from "../../lib/console";
-import { useDeployment } from "../../lib/queries";
+import { capitalize, countWord } from "../../lib/format";
+import { useDeployment, useOracle } from "../../lib/queries";
 import { useSession } from "../../lib/wallet";
 import { ProgramSurface } from "./ProgramSurface";
 import { RECIPES, type Recipe, type RecipeCtx } from "./recipes";
@@ -196,12 +197,21 @@ const HOOKS: Array<[string, string]> = [
   ["usePositions(account)", "lock (priced solvency proof) · deposit (confidential transfer to escrow)"],
   ["useVerify(print)", "verifyPrint with per-stage timing → a verdict"],
   ["useConsole() / useLiveEvents()", "the developer console store · the WebSocket layer's state and last events"],
+  [
+    "useBackdrop() / backdrop.pulse(kind)",
+    "what the field behind the page is being told (phase, progress, sealed bids) · one impulse on top of it — the Desk pulses a landed bid, the Explorer a print it re-verified",
+  ],
 ];
 
 export function Build() {
   const dep = useDeployment();
+  const oracle = useOracle();
   const admin = dep.data?.adminUrl ?? config.adminUrl ?? "";
   const adminShown = admin || "http://127.0.0.1:9090";
+  // The DevTools sample is meant to be pasted and run, so it names this market's own last print and
+  // one of its own listings rather than whichever epoch and mint were live when it was written.
+  const sampleEpoch = oracle.data?.hasPrinted ? oracle.data.lastPrintEpoch.toString() : "0";
+  const sampleListing = dep.data?.listings.at(-1);
   return (
     <div className="grid gap-4">
       <Card
@@ -247,11 +257,13 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
             <div className="mono mt-3 text-[11px] uppercase tracking-[0.14em] text-ink-3">programs</div>
             <ul className="mt-1 grid gap-0.5 text-xs">
               {(Object.keys(sdk.PROGRAMS) as Array<keyof typeof sdk.PROGRAMS>).map((k) => (
-                <li key={k} className="flex items-center gap-2">
-                  <span className="w-16 text-ink-3">{k}</span>
-                  <ExplorerLink address={sdk.PROGRAMS[k]} cluster={config.cluster}>
-                    {sdk.PROGRAMS[k]}
-                  </ExplorerLink>
+                <li key={k} className="flex min-w-0 items-baseline gap-2">
+                  <span className="w-16 shrink-0 text-ink-3">{k}</span>
+                  <span className="min-w-0 break-all">
+                    <ExplorerLink address={sdk.PROGRAMS[k]} cluster={config.cluster}>
+                      {sdk.PROGRAMS[k]}
+                    </ExplorerLink>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -281,23 +293,28 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
         </ul>
       </Card>
 
-      <Card eyebrow="program surface" title="Five programs, from their IDLs">
+      <Card
+        eyebrow="program surface"
+        title={`${capitalize(countWord(Object.keys(sdk.PROGRAMS).length))} programs, from their IDLs`}
+      >
         <ProgramSurface />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card eyebrow="pdas" title="Seeds (sdk.pda.*)">
-          <table className="w-full text-xs">
-            <tbody>
-              {PDA_SEEDS.map(([p, fn, seeds]) => (
-                <tr key={fn} className="border-b border-line/60 last:border-0">
-                  <td className="py-1 pr-2 text-ink-3">{p}</td>
-                  <td className="mono py-1 pr-2 text-ink-1">{fn}</td>
-                  <td className="mono py-1 text-ink-2">{seeds}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-xs">
+              <tbody>
+                {PDA_SEEDS.map(([p, fn, seeds]) => (
+                  <tr key={fn} className="border-b border-line/60 last:border-0">
+                    <td className="py-1 pr-2 text-ink-3">{p}</td>
+                    <td className="mono py-1 pr-2 text-ink-1">{fn}</td>
+                    <td className="mono py-1 text-ink-2">{seeds}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
         <Card
           eyebrow="hooks"
@@ -347,9 +364,9 @@ WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule`}</Code>
           <div className="mt-3">
             <Code>{`const { sdk, rpc } = thewindow;
 await sdk.fetchAuctionConfig(rpc);
-await sdk.verifyPrint(rpc, 31n);
+await sdk.verifyPrint(rpc, ${sampleEpoch}n);
 await thewindow.schedule();                       // every listing: source, mark, both freshness verdicts, PDAs
-await sdk.fetchListing(rpc, "DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo");   // ANTHROPIC-mock by its cSTOCK mint
+await sdk.fetchListing(rpc, "${sampleListing?.cstockMint ?? "<a cSTOCK mint>"}");   // ${sampleListing?.symbol ?? "a listing"} by its cSTOCK mint
 thewindow.console.push({ kind: "note", title: "hello from DevTools" });
 thewindow.queryClient.invalidateQueries();`}</Code>
           </div>

@@ -5,11 +5,13 @@ import { devConsole, useConsole, useConsoleOpen } from "../lib/console";
 import { useTheme } from "../lib/theme";
 import { TABS, type Tab, useHashRoute } from "../lib/useHashRoute";
 import { useLiveEvents } from "../lib/useLive";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { Backdrop } from "./Backdrop";
 import { DevConsole } from "./DevConsole";
 import { Icon, type IconName } from "./Icon";
 import { SettingsSheet } from "./SettingsSheet";
-import { StatusPill } from "./Ticker";
-import { Button } from "./ui";
+import { StatusPill } from "./StatusPill";
+import { Button, tapCls } from "./ui";
 import { WalletButton } from "./WalletButton";
 
 const LABEL: Record<Tab, string> = {
@@ -63,6 +65,7 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
   const [consoleOpen] = useConsoleOpen();
   const entryCount = useConsole().length;
   const theme = useTheme();
+  const wideBar = useMediaQuery("(min-width: 30rem)");
   useLiveEvents(); // the real-time layer lives as long as the shell
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -82,8 +85,11 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [go]);
 
+  // `isolate` makes the root a stacking context, so the backdrop's -z-10 canvas paints above this
+  // div's own background and below everything else. Without it that background would cover it.
   return (
-    <div className="min-h-screen bg-surface-0 text-ink-1">
+    <div className="isolate min-h-screen bg-surface-0 text-ink-1">
+      <Backdrop />
       <header className="sticky top-0 z-20 border-b border-line bg-surface-0/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1240px] items-center gap-3 px-4 py-2.5 sm:px-6">
           <a href="#/" className="flex shrink-0 items-center gap-2 whitespace-nowrap">
@@ -94,7 +100,7 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
             </span>
           </a>
           <nav
-            className="mx-auto hidden rounded-full border border-line bg-surface-1 p-0.5 md:flex"
+            className="mx-auto hidden rounded-full border border-line bg-surface-1 p-0.5 lg:flex"
             aria-label="Sections"
           >
             {TABS.map((t, i) => (
@@ -112,7 +118,7 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
             ))}
           </nav>
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <div className="hidden lg:block">
+            <div className="hidden xl:block">
               <StatusPill />
             </div>
             <WalletButton />
@@ -122,6 +128,7 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
               icon={theme.resolved === "dark" ? "sun" : "moon"}
               onClick={theme.toggle}
               title={theme.resolved === "dark" ? "light theme" : "dark theme"}
+              className={tapCls}
             >
               <span className="sr-only">theme</span>
             </Button>
@@ -131,24 +138,35 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
               icon="terminal"
               onClick={() => devConsole.toggle()}
               title="developer console (`)"
-              className={`hidden sm:inline-flex ${consoleOpen ? "border-accent/60 text-accent" : ""}`}
+              className={`${tapCls} ${consoleOpen ? "border-accent/60 text-accent" : ""}`}
             >
-              <span className="mono text-[11px]">{entryCount}</span>
+              <span className="mono hidden text-[11px] sm:inline">{entryCount}</span>
             </Button>
-            <Button variant="ghost" size="sm" icon="gear" onClick={() => setSettings(true)} title="settings">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="gear"
+              onClick={() => setSettings(true)}
+              title="settings"
+              className={tapCls}
+            >
               <span className="sr-only">settings</span>
             </Button>
           </div>
         </div>
       </header>
-      <main className={`mx-auto max-w-[1240px] px-4 py-6 pb-24 sm:px-6 md:pb-8 ${consoleOpen ? "md:pb-[46vh]" : ""}`}>
+      <main
+        // Only the footer clears the phone tab bar — `main` reserving the same space again left a
+        // dead band between the two. The open console is the exception: it covers both.
+        className={`mx-auto max-w-[1240px] px-4 py-6 sm:px-6 ${consoleOpen ? "pb-[52vh] lg:pb-[48vh]" : ""}`}
+      >
         {children}
       </main>
-      <footer className="mx-auto max-w-[1240px] px-4 pb-24 pt-6 sm:px-6 md:pb-10">
+      <footer className="mx-auto max-w-[1240px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:pb-10">
         <div className="flex flex-wrap items-start justify-between gap-6 border-t border-line pt-6">
           <div className="flex items-center gap-2 text-sm text-ink-2">
             <BrandMark size={18} />
-            The Window for Stocks · devnet
+            The Window for Stocks · {config.cluster}
           </div>
           <p className="max-w-[72ch] text-xs leading-relaxed text-ink-3">
             Bids, loan sizes and collateral live on chain as ElGamal ciphertexts. The administrator holds the auditor
@@ -160,10 +178,12 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
       </footer>
       {/* Phones: a bottom tab bar instead of the pill nav. */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface-1/95 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-surface-1/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
         aria-label="Sections"
       >
-        {TABS.filter((t) => t !== "build").map((t) => (
+        {/* Build is dropped only where seven tabs will not fit; from `sm` up the bar has the room,
+            and between 768 and 1023px this bar is the only nav there is. */}
+        {TABS.filter((t) => t !== "build" || wideBar).map((t) => (
           <a
             key={t}
             href={`#/${t}`}

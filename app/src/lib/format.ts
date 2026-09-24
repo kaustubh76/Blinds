@@ -25,6 +25,14 @@ export function formatPrice(price: bigint, expo: number): string {
   return p.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/** A small count in words, for prose. Past ten, digits read better than "seventeen". */
+export const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
+
+/** For the start of a sentence or a title. */
+export const capitalize = (s: string): string => (s ? s[0]?.toUpperCase() + s.slice(1) : s);
+
 export const shortAddr = (a: string, n = 4): string => (a.length > 2 * n + 1 ? `${a.slice(0, n)}…${a.slice(-n)}` : a);
 
 export const hex = (b: ArrayLike<number>, n?: number): string => {
