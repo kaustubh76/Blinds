@@ -293,6 +293,38 @@ from 14 named checks to 25 and all pass, and the write track ran for real from `
 onboard → wrap → bid, five confirmed transactions — and from `#/agent`, whose browser agent sealed
 `lend @ tick 13, 1,571 USDC` in epoch 215. 275 unit tests.
 
+## 25 Sep: the pages state facts in lines
+
+The dashboard explained itself at length on every page, and ten ideas were each explained on up to nine
+different routes — that sizes are ciphertexts, that the administrator decrypts sums and never a position,
+that the devnet tokens are twins, the two freshness rules, that a mark is attested rather than signed. The
+global footer in `Shell` already carried five of them, so every page-level repeat was redundant by
+construction; trimming that footer from 377 characters is what let the pages stop introducing themselves.
+
+Measured with one discriminator across both trees (`app/src/lib/copyBudget.ts`):
+
+| | before | after |
+|---|---|---|
+| prose in `app/src` | 23,981 chars over 408 runs | 19,302 over 403 |
+| source runs over 180 chars | 17 | **0** |
+| rendered text, all 7 routes | 44,684 chars | 32,192 (−28 %) |
+| rendered paragraphs over 180 chars | 28 | **0** |
+
+**A correction.** The commit that landed this quotes a baseline of "196,647 characters across 1,081 runs".
+That was a bad measurement — the regex behind it swept up TypeScript along with copy, and it overstated the
+prose by about ten times. The table above is the honest comparison; the shape of the result is unchanged.
+
+Nothing true was deleted, it moved: the freshness rules to `PYTH.md`, the attested mark and *why a twin
+rather than the token* to `LISTINGS.md`, the disclosed leak to `METHODOLOGY.md` §6, the agent's limits here
+— each linked from the page by a `DocLink`. Two facts the docs did not already carry were added in the same
+commit, and this file's "Honest limits (also in the UI)" heading lost its parenthesis, because the UI now
+carries one line and a link rather than the paragraph.
+
+Three layers keep it: `copyBudget.test.ts` fails `pnpm test` on any prose run over 180 characters, the way
+`honestClaims.ts` fails on a forbidden phrase; `interactive.mjs`'s 26th check measures what a browser
+actually renders, which is the only layer that catches a paragraph assembled from pieces; and both exempt
+tables, code samples and header comments, because those are already the compressed form.
+
 ## 25 Sep, later: the pool is on mainnet, and the fees actually reach the agent
 
 The mainnet launch refused to send, and for a good reason. Meteora makes a pool's creator a **signer**;
