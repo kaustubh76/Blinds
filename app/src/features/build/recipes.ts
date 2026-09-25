@@ -1119,4 +1119,61 @@ await sdk.sendPlan(rpc, { txs: [{ label: "mark stale", instructions: [ix], extra
       };
     },
   },
+  {
+    id: "seize",
+    title: "Seize a matured loan",
+    blurb: "Permissionless — the program checks the deadline and the quote's age itself.",
+    needs: "wallet",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+// Any wallet may seize a loan past its deadline; the collateral goes to the lender, not the signer.
+const loans = await sdk.fetchLoansFor(rpc, wallet);                // or fetchLoan(rpc, address)
+const slot  = await rpc.getSlot({ commitment: "confirmed" }).send();
+const due   = [...loans.lent, ...loans.borrowed].filter(
+  (l) => l.data.status === sdk.LoanStatus.Active && l.data.deadlineSlot > 0n && l.data.deadlineSlot < slot,
+);
+const listing = await sdk.fetchListing(rpc, due[0].data.listing);  // its own listing, and its own quote
+const ix = await sdk.credit.getSeizeInstructionAsync({
+  anyone: signer,
+  loan: due[0].address,
+  listing: due[0].data.listing,
+  priceCache: await sdk.pda.priceCache(new Uint8Array(listing.feedId)),
+});
+await sdk.sendPlan(rpc, { txs: [{ label: "seize", instructions: [ix], extraSigners: [] }] }, signer);
+// Refused (not failed) when the quote is stale: inaction, never a seizure on a price nobody trusts.`,
+    run: async (ctx) => {
+      if (!ctx.desk || !ctx.wallet) throw new Error("connect a wallet or take a burner first");
+      const [loans, slot] = await Promise.all([
+        ctx.sdk.fetchLoansFor(ctx.rpc, ctx.wallet),
+        ctx.rpc.getSlot({ commitment: "confirmed" }).send(),
+      ]);
+      const now = Number(slot);
+      const due = [...loans.lent, ...loans.borrowed].filter(
+        (l) =>
+          l.data.status === ctx.sdk.LoanStatus.Active && l.data.deadlineSlot > 0n && Number(l.data.deadlineSlot) < now,
+      );
+      const first = due[0];
+      if (!first)
+        return {
+          seized: null,
+          activeLoans: [...loans.lent, ...loans.borrowed].filter((l) => l.data.status === ctx.sdk.LoanStatus.Active)
+            .length,
+          note: "no loan of this wallet's is past its deadline — a seize before then is refused by the program",
+        };
+      const listing = await ctx.sdk.fetchListing(ctx.rpc, first.data.listing);
+      if (!listing) throw new Error(`the loan's listing ${first.data.listing} is not on this cluster`);
+      const sigs = await ctx.desk.seize.mutateAsync({
+        loan: first.address,
+        listing: first.data.listing,
+        feedId: new Uint8Array(listing.feedId),
+      });
+      return {
+        seized: { loan: first.address, epoch: first.data.epoch, deadlineSlot: first.data.deadlineSlot },
+        collateralGoesTo: first.data.lender,
+        signatures: sigs,
+        note: "the collateral is forwarded to the lender; whoever signed only paid the fee",
+      };
+    },
+  },
 ];

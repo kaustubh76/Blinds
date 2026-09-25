@@ -2,12 +2,14 @@
 import { type Address, getAddressEncoder } from "@solana/kit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { credit as creditNs } from "@thewindow/solana-sdk";
+// `credit` is taken by the config query below; the program namespace comes in under its own name.
 import {
   buildDepositPlan,
   buildLockPlan,
   buildOnboardPlan,
   closeContext,
   collateralPledge,
+  credit as creditProgram,
   fetchConfidentialAccount,
   fetchEpoch,
   fetchMultiplier,
@@ -236,7 +238,9 @@ export function usePositions(account: UiWalletAccount) {
         retry(() => fetchTokenAmount(rpc, mockAta)),
         retry(() => fetchConfidentialAccount(rpc, cstockAta)),
       ]);
-      if (own.configured) return [];
+      // Already set up: the account was never the blocker, the operator's release is. Returning an
+      // empty plan silently made the button look broken; say which it is.
+      if (own.configured) return { alreadyConfigured: true as const, symbol: l.symbol };
       steps.reset();
       const args = {
         member: txSigner,
@@ -277,6 +281,35 @@ export function usePositions(account: UiWalletAccount) {
     },
   });
 
+  /**
+   * `seize` on a matured loan. Permissionless on chain, so the lender who receives the collateral can
+   * sign it rather than waiting on a keeper that a stale quote refuses indefinitely. The listing and
+   * its price cache come from the loan itself, which is the pair the program reads.
+   */
+  const seize = useMutation({
+    mutationFn: async ({ loan, address }: { loan: Loan; address: Address }) => {
+      const depData = await settled(dep, "the deployment");
+      const l = listingByPda(depData.listings, loan.listing);
+      if (!l) throw new Error("this loan is bound to a listing this dashboard does not know");
+      steps.reset();
+      const ix = await creditProgram.getSeizeInstructionAsync({
+        anyone: txSigner,
+        loan: address,
+        listing: loan.listing,
+        priceCache: await pda.priceCache(l.feedId),
+      });
+      return sendPlan({ txs: [{ label: "seize", instructions: [ix], extraSigners: [] }] }, txSigner, steps.onStep, {
+        title: "credit.getSeizeInstructionAsync → sendPlan",
+        code: asCode(
+          "credit.getSeizeInstructionAsync",
+          { anyone: txSigner, loan: address, listing: loan.listing },
+          { prelude: "// permissionless: the program checks the deadline and the quote's age itself" },
+        ),
+      });
+    },
+    onSuccess: () => qc.invalidateQueries(),
+  });
+
   return {
     wallet,
     dep,
@@ -289,6 +322,7 @@ export function usePositions(account: UiWalletAccount) {
     lock,
     deposit,
     receiveAccount,
+    seize,
     deriveKeys,
     keysReady: !!session.memberSignature,
   };

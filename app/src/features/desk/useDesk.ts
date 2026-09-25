@@ -7,6 +7,7 @@ import {
   buildBidPlan,
   buildOnboardPlan,
   buildWrapPlan,
+  credit,
   fetchEpoch,
   fetchOracle,
   fetchPrint,
@@ -354,6 +355,36 @@ export function useDesk(account: UiWalletAccount) {
     onSuccess: invalidate,
   });
 
+  /**
+   * `seize` — permissionless, and the program checks maturity and the quote's freshness itself, so it
+   * either does the right thing or is refused. The dashboard has always *labelled* a matured loan
+   * "seizable" and offered nothing; the lender it pays out is the one person most likely to want it,
+   * and without a Pyth key the keeper's own attempt is refused indefinitely.
+   */
+  const seize = useMutation({
+    mutationFn: async (args: { loan: Address; listing: Address; feedId: Uint8Array }) => {
+      const ix = await credit.getSeizeInstructionAsync({
+        anyone: txSigner,
+        loan: args.loan,
+        listing: args.listing,
+        priceCache: await pda.priceCache(args.feedId),
+      });
+      return sendPlan({ txs: [{ label: "seize", instructions: [ix], extraSigners: [] }] }, txSigner, steps.onStep, {
+        title: "credit.getSeizeInstructionAsync → sendPlan",
+        code: [
+          "// anyone may seize a matured loan; the program checks the deadline and the quote's age itself",
+          "const ix = await sdk.credit.getSeizeInstructionAsync({",
+          "  anyone: signer,",
+          `  loan: address("${args.loan}"),`,
+          `  listing: address("${args.listing}"),`,
+          "  priceCache: await sdk.pda.priceCache(feedId),",
+          "});",
+        ].join("\n"),
+      });
+    },
+    onSuccess: invalidate,
+  });
+
   // The latest rendered state, for the autopilot to wait on between steps (queries refetch after
   // every mutation; each step's preconditions are read from here, never from a stale closure).
   const latest = useRef({ keys: false, member: false, configured: false, balance: null as bigint | null, open: false });
@@ -475,6 +506,7 @@ export function useDesk(account: UiWalletAccount) {
     bid,
     closeBid,
     markStale,
+    seize,
     prepare,
     ready,
     autopilot,

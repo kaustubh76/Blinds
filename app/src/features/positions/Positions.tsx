@@ -95,6 +95,30 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         <span className="text-xs text-ink-3">awaiting the operator's confirmation</span>
       ) : loan.status === LoanStatus.Locked ? (
         <span className="text-xs text-ink-3">awaiting funding confirmation</span>
+      ) : matured && bound ? (
+        // Past its deadline, and `seize` is permissionless — so the lender it pays out can sign it.
+        // Without a Pyth key the keeper's own attempt is refused indefinitely, which is why waiting
+        // for the keeper is not an answer. The program still checks the deadline and the quote.
+        <span className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => p.seize.mutate({ loan, address })}
+            loading={p.seize.isPending}
+            icon="alert"
+            variant="danger"
+          >
+            Seize
+          </Button>
+          <span className="text-xs text-ink-3">
+            anyone may; the collateral goes to the lender, and the program refuses a stale quote
+          </span>
+        </span>
+      ) : loan.status === LoanStatus.Active ? (
+        // `repay` is admin-signed by design (the magnitude is attested, not proven), so a borrower
+        // cannot repay themselves and the page has to say who can. And the demo leaves every fourth
+        // loan to mature on purpose, so a judge can watch a seize — better said than discovered.
+        <span className="text-xs text-ink-3">
+          the administrator attests repayment; one loan in four is left to mature so a seize can be seen
+        </span>
       ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased && bound ? (
         // The payout is that listing's cSTOCK-W; the operator releases it the moment an account exists.
         <span className="flex flex-wrap items-center gap-2">
@@ -107,7 +131,9 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
             Receive the payout · set up a {bound.symbol} account
           </Button>
           <span className="text-xs text-ink-3">
-            the seized collateral is {bound.symbol}; the operator sends it once you hold an account there
+            {(p.receiveAccount.data as { alreadyConfigured?: boolean } | undefined)?.alreadyConfigured
+              ? `you already hold a ${bound.symbol} account — the operator retries the release every tick`
+              : `the seized collateral is ${bound.symbol}; the operator sends it once you hold an account there`}
           </span>
         </span>
       ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased ? (
