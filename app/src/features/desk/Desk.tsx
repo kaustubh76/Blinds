@@ -356,7 +356,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 3 && (
           <StepCard n={4} title="Wrap shares into confidential collateral" state={states[3] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              Public shares in, confidential balance out, 1:1. The wrap leg is public — wrap a round amount once.
+              Public shares in, confidential balance out, 1:1 — and back out again. The wrap leg is public.
             </p>
             {configured && v && (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -403,6 +403,26 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
                 icon="lock"
               >
                 Wrap
+              </Button>
+              {/* The way back. It draws on the *applied* balance, so it is offered only once there is
+                  one — a withdraw cannot reach a credit still sitting in pending. */}
+              <Button
+                size="lg"
+                variant="ghost"
+                onClick={() => {
+                  const amt = parseUnits(wrapAmount, decimals);
+                  if (amt && amt > 0n) d.unwrap.mutate(amt);
+                }}
+                loading={d.unwrap.isPending}
+                disabled={busy || !configured || !balances || balances.available === 0n}
+                icon="unlock"
+                title={
+                  balances && balances.available === 0n
+                    ? "nothing applied to withdraw — fold the pending balance in first"
+                    : "withdraw from the confidential balance and release the public shares"
+                }
+              >
+                Unwrap
               </Button>
             </div>
           </StepCard>

@@ -1176,4 +1176,53 @@ await sdk.sendPlan(rpc, { txs: [{ label: "seize", instructions: [ix], extraSigne
       };
     },
   },
+  {
+    id: "unwrap",
+    title: "Unwrap back to public shares",
+    blurb: "The way out: a Token-2022 withdraw with two proofs, then the burn.",
+    needs: "keys",
+    writes: true,
+    params: [
+      { key: "shares", kind: "int", label: "shares", default: 100, min: 1, hint: "drawn from the applied balance" },
+    ],
+    code: (ctx) => `${PRELUDE(ctx)}
+
+// unwrap burns from the *public* balance, and a wrap left everything confidential — so the amount has
+// to be withdrawn first, which takes an equality proof and a 64-bit range proof.
+const plan = await sdk.buildUnwrapPlan({
+  member: signer,
+  tokenSignature,                       // never logged
+  mockMint: listing.mockMint, cstockMint: listing.cstockMint,
+  memberMock: mockAta, memberCstock: cstockAta,
+  availableCt: view.availableBalance,   // the ciphertext the chain holds
+  decryptable: view.decryptableAvailableBalance,
+  amount: ${shares(ctx)}n,
+  decimals: ${ctx.deployment?.decimals ?? 3},
+  rent: (space) => rpc.getMinimumBalanceForRentExemption(BigInt(space)).send();
+});
+await sdk.sendPlan(rpc, plan, signer);  // verify equality → create range ctx → verify range → withdraw + unwrap → close`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      const before = ctx.desk.balances.data;
+      if (!before) throw new Error("the confidential balance has not been decrypted yet");
+      const amount = shares(ctx);
+      if (before.available < amount)
+        return {
+          sent: false,
+          available: before.available,
+          asked: amount,
+          reason:
+            before.pending > 0n
+              ? "a withdraw draws on the applied balance — run apply-pending first"
+              : "not enough applied balance for that amount",
+        };
+      const sigs = await ctx.desk.unwrap.mutateAsync(amount);
+      return {
+        unwrappedShares: ctx.p.int("shares"),
+        unwrappedBaseUnits: amount,
+        signatures: sigs,
+        note: "the public shares are back in your mock ATA; the confidential balance is that much lighter",
+      };
+    },
+  },
 ];

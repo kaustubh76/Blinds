@@ -51,7 +51,6 @@ proven against the public Pyth price with the **corporate-action multiplier insi
 
 ## Honest limits
 
-Devnet twins, not mainnet tokens. One disclosed key plays administrator, keeper, operator and price poster. Escrow sits in the operator's confidential account, because a program address cannot produce confidential-transfer proofs. Funding and repayment magnitudes are attested, not proven. Auction depth comes from labelled simulated agents. Wrapping collateral in has no UI for wrapping it back out
-(the program instruction exists; the plan builder is roadmap). xONIA is a devnet reference rate, not a regulated benchmark. Unaudited — never custody real value.
+Devnet twins, not mainnet tokens. One disclosed key plays administrator, keeper, operator and price poster. Escrow sits in the operator's confidential account, because a program address cannot produce confidential-transfer proofs. Funding and repayment magnitudes are attested, not proven. Auction depth comes from labelled simulated agents. xONIA is a devnet reference rate, not a regulated benchmark. Unaudited — never custody real value.
 
 More: `docs/SPEC.md` · `docs/TRACKS.md` · `docs/THREAT_MODEL.md` · `docs/project.excalidraw` (the whole product on one canvas).

@@ -6,6 +6,7 @@ import {
   auction,
   buildBidPlan,
   buildOnboardPlan,
+  buildUnwrapPlan,
   buildWrapPlan,
   credit,
   fetchEpoch,
@@ -220,6 +221,46 @@ export function useDesk(account: UiWalletAccount) {
         title: "buildWrapPlan → sendPlan",
         code: asCode("buildWrapPlan", args, {
           prelude: "// newDecryptableBalance = w.encrypt_balance(tokenSignature, available + pending + amount)",
+          result: "plan",
+        }),
+      });
+    },
+    onSuccess: invalidate,
+  });
+
+  /**
+   * The other direction. `wrap` had no inverse in the UI, which made wrapped collateral look one-way:
+   * the instruction has always existed, but reaching it needs a Token-2022 `Withdraw` first, and that
+   * needs two proofs. `buildUnwrapPlan` does both (`sdk/src/tx.ts`).
+   */
+  const unwrap = useMutation({
+    mutationFn: async (amountMilli: bigint) => {
+      const v = accounts.data?.cstock.view;
+      if (!listing || !accounts.data || !v || !session.tokenSignature || !balances.data)
+        throw new Error("derive your keys first");
+      if (balances.data.available < amountMilli)
+        throw new Error(
+          `only ${balances.data.available} available — a withdraw draws on the applied balance, so fold any pending in first`,
+        );
+      steps.reset();
+      const args = {
+        member: txSigner,
+        tokenSignature: session.tokenSignature,
+        mockMint: listing.mockMint,
+        cstockMint: listing.cstockMint,
+        memberMock: accounts.data.mockAta,
+        memberCstock: accounts.data.cstockAta,
+        availableCt: v.availableBalance,
+        decryptable: v.decryptableAvailableBalance,
+        amount: amountMilli,
+        decimals: listing.decimals,
+        rent: rentFor,
+      };
+      const plan = await buildUnwrapPlan(args);
+      return sendPlan(plan, txSigner, steps.onStep, {
+        title: "buildUnwrapPlan → sendPlan",
+        code: asCode("buildUnwrapPlan", args, {
+          prelude: "// two proofs (equality + 64-bit range) verify into contexts, then withdraw + unwrap ride together",
           result: "plan",
         }),
       });
@@ -502,6 +543,7 @@ export function useDesk(account: UiWalletAccount) {
     join,
     onboard,
     wrap,
+    unwrap,
     applyPending,
     bid,
     closeBid,

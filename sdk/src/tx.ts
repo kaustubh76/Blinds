@@ -15,13 +15,14 @@ import {
 } from "@solana/kit";
 import {
   ExtensionType,
+  getConfidentialWithdrawInstruction,
   getConfigureConfidentialTransferAccountInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
   getReallocateInstruction,
 } from "@solana-program/token-2022";
 import { getSubmitBidInstruction } from "./generated/window_auction/index.js";
 import { getDepositCollateralInstruction, getLockCollateralInstruction } from "./generated/window_credit/index.js";
-import { getWrapInstruction } from "./generated/window_wrap/index.js";
+import { getUnwrapInstruction, getWrapInstruction } from "./generated/window_wrap/index.js";
 import * as pda from "./pda.js";
 import {
   INSTRUCTIONS_SYSVAR,
@@ -412,6 +413,109 @@ export async function buildDepositPlan(args: {
       {
         label: "close proof contexts",
         instructions: [closeContext(cE.address, b, b), closeContext(cV.address, b, b), closeContext(cR.address, b, b)],
+        extraSigners: [],
+      },
+    ],
+  };
+}
+
+/**
+ * Unwrap: confidential collateral back out to public shares. The mirror of `buildWrapPlan`, and the
+ * reason it needs a plan at all rather than one instruction.
+ *
+ * `window_wrap::unwrap` burns cSTOCK-W from the member's *public* Token-2022 balance and releases the
+ * mock shares from custody. But a wrap puts everything into the confidential balance, so the public
+ * balance is zero and `unwrap` alone always fails `InsufficientPublicBalance`. The amount has to come
+ * out of the confidential balance first, which is a Token-2022 `Withdraw` — and that takes two proofs:
+ * a ciphertext-commitment equality proof that the new balance really is the old one minus the amount,
+ * and a 64-bit range proof that what is left is not negative.
+ *
+ * Both are verified into context accounts and read by offset 0, the same choreography as the deposit
+ * plan, and ported from `crates/window-client/src/ct.rs`'s `withdraw_plan` so the browser and the CLI
+ * produce the same five transactions. The withdraw and the unwrap ride together, because the public
+ * balance the second reads exists only between them.
+ */
+export async function buildUnwrapPlan(args: {
+  member: TransactionSigner;
+  /** The wallet's signature over `signingMessage(cstockAta)` — the confidential key material. */
+  tokenSignature: Uint8Array;
+  mockMint: Address;
+  cstockMint: Address;
+  memberMock: Address;
+  memberCstock: Address;
+  /** `ConfidentialTransferAccount.available_balance`, as the chain holds it. */
+  availableCt: Uint8Array;
+  decryptable: Uint8Array;
+  /** Base units (milli-shares at 3 decimals), not whole shares. */
+  amount: bigint;
+  decimals: number;
+  rent: Rent;
+}): Promise<Plan> {
+  const w = await proofs();
+  const p = w.withdraw_proofs(args.tokenSignature, args.availableCt, args.decryptable, args.amount.toString()) as {
+    equality: Uint8Array;
+    range: Uint8Array;
+    new_decryptable: Uint8Array;
+  };
+  const [cE, cR] = await Promise.all([generateKeyPairSigner(), generateKeyPairSigner()]);
+  const [rE, rR] = await Promise.all([
+    args.rent(CONTEXT_SIZE.ciphertextCommitmentEquality),
+    args.rent(CONTEXT_SIZE.batchedRange),
+  ]);
+  const m = args.member.address;
+  const withdraw = getConfidentialWithdrawInstruction({
+    token: args.memberCstock,
+    mint: args.cstockMint,
+    authority: args.member,
+    equalityRecord: cE.address,
+    rangeRecord: cR.address,
+    amount: args.amount,
+    decimals: args.decimals,
+    newDecryptableAvailableBalance: p.new_decryptable,
+    // Zero means "read the proof from the record account above" rather than from this transaction.
+    equalityProofInstructionOffset: 0,
+    rangeProofInstructionOffset: 0,
+  }) as unknown as Instruction;
+  const vault = await pda.wrapVault(args.mockMint);
+  const unwrap = getUnwrapInstruction({
+    member: args.member,
+    vault,
+    mockMint: args.mockMint,
+    cstockMint: args.cstockMint,
+    memberMock: args.memberMock,
+    custody: await pda.ata(vault, args.mockMint),
+    memberCstock: args.memberCstock,
+    tokenProgram: TOKEN_2022_PROGRAM,
+    amount: args.amount,
+  }) as unknown as Instruction;
+  return {
+    txs: [
+      {
+        label: "verify withdraw equality proof",
+        instructions: [
+          createContextAccount(args.member, cE, CONTEXT_SIZE.ciphertextCommitmentEquality, rE),
+          verifyIntoContext(ProofInstruction.VerifyCiphertextCommitmentEquality, p.equality, cE.address, m),
+        ],
+        extraSigners: [cE],
+      },
+      {
+        label: "create withdraw range context",
+        instructions: [createContextAccount(args.member, cR, CONTEXT_SIZE.batchedRange, rR)],
+        extraSigners: [cR],
+      },
+      {
+        label: "verify withdraw range proof (64-bit)",
+        instructions: [verifyIntoContext(ProofInstruction.VerifyBatchedRangeProofU64, p.range, cR.address, m)],
+        extraSigners: [],
+      },
+      {
+        label: "withdraw from the confidential balance + unwrap",
+        instructions: [withdraw, unwrap],
+        extraSigners: [],
+      },
+      {
+        label: "close proof contexts",
+        instructions: [closeContext(cE.address, m, m), closeContext(cR.address, m, m)],
         extraSigners: [],
       },
     ],

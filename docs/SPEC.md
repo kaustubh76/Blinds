@@ -605,7 +605,7 @@ Acknowledged related work: Token-2022 Confidential Balances (the substrate); Kam
 - Participation privacy or anonymous membership · threshold administrator · contract-enforced funding magnitude · intra-tenor margin calls or liquidation engine · term tenors / rate curve · variable haircuts · multi-asset collateral baskets · secondary loan market · governance token or fees · mainnet deployment or real value · automatic band recentering · any claim of "trustless" or "undecryptable" · the B1/B2 behavioral experiment (deferred, stated).
 
 **Cut order under schedule pressure** (apply top-down; never touch the bottom row):
-receiver-read stretch → unwrap flow (repay releases to confidential balance; unwrap = roadmap) → positions page → lender-side UI (agents carry ASKs) → auditor-rotation demo.
+receiver-read stretch → unwrap flow (repay releases to the confidential balance; `buildUnwrapPlan` takes it back to public shares) → positions page → lender-side UI (agents carry ASKs) → auditor-rotation demo.
 **Never cut:** the gate's proof path (unless the gate itself forced B2) · attack tests · priced solvency with the CA multiplier · autonomous devnet epochs · explorer re-verification · the judge-signable borrow flow · the honest-limitations README.
 
 ---
