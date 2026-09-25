@@ -132,7 +132,8 @@ The hosted dashboard is built to be hooked into, not just looked at:
 
 - **A devnet burner wallet** — one click creates a throwaway key in the browser (a Wallet Standard
   wallet, so every flow runs with no extension and no prompts); the Desk's **Autopilot** then runs
-  derive → join → set up → wrap → bid in one go. Extension wallets still work.
+  derive → join → set up → wrap → bid in one go. Extension wallets still work. Settings downloads a
+  session file — the key and every bid opening — so a position moves to another browser or device.
 - **The console** (`` ` ``) — every SDK call the page makes as copyable TypeScript with the live
   arguments (wallet signatures and bid openings are never rendered), every transaction with an
   inspector (logs, compute units, programs), the window's phase changes, and the programs' events

@@ -2,12 +2,13 @@
  * Runtime settings: where this browser reads the chain, where the admin service (faucet) is, and
  * the burner key. Everything here is per-browser; nothing is sent anywhere but the endpoints named.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { clearSettings, config, saveSettings } from "../config";
 import { backdrop, useBackdropEnabled } from "../lib/backdrop";
 import { BURNER_WALLET_NAME, burnerAddress, exportBurnerSecretHex, forgetBurner, hasBurner } from "../lib/burner";
 import { clearPrefs, readPref, writePref } from "../lib/prefs";
 import { useDeployment, useSolBalance } from "../lib/queries";
+import { downloadSession, importSession, plural, restoredSummary, sessionFileName } from "../lib/session";
 import { useSession } from "../lib/wallet";
 import { Icon } from "./Icon";
 import { Badge, Button, ExplorerLink, Field, inputCls, Note } from "./ui";
@@ -24,6 +25,29 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const sol = useSolBalance(burnerAddr ?? undefined);
   const [secret, setSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [transfer, setTransfer] = useState<{ tone: "good" | "warn"; says: string } | null>(null);
+
+  const download = () => {
+    const file = downloadSession();
+    if (!file)
+      return setTransfer({ tone: "warn", says: "No burner in this browser yet, so there is nothing to carry." });
+    setTransfer({
+      tone: "good",
+      says: `${sessionFileName(file)} — the key and ${plural(file.bids.length, "bid record")}.`,
+    });
+  };
+  const restore = async (picked: File | undefined) => {
+    if (!picked) return;
+    try {
+      const r = await importSession(await picked.text());
+      setTransfer({ tone: r.unreadable > 0 || !r.clusterMatches ? "warn" : "good", says: restoredSummary(r) });
+      setSecret(null);
+      if (r.keyRestored && s.wallet?.name === BURNER_WALLET_NAME) await s.disconnect();
+    } catch (e) {
+      setTransfer({ tone: "warn", says: e instanceof Error ? e.message : "that file could not be read" });
+    }
+  };
 
   const save = () => {
     saveSettings({ rpcUrl: rpc.trim(), wsUrl: ws.trim(), adminUrl: admin.trim() });
@@ -176,6 +200,32 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         ) : (
           <Note>No burner yet — the wallet menu creates one.</Note>
         )}
+
+        <h3 className="mono mt-8 text-[11px] uppercase tracking-[0.14em] text-ink-3">carry this session</h3>
+        <p className="mt-1 text-xs text-ink-3">
+          One file holds the key and every bid record. The openings in it are the only copy, and a lock needs them.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" icon="download" onClick={download} disabled={!hasBurner()}>
+            Download
+          </Button>
+          <Button variant="ghost" size="sm" icon="upload" onClick={() => fileInput.current?.click()}>
+            Restore from a file
+          </Button>
+          <input
+            ref={fileInput}
+            id="session-file"
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            aria-label="session file to restore"
+            onChange={(e) => {
+              void restore(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </div>
+        {transfer && <Note tone={transfer.tone}>{transfer.says}</Note>}
       </aside>
     </div>
   );

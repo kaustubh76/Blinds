@@ -82,9 +82,19 @@ export function burnerAddress(): Address | null {
 export async function createBurner(): Promise<Address> {
   const sk = new Uint8Array(32);
   crypto.getRandomValues(sk);
-  keyPair = await createKeyPairFromPrivateKeyBytes(sk);
+  return adoptBurner(enc(sk));
+}
+
+/**
+ * Takes on a secret exported from another browser, replacing any stored one, and returns the address
+ * it derives — so a member can carry a position between devices instead of losing it.
+ */
+export async function adoptBurner(secretHex: string): Promise<Address> {
+  const hex = secretHex.trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(hex)) throw new Error("a burner secret is 32 bytes: 64 hex characters");
+  keyPair = await createKeyPairFromPrivateKeyBytes(dec(hex));
   keyAddress = await getAddressFromPublicKey(keyPair.publicKey);
-  storage.set({ sk: enc(sk), address: keyAddress });
+  storage.set({ sk: hex, address: keyAddress });
   accounts = [];
   emit();
   return keyAddress;

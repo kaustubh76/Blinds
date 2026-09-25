@@ -163,6 +163,11 @@ the next print, a bid at the clearing rate becomes a loan on *Positions*, where 
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
 key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
+The burner and each bid's Pedersen opening live in that browser and nowhere else — the chain never
+held an opening, and a lock proof cannot be built without one. **Settings → Carry this session**
+writes both to one JSON file and restores them, so clearing a browser or changing device costs
+nothing; the crash screen offers the same file before its *forget those too*.
+
 ### Running the market yourself
 
 ```bash

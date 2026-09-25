@@ -2,6 +2,9 @@
 // developer console, and the fact that one chain event should print one line however many components
 // are watching it. Every check here exists because that exact thing was broken once.
 // usage: node interactive.mjs <base url>
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { bigintSafe, launch, wait } from "./browser.mjs";
 
 const [base = "https://kaustubh76.github.io/Blinds/"] = process.argv.slice(2);
@@ -308,6 +311,80 @@ async function page(width, height, hash = "") {
   const offenders = Object.entries(rendered).flatMap(([r, v]) => v.over.map((t) => `${r}: ${t}`));
   check("no route renders a paragraph", offenders.length === 0, JSON.stringify(offenders));
   out.words = Object.fromEntries(Object.entries(rendered).map(([r, v]) => [r, v.words]));
+}
+
+// 8. Carrying a session to another browser. The bid openings exist in exactly one place, so a member
+//    who clears a browser or changes device has to be able to bring them. The download broke once on a
+//    detached anchor and a blob URL revoked in the same tick — which only a real browser shows.
+{
+  const dir = mkdtempSync(join(tmpdir(), "window-session-"));
+  const p = await page(1280, 900);
+  const cdp = await b.target().createCDPSession();
+  await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: dir, eventsEnabled: true });
+  const settings = () =>
+    p.evaluate(() =>
+      [...document.querySelectorAll("button")].find((x) => x.getAttribute("title") === "settings")?.click(),
+    );
+
+  await takeBurner(p);
+  await wait(4000);
+  const addr = await p.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("thewindow:burner:"));
+    return k ? JSON.parse(localStorage.getItem(k)).address : null;
+  });
+  // A bid record beside the key. Bidding needs a live market; carrying it does not, and this driver
+  // runs against the hosted site whether or not a keeper is up.
+  await p.evaluate((a) => {
+    const rec = {
+      epoch: "1",
+      side: 0,
+      tick: 12,
+      sizeMicroUsdc: "1500000",
+      opening: "ab".repeat(32),
+      ciphertext: "cd".repeat(64),
+      at: Date.now(),
+    };
+    localStorage.setItem(`thewindow:bids:${a}`, JSON.stringify([rec]));
+  }, addr);
+
+  await settings();
+  await wait(800);
+  await p.evaluate(() =>
+    [...document.querySelectorAll("button")].find((x) => x.textContent.trim() === "Download")?.click(),
+  );
+  await wait(2500);
+  const name = readdirSync(dir).find((f) => f.startsWith("thewindow-") && f.endsWith(".json"));
+  const doc = name ? JSON.parse(readFileSync(join(dir, name), "utf8")) : null;
+  check(
+    "the session file downloads with the key and the book",
+    doc?.address === addr && !!doc?.secretHex && doc?.bids?.length === 1,
+    JSON.stringify({ name, address: doc?.address, key: !!doc?.secretHex, bids: doc?.bids?.length }),
+  );
+
+  await p.evaluate(() => localStorage.clear()); // a browser that kept nothing
+  await p.reload({ waitUntil: "networkidle2" });
+  await wait(4000);
+  await settings();
+  await wait(800);
+  const input = await p.$("#session-file");
+  if (input && name) await input.uploadFile(join(dir, name));
+  await wait(2500);
+  const back = await p.evaluate((a) => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("thewindow:burner:"));
+    const bids = JSON.parse(localStorage.getItem(`thewindow:bids:${a}`) || "[]");
+    return {
+      address: k ? JSON.parse(localStorage.getItem(k)).address : null,
+      openings: bids.map((x) => x.opening),
+      says: /key restored[^A-Z]*/.exec(document.querySelector("aside")?.textContent ?? "")?.[0] ?? null,
+    };
+  }, addr);
+  check(
+    "restoring brings back the key and the openings a lock needs",
+    back.address === addr && back.openings.length === 1 && /1 bid record added/.test(back.says ?? ""),
+    JSON.stringify(back).slice(0, 220),
+  );
+  await p.close();
+  rmSync(dir, { recursive: true, force: true });
 }
 
 console.log(JSON.stringify({ out, errors }, bigintSafe, 1));

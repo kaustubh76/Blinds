@@ -10,20 +10,23 @@
  * What it must never do is take the burner key and the bid book with them. The key *is* the wallet
  * holding the position, and the bid book holds each sealed bid's Pedersen opening — the only copy
  * anywhere, and what a lock proof needs. This screen's button is the obvious thing to press when the
- * page breaks, so it clears what can poison a render and nothing else.
+ * page breaks, so it clears what can poison a render and nothing else. It also offers the session
+ * file, because Settings is unreachable from here and this is the last moment to save those openings.
  */
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearSettings } from "../config";
 import { BURNER_STORAGE_KEY } from "../lib/burner";
 import { clearPrefs } from "../lib/prefs";
+import { downloadSession, plural } from "../lib/session";
 
 interface State {
   error: Error | null;
   info: string | null;
+  saved: string | null;
 }
 
 export class ErrorScreen extends Component<{ children: ReactNode }, State> {
-  override state: State = { error: null, info: null };
+  override state: State = { error: null, info: null, saved: null };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
@@ -51,6 +54,18 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
     location.reload();
   };
 
+  /** The session file, offered here because a crashed page has no Settings sheet to reach it from. */
+  private save = (): void => {
+    try {
+      const file = downloadSession();
+      this.setState({
+        saved: file ? `saved the key and ${plural(file.bids.length, "bid record")}` : "nothing to save",
+      });
+    } catch {
+      this.setState({ saved: "this browser refused the download" });
+    }
+  };
+
   /**
    * The escape hatch for the one poison the reset above deliberately leaves behind: a stored burner
    * whose own shape breaks the page. It names what it takes, the way the Settings sheet does.
@@ -58,7 +73,7 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
   private forgetEverything = (): void => {
     if (
       !confirm(
-        "Forget the burner key and every bid record too? Anything the key holds stays with the key, and a sealed bid's opening cannot be recovered.",
+        "Forget the burner key and every bid record too? Anything the key holds stays with the key, and an opening you have not saved to a file is gone.",
       )
     )
       return;
@@ -79,7 +94,7 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
   };
 
   override render(): ReactNode {
-    const { error, info } = this.state;
+    const { error, info, saved } = this.state;
     if (!error) return this.props.children;
     return (
       <div className="mx-auto flex min-h-screen max-w-[720px] flex-col justify-center gap-5 px-6 py-12">
@@ -114,13 +129,18 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
           {this.hasKey() && (
             <>
               {" "}
-              <button type="button" onClick={this.forgetEverything} className="underline hover:text-status-critical">
-                Forget those too
+              <button type="button" onClick={this.save} className="underline hover:text-ink-1">
+                Save them to a file
               </button>{" "}
-              only if the key itself is what broke the page.
+              before you{" "}
+              <button type="button" onClick={this.forgetEverything} className="underline hover:text-status-critical">
+                forget those too
+              </button>
+              , which only helps if the key itself broke the page.
             </>
           )}
         </p>
+        {saved && <p className="text-xs text-status-good">{saved}</p>}
         {info && (
           <details className="text-xs text-ink-3">
             <summary className="cursor-pointer">where it happened</summary>
