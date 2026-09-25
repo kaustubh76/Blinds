@@ -1,11 +1,14 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import { devBridge } from "./vite/devBridge.mjs";
 
 export default defineConfig({
   // GitHub Pages serves a project site under /<repo>/; Vercel and local builds at /.
   base: process.env.VITE_BASE ?? "/",
-  plugins: [react(), tailwindcss()],
+  // Dev only (`apply: "serve"`): lets the Agent page run this repo's own commands. Never in a build —
+  // on the hosted site the probe 404s and the page shows the command to copy instead.
+  plugins: [react(), tailwindcss(), devBridge()],
   server: { port: 5173 },
   build: {
     target: "es2023",

@@ -3,13 +3,14 @@
  * against the configured RPC. `code` and `run` sit side by side on purpose — a test checks that
  * every `sdk.X` the run calls is named in the snippet, so the text never drifts from what executes.
  */
-import type { Address } from "@solana/kit";
+import { type Address, isAddress } from "@solana/kit";
 import type * as SDK from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
 import { type DeploymentView, fetchDeployment } from "../../lib/chain";
 import { LAUNCH, launchCluster } from "../../lib/launch";
 import { startLive } from "../../lib/live";
 import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
+import { DEFAULT_WRAP_SHARES, type useDesk } from "../desk/useDesk";
 import { quoteAddress, quoteSourceFor } from "./quotes";
 
 export interface RecipeCtx {
@@ -23,6 +24,109 @@ export interface RecipeCtx {
   rentFor: (space: number) => Promise<bigint>;
   signal: AbortSignal;
   log: (line: string) => void;
+  /** The recipe's own parameters, as typed on the page. Read through these, never as literals. */
+  p: Params;
+  /**
+   * The Desk's flows, when a wallet is connected — how a write recipe writes. It is the *same* object
+   * the Desk uses, so a bid sent from here goes through `buildBidPlan` → `sendPlan` → the console
+   * exactly as one sent from the Desk does; there is no second code path to keep in step.
+   */
+  desk: Desk | null;
+  /** True when the page asked for a dry run: build the plan, report it, send nothing. */
+  dryRun: boolean;
+}
+
+/**
+ * `useDesk`'s return value — what a write recipe drives the chain through. The import is real rather
+ * than type-only (the wrap default is a value), which is safe because `useDesk` imports nothing from
+ * here: the dependency runs one way, from the recipes to the Desk.
+ */
+export type Desk = ReturnType<typeof useDesk>;
+
+export interface Choice {
+  value: string;
+  label: string;
+}
+
+/**
+ * A parameter a developer can change before running. The spec is the single source of truth: the
+ * page renders the input from it, and both `code` and `run` read the value through `ctx.p`, so the
+ * snippet cannot show one number while the run uses another.
+ */
+export type ParamSpec =
+  | { key: string; kind: "int"; label: string; default: number; min?: number; max?: number; hint?: string }
+  /** Whole USDC on the page; `p.big` hands back micro-USDC. */
+  | { key: string; kind: "usdc"; label: string; default: number; hint?: string }
+  /** `example` is a value known to be valid — the placeholder, and what a test varies it to. */
+  | { key: string; kind: "text"; label: string; default: string; placeholder?: string; example?: string; hint?: string }
+  | {
+      key: string;
+      kind: "choice";
+      label: string;
+      default: string;
+      choices: (ctx: RecipeCtx) => Choice[];
+      hint?: string;
+    };
+
+export interface Params {
+  int(key: string): number;
+  /** A `usdc` parameter in micro-USDC; anything else parsed as a bigint. */
+  big(key: string): bigint;
+  str(key: string): string;
+  /** Every value as it stands, for a snippet that wants to show them together. */
+  all(): Readonly<Record<string, string>>;
+}
+
+/** The values a recipe starts with, before anyone types anything. */
+export function defaultValues(specs: readonly ParamSpec[] | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const sp of specs ?? []) out[sp.key] = String(sp.default);
+  return out;
+}
+
+/**
+ * The accessor the recipes read. A blank or unparseable value falls back to the spec's default rather
+ * than throwing mid-run: a half-typed number in an input is not an error worth a stack trace.
+ */
+export function makeParams(specs: readonly ParamSpec[] | undefined, values: Record<string, string>): Params {
+  const spec = (key: string) => (specs ?? []).find((x) => x.key === key);
+  const raw = (key: string) => {
+    const v = values[key];
+    const sp = spec(key);
+    if (v === undefined || v === "") return sp === undefined ? "" : String(sp.default);
+    return v;
+  };
+  return {
+    int(key) {
+      const sp = spec(key);
+      const n = Number(raw(key));
+      if (!Number.isFinite(n)) return sp && sp.kind !== "text" && sp.kind !== "choice" ? Number(sp.default) : 0;
+      const clamped =
+        sp?.kind === "int" ? Math.min(sp.max ?? Number.MAX_SAFE_INTEGER, Math.max(sp.min ?? -Infinity, n)) : n;
+      return Math.trunc(clamped);
+    },
+    big(key) {
+      const sp = spec(key);
+      const text = raw(key);
+      if (sp?.kind === "usdc") {
+        const n = Number(text);
+        return BigInt(Math.max(0, Math.round(Number.isFinite(n) ? n : sp.default))) * 1_000_000n;
+      }
+      try {
+        return BigInt(text.replace(/[_,\s]/g, ""));
+      } catch {
+        return 0n;
+      }
+    },
+    str(key) {
+      return raw(key);
+    },
+    all() {
+      const out: Record<string, string> = {};
+      for (const sp of specs ?? []) out[sp.key] = raw(sp.key);
+      return out;
+    },
+  };
 }
 
 export interface Recipe {
@@ -30,8 +134,56 @@ export interface Recipe {
   title: string;
   blurb: string;
   needs?: "wallet" | "keys";
+  /** Declared so the page can render inputs; read in `code` and `run` through `ctx.p`. */
+  params?: readonly ParamSpec[];
+  /**
+   * This recipe sends transactions. The card says so, asks before the first send, and offers a dry
+   * run (and, for a single-transaction plan, a real simulation) beside it.
+   */
+  writes?: boolean;
   code: (ctx: RecipeCtx) => string;
   run: (ctx: RecipeCtx) => Promise<unknown>;
+}
+
+/**
+ * The mark labels worth offering: `prestocks:ANTHROPIC` always (it is what this recipe is about, and a
+ * localnet descriptor has no attested-mark listing at all), then whatever the loaded descriptor names.
+ */
+function markLabels(dep: DeploymentView | null): Choice[] {
+  const seen = new Set<string>();
+  const out: Choice[] = [];
+  const add = (value: string, label: string) => {
+    if (seen.has(value)) return;
+    seen.add(value);
+    out.push({ value, label });
+  };
+  add("prestocks:ANTHROPIC", "prestocks:ANTHROPIC");
+  for (const l of dep?.listings ?? [])
+    add(`${l.source}:${l.symbol.replace(/-mock$/, "")}`, `${l.symbol} · ${l.source}`);
+  return out;
+}
+
+/**
+ * The wallet a recipe should read: the one typed in, else the one connected. Typing an address makes
+ * the recipe work with no wallet at all, which is how you look at someone else's public record.
+ */
+function askedWallet(ctx: RecipeCtx, key: string): Address | null {
+  const typed = ctx.p.str(key).trim();
+  if (typed && isAddress(typed)) return typed;
+  return ctx.wallet;
+}
+
+/** The `shares` parameter in the collateral mint's own base units (milli-shares at 3 decimals). */
+function shares(ctx: RecipeCtx): bigint {
+  const decimals = ctx.desk?.listing?.decimals ?? ctx.deployment?.decimals ?? 3;
+  return BigInt(ctx.p.int("shares")) * 10n ** BigInt(decimals);
+}
+
+/** A typed epoch, or `null` for "whatever the oracle last printed". */
+function chosenEpoch(ctx: RecipeCtx, key: string): bigint | null {
+  const raw = ctx.p.str(key).trim();
+  if (!/^\d+$/.test(raw)) return null;
+  return BigInt(raw);
 }
 
 const PRELUDE = (ctx: RecipeCtx) =>
@@ -196,13 +348,26 @@ for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
   },
   {
     id: "marks",
+    params: [
+      {
+        key: "label",
+        kind: "choice",
+        label: "listing",
+        default: "prestocks:ANTHROPIC",
+        // A mark label is `<source>:<SYMBOL>`, which is what the keeper hashes into the feed id. The
+        // descriptor's own listings are offered so you can see what a `mock` label yields: nothing,
+        // because a mock listing is priced by the walk, not by a posted mark.
+        choices: (ctx) => markLabels(ctx.deployment),
+        hint: "<source>:<symbol> — the label the keeper posts under",
+      },
+    ],
     title: "The attested mark: PreStocks, as posted on chain",
     blurb:
       "A mark listing's feed id is sha256(\"<source>:<symbol>\") — a label, never a Pyth id — and its publish_time is the keeper's fetch time. PreStocks' API sends no CORS headers, so a browser reads the on-chain cache; the curl is what the keeper does.",
     code: (ctx) => `${PRELUDE(ctx)}
 
-// feed id = sha256("prestocks:ANTHROPIC"): a label under which the keeper posts, never a Pyth id
-const feedId    = await sdk.feedIdForLabel("prestocks:ANTHROPIC");
+// feed id = sha256("${ctx.p.str("label")}"): a label under which the keeper posts, never a Pyth id
+const feedId    = await sdk.feedIdForLabel("${ctx.p.str("label")}");
 const prestocks = await sdk.fetchPrice(rpc, feedId);
 console.log("cache", await sdk.pda.priceCache(feedId));   // ["price", feed_id] under window_credit
 console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new Date(Number(prestocks.publishTime) * 1000));
@@ -226,9 +391,12 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
           api,
         };
       };
+      const label = ctx.p.str("label");
       return {
-        prestocks: await one("prestocks:ANTHROPIC", "https://prestocks.com/api/prestocks"),
-        note: "an attested mark: publish_time is the keeper's fetch time; the on-chain limit for this listing is 48 h",
+        mark: await one(label, label.startsWith("prestocks:") ? "https://prestocks.com/api/prestocks" : "—"),
+        note: label.startsWith("mock:")
+          ? "a mock listing is priced by the keeper's deterministic walk, not by a posted mark, so there is no cache under this label"
+          : "an attested mark: publish_time is the keeper's fetch time; the on-chain limit for this listing is 48 h",
       };
     },
   },
@@ -299,12 +467,21 @@ console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Numb
   },
   {
     id: "solvency",
-    title: "What 1,000 USDC costs in collateral on each listing",
+    title: "What a loan costs in collateral on each listing",
+    params: [
+      {
+        key: "loan",
+        kind: "usdc",
+        label: "loan",
+        default: 1000,
+        hint: "USDC — the notional the pledge is computed for",
+      },
+    ],
     blurb:
       "The scalars the program forms E_delta with: k_c from the listing's mark and the mint's multiplier, k_l from its haircut; then the pledge the desk asks for. Pure math over the same accounts.",
     code: (ctx) => `${PRELUDE(ctx)}
 
-const LOAN = 1_000_000_000n;                                       // 1,000 USDC in micro-USDC
+const LOAN = ${ctx.p.big("loan")}n;${" ".repeat(Math.max(1, 34 - ctx.p.big("loan").toString().length))}// ${ctx.p.int("loan").toLocaleString("en-US")} USDC in micro-USDC
 const descriptor = await (await fetch("${ctx.config.adminUrl || "https://<admin>"}/deployment")).json();
 for (const { address, data: l } of await sdk.fetchListings(rpc)) {
   const price = await sdk.fetchQuote(rpc, {                          // the cache PDA, or Pyth's account for source 4
@@ -317,7 +494,7 @@ for (const { address, data: l } of await sdk.fetchListings(rpc)) {
   console.log(sdk.symbolOf(l), "k_c", s.kC, "k_l", s.kL, "required", sdk.collateralRequired(LOAN, s), "pledge", sdk.collateralPledge(LOAN, s), "milli-shares");
 }`,
     run: async (ctx) => {
-      const LOAN = 1_000_000_000n;
+      const LOAN = ctx.p.big("loan");
       const out = [];
       const deployment = ctx.deployment ?? (await fetchDeployment());
       for (const { address, data: l } of await ctx.sdk.fetchListings(ctx.rpc)) {
@@ -345,29 +522,43 @@ for (const { address, data: l } of await sdk.fetchListings(rpc)) {
           pledgedShares: Number(pledge) / 10 ** l.decimals,
         });
       }
-      return { loanUsdc: 1000, listings: out };
+      return { loanUsdc: ctx.p.int("loan"), listings: out };
     },
   },
   {
     id: "latest-print",
+    params: [
+      {
+        key: "epoch",
+        kind: "text",
+        label: "epoch",
+        default: "",
+        placeholder: "latest",
+        example: "100",
+        hint: "blank reads whatever printed last",
+      },
+    ],
     title: "The last print and its curve",
     blurb:
       "Read the proven per-tick sums, rebuild the depth curve and clear it locally — the same math the administrator ran.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const oracle = await sdk.fetchOracle(rpc);
-const print  = await sdk.fetchPrint(rpc, oracle.lastPrintEpoch);
+const epoch  = ${chosenEpoch(ctx, "epoch") === null ? "oracle.lastPrintEpoch" : `${chosenEpoch(ctx, "epoch")}n`};
+const print  = await sdk.fetchPrint(rpc, epoch);
 const { curve, clearing } = sdk.depthFromPrint(print);   // clearing === sdk.clear(curve)
 console.log(sdk.formatRate(clearing.rStar), clearing.matched, sdk.cumulative(curve));`,
     run: async (ctx) => {
       const oracle = await ctx.sdk.fetchOracle(ctx.rpc);
-      if (!oracle?.hasPrinted) throw new Error("nothing printed yet");
-      const print = await ctx.sdk.fetchPrint(ctx.rpc, oracle.lastPrintEpoch);
-      if (!print) throw new Error("print account missing");
+      const asked = chosenEpoch(ctx, "epoch");
+      if (asked === null && !oracle?.hasPrinted) throw new Error("nothing printed yet, and no epoch was given");
+      const index = asked ?? (oracle as { lastPrintEpoch: bigint }).lastPrintEpoch;
+      const print = await ctx.sdk.fetchPrint(ctx.rpc, index);
+      if (!print) throw new Error(`no print account for epoch ${index}`);
       const { curve, clearing } = ctx.sdk.depthFromPrint(print);
       const local = ctx.sdk.clear(curve);
       return {
-        epoch: oracle.lastPrintEpoch,
+        epoch: index,
         onChain: { rStarTick: print.rStarTick, matchedVolume: print.matchedVolume, status: print.status },
         recomputed: clearing,
         agrees: local?.rStar === print.rStarTick && local?.matched === print.matchedVolume,
@@ -378,47 +569,72 @@ console.log(sdk.formatRate(clearing.rStar), clearing.matched, sdk.cumulative(cur
   },
   {
     id: "verify",
+    params: [
+      {
+        key: "epoch",
+        kind: "text",
+        label: "epoch",
+        default: "",
+        placeholder: "latest",
+        example: "100",
+        hint: "blank re-derives the last print",
+      },
+    ],
     title: "Re-verify a print in this tab",
     blurb:
       "Fetch the epoch, the print and every attest transaction, then check each zero-ciphertext proof with the wasm verifier.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const oracle = await sdk.fetchOracle(rpc);
-const verdict = await sdk.verifyPrint(rpc, oracle.lastPrintEpoch, {
+const verdict = await sdk.verifyPrint(rpc, ${chosenEpoch(ctx, "epoch") === null ? "oracle.lastPrintEpoch" : `${chosenEpoch(ctx, "epoch")}n`}, {
   onStage: (stage, d) => console.log(stage, d),   // accounts → signatures → transactions → proofs → verify
 });
 console.log(verdict.ok, verdict.proven, "/", verdict.nonzero, verdict.r_star_recomputed, verdict.failures);`,
     run: async (ctx) => {
       const oracle = await ctx.sdk.fetchOracle(ctx.rpc);
-      if (!oracle?.hasPrinted) throw new Error("nothing printed yet");
+      const asked = chosenEpoch(ctx, "epoch");
+      if (asked === null && !oracle?.hasPrinted) throw new Error("nothing printed yet, and no epoch was given");
+      const index = asked ?? (oracle as { lastPrintEpoch: bigint }).lastPrintEpoch;
       const t0 = performance.now();
-      const verdict = await ctx.sdk.verifyPrint(ctx.rpc, oracle.lastPrintEpoch, {
+      const verdict = await ctx.sdk.verifyPrint(ctx.rpc, index, {
         onStage: (stage, d) =>
           ctx.log(
             `${stage}${d?.count !== undefined ? ` ${d.count}${d.total !== undefined ? `/${d.total}` : ""}` : ""} · ${Math.round(performance.now() - t0)} ms`,
           ),
       });
-      return { epoch: oracle.lastPrintEpoch, ...verdict, ms: Math.round(performance.now() - t0) };
+      return { epoch: index, ...verdict, ms: Math.round(performance.now() - t0) };
     },
   },
   {
     id: "me",
+    params: [
+      {
+        key: "wallet",
+        kind: "text",
+        label: "wallet",
+        default: "",
+        placeholder: "yours",
+        example: "51gsw5oEYXhcUVPQWW4c5Y5c1HWABtgzNMNdWCDLr62z",
+        hint: "any address — blank uses the one connected here",
+      },
+    ],
     title: "My membership, bids and loans",
     blurb: "What the chain holds about one wallet: the member record (public), sealed bids, loans on both sides.",
     needs: "wallet",
     code: (ctx) => `${PRELUDE(ctx)}
 
-const wallet = address("${ctx.wallet ?? "<your wallet>"}");
+const wallet = address("${askedWallet(ctx, "wallet") ?? "<your wallet>"}");
 const member = await sdk.fetchMember(rpc, wallet);       // { elgamalPubkey, joinedEpoch, active } or null
 const bids   = await sdk.fetchBidsFor(rpc, wallet);      // sealed: ciphertext only
 const loans  = await sdk.fetchLoansFor(rpc, wallet);     // { borrowed, lent }, sizes as ciphertexts
 console.log(member, bids.length, loans.borrowed.map((l) => sdk.LOAN_STATUS_NAMES[l.data.status]), loans.lent.length);`,
     run: async (ctx) => {
-      if (!ctx.wallet) throw new Error("connect a wallet or take a burner first");
+      const who = askedWallet(ctx, "wallet");
+      if (!who) throw new Error("connect a wallet, take a burner, or type an address");
       const [member, bids, loans] = await Promise.all([
-        ctx.sdk.fetchMember(ctx.rpc, ctx.wallet),
-        ctx.sdk.fetchBidsFor(ctx.rpc, ctx.wallet),
-        ctx.sdk.fetchLoansFor(ctx.rpc, ctx.wallet),
+        ctx.sdk.fetchMember(ctx.rpc, who),
+        ctx.sdk.fetchBidsFor(ctx.rpc, who),
+        ctx.sdk.fetchLoansFor(ctx.rpc, who),
       ]);
       return {
         wallet: ctx.wallet,
@@ -451,6 +667,20 @@ console.log(member, bids.length, loans.borrowed.map((l) => sdk.LOAN_STATUS_NAMES
     blurb:
       "Encrypt a size to your key and the auditor key, prove it in range, and lay out the three transactions — without sending. Needs your derived keys.",
     needs: "keys",
+    params: [
+      {
+        key: "side",
+        kind: "choice",
+        label: "side",
+        default: "1",
+        choices: () => [
+          { value: "1", label: "borrow USDC" },
+          { value: "0", label: "lend USDC" },
+        ],
+      },
+      { key: "tick", kind: "int", label: "tick", default: 8, min: 0, max: 36, hint: "0–36 · 100 bp + 25 bp per tick" },
+      { key: "size", kind: "usdc", label: "size", default: 1000, hint: "USDC, encrypted before it is sent" },
+    ],
     code: (ctx) => `${PRELUDE(ctx)}
 
 const cfg   = await sdk.fetchAuctionConfig(rpc);
@@ -460,9 +690,9 @@ const plan  = await sdk.buildBidPlan({
   signature: memberSignature,             // wallet signature over sdk.memberSigningMessage() — never logged
   auditorPubkey: new Uint8Array(epoch.auditorPubkey),
   epoch: cfg.currentEpoch,
-  side: 1,                                // 1 = borrow USDC, 0 = lend
-  tick: 8,                                // sdk.formatRate(8) = "3.00%", sdk.tickToBps(8) = 300
-  sizeMicroUsdc: 1_000_000_000n,          // 1,000 USDC
+  side: ${ctx.p.int("side")},                                // 1 = borrow USDC, 0 = lend
+  tick: ${ctx.p.int("tick")},                                // sdk.formatRate(${ctx.p.int("tick")}) = "${ctx.sdk.formatRate(ctx.p.int("tick"))}", sdk.tickToBps(${ctx.p.int("tick")}) = ${ctx.sdk.tickToBps(ctx.p.int("tick"))}
+  sizeMicroUsdc: ${ctx.p.big("size")}n,          // ${ctx.p.int("size").toLocaleString("en-US")} USDC
   sMin: cfg.sMin,
   rent: (space) => rpc.getMinimumBalanceForRentExemption(BigInt(space)).send(),
 });
@@ -481,16 +711,17 @@ const plan  = await sdk.buildBidPlan({
         signature: ctx.memberSignature,
         auditorPubkey: new Uint8Array(epoch.auditorPubkey),
         epoch: cfg.currentEpoch,
-        side: 1,
-        tick: 8,
-        sizeMicroUsdc: 1_000_000_000n,
+        side: ctx.p.int("side") === 1 ? 1 : 0,
+        tick: ctx.p.int("tick"),
+        sizeMicroUsdc: ctx.p.big("size"),
         sMin: cfg.sMin,
         rent: ctx.rentFor,
       });
       return {
         epoch: cfg.currentEpoch,
-        rate: ctx.sdk.formatRate(8),
-        bps: ctx.sdk.tickToBps(8),
+        side: ctx.p.int("side") === 1 ? "borrow" : "lend",
+        rate: ctx.sdk.formatRate(ctx.p.int("tick")),
+        bps: ctx.sdk.tickToBps(ctx.p.int("tick")),
         proofsMs: Math.round(performance.now() - t0),
         ciphertextBytes: plan.ciphertext.length,
         txs: plan.txs.map((t) => ({
@@ -507,13 +738,24 @@ const plan  = await sdk.buildBidPlan({
     id: "subscribe",
     title: "Subscribe to the programs' events",
     blurb:
-      "Open a WebSocket, follow the auction, oracle and credit programs' logs, decode the Anchor events (EpochOpened, Printed, PricePosted per listing, MatchPosted…) — for 60 seconds.",
+      "Open a WebSocket, follow the auction, oracle and credit programs' logs, and decode the Anchor events (EpochOpened, Printed, PricePosted per listing, MatchPosted…).",
+    params: [
+      {
+        key: "seconds",
+        kind: "int",
+        label: "listen for",
+        default: 60,
+        min: 5,
+        max: 300,
+        hint: "seconds — a window is minutes long, so a short listen may see nothing",
+      },
+    ],
     code: (ctx) => `import { createSolanaRpcSubscriptions, getBase64Encoder } from "@solana/kit";
 import * as sdk from "@thewindow/solana-sdk";
 const subs = createSolanaRpcSubscriptions("${ctx.config.wsUrl}");
 const logs = await subs
   .logsNotifications({ mentions: [sdk.PROGRAMS.oracle] }, { commitment: "confirmed" })
-  .subscribe({ abortSignal: AbortSignal.timeout(60_000) });
+  .subscribe({ abortSignal: AbortSignal.timeout(${ctx.p.int("seconds")}_000) });
 for await (const n of logs) {
   for (const line of n.value.logs) {
     if (!line.startsWith("Program data: ")) continue;             // Anchor emit! → base64(disc ‖ borsh)
@@ -528,17 +770,20 @@ for await (const n of logs) {
         const done = () => {
           ctrl.abort();
           resolve({
-            seconds: 60,
+            seconds: ctx.p.int("seconds"),
             events,
-            note: events.length === 0 ? "no event in 60 s — the market may be paused" : undefined,
+            note:
+              events.length === 0
+                ? `no event in ${ctx.p.int("seconds")} s — the market may be paused, or nothing happened in that window`
+                : undefined,
           });
         };
-        const timer = setTimeout(done, 60_000);
+        const timer = setTimeout(done, ctx.p.int("seconds") * 1_000);
         ctx.signal.addEventListener("abort", () => {
           clearTimeout(timer);
           done();
         });
-        ctx.log(`listening on ${ctx.config.wsUrl} for 60 s (oracle + auction) …`);
+        ctx.log(`listening on ${ctx.config.wsUrl} for ${ctx.p.int("seconds")} s (oracle + auction) …`);
         void startLive({
           wsUrl: ctx.config.wsUrl,
           programs: ["oracle", "auction", "credit"],
@@ -551,5 +796,344 @@ for await (const n of logs) {
           },
         });
       }),
+  },
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  // The write track. Everything below sends transactions, and every one of them goes through the
+  // Desk's own flows (`features/desk/useDesk.ts`) rather than a second implementation: the plan is
+  // built by the same builder, sent by the same `sendPlan`, and traced into the same console. A bid
+  // sealed here is indistinguishable on chain from one sealed on the Desk, which is the point —
+  // /build is meant to show you how to drive the desk, not a demonstration of driving it.
+  // ─────────────────────────────────────────────────────────────────────────────────────────────
+  {
+    id: "derive-keys",
+    title: "Derive your confidential keys",
+    blurb:
+      "Two wallet signatures, in this tab: one over the member message, one over your cSTOCK-W account's. Their ElGamal keys never leave the browser and are never logged — this is what unblocks every recipe below.",
+    needs: "wallet",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+// The two messages are fixed strings the browser, the agents and the CLI all agree on.
+const memberSignature = await signMessage({ message: sdk.memberSigningMessage() });
+const tokenSignature  = await signMessage({ message: sdk.tokenAccountSigningMessage(addressBytes(cstockAta)) });
+const w = await sdk.proofs();                                  // the wasm verifier + key derivation
+const elgamalPubkey = w.elgamal_pubkey_from_signature(memberSignature);
+// Nothing is sent: a signature over a message is not a transaction. The keys stay in this tab.`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      await ctx.desk.deriveKeys.mutateAsync();
+      return {
+        derived: true,
+        listing: ctx.desk.listing?.symbol ?? null,
+        note: "two signatures, no transaction — the ElGamal keys exist only in this tab",
+      };
+    },
+  },
+  {
+    id: "join",
+    title: "Join the desk through the faucet",
+    blurb:
+      "POST /join: the administrator signs add_member and mints 10,000 shares of every listed collateral plus fee SOL. The one off-chain call in the whole flow, and it is rate limited.",
+    needs: "keys",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+// The faucet needs your ElGamal pubkey, which comes from the member signature (see "derive-keys").
+const res = await fetch("${ctx.config.adminUrl || "https://<admin>"}/join", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    wallet: "${ctx.wallet ?? "<your wallet>"}",
+    elgamal_pubkey_hex: bytesToHex(elgamalPubkey),
+    mock_account: await sdk.pda.ata("${ctx.wallet ?? "<your wallet>"}", listings[0].mockMint),
+  }),
+});
+// → { ok, signature, already_member }   · 429 with retry_after_secs when the hourly cap is spent
+//   · 503 when the administrator's balance is below its floor`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      if (!ctx.deployment?.faucet) throw new Error("no admin service answered, so the faucet cannot admit this wallet");
+      const r = await ctx.desk.join.mutateAsync();
+      return { ...r, note: r.alreadyMember ? "already a member — nothing minted or sent" : "member added and funded" };
+    },
+  },
+  {
+    id: "onboard",
+    title: "Create and configure the confidential account",
+    blurb:
+      "Two transactions: create the Token-2022 account for this listing's cSTOCK-W, then configure the Confidential Transfer extension with your derived key. One account per collateral.",
+    needs: "keys",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const plan = await sdk.buildOnboardPlan({
+  member: signer,
+  mockMint: listing.mockMint,
+  cstockMint: listing.cstockMint,
+  tokenSignature,                      // never logged
+  mockAtaExists: true, cstockAtaExists: false, cstockConfigured: false,
+});
+await sdk.sendPlan(rpc, plan, signer);   // create ATA → reallocate + configure with a pubkey-validity proof`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      if (ctx.desk.accounts.data?.cstock.configured)
+        return { alreadyConfigured: true, note: "this listing's confidential account is already set up" };
+      const sigs = await ctx.desk.onboard.mutateAsync();
+      return { signatures: sigs, transactions: sigs.length };
+    },
+  },
+  {
+    id: "wrap",
+    title: "Wrap shares into cSTOCK-W",
+    blurb:
+      "Deposit public mock shares and receive a confidential balance. The new decryptable balance is encrypted in this tab before the transaction is built — the chain never sees the amount in the clear.",
+    needs: "keys",
+    writes: true,
+    params: [
+      {
+        key: "shares",
+        kind: "int",
+        label: "shares",
+        default: DEFAULT_WRAP_SHARES,
+        min: 1,
+        max: 10_000,
+        hint: "the faucet grants 10,000 shares; asking for more fails inside Token-2022",
+      },
+    ],
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const w = await sdk.proofs();
+const amount = ${shares(ctx)}n;                                       // ${ctx.p.int("shares").toLocaleString("en-US")} shares, at the mint's 3 decimals
+const plan = await sdk.buildWrapPlan({
+  member: signer,
+  mockMint: listing.mockMint, cstockMint: listing.cstockMint,
+  memberMock: mockAta, memberCstock: cstockAta,
+  amount,
+  pendingCreditCounter: view.pendingBalanceCreditCounter,
+  // available + pending + amount, encrypted to your own key — the chain stores the ciphertext
+  newDecryptableBalance: w.encrypt_balance(tokenSignature, String(available + pending + amount)),
+});
+await sdk.sendPlan(rpc, plan, signer);`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      const before = ctx.desk.balances.data;
+      const sigs = await ctx.desk.wrap.mutateAsync(shares(ctx));
+      return {
+        wrappedShares: ctx.p.int("shares"),
+        wrappedBaseUnits: shares(ctx),
+        signatures: sigs,
+        balanceBefore: before ? { available: before.available, pending: before.pending } : null,
+        note: "the new balance lands as pending until apply-pending folds it in",
+      };
+    },
+  },
+  {
+    id: "apply-pending",
+    title: "Fold the pending balance in",
+    blurb:
+      "A confidential credit arrives as `pending` and has to be applied before it can be spent. One instruction, and the new decryptable balance is encrypted here first.",
+    needs: "keys",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const w = await sdk.proofs();
+const ix = sdk.applyPendingBalanceInstruction(
+  cstockAta, owner, view.pendingBalanceCreditCounter,
+  w.encrypt_balance(tokenSignature, String(available + pending)),
+);
+await sdk.sendPlan(rpc, { txs: [{ label: "apply pending balance", instructions: [ix], extraSigners: [] }] }, signer);`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      // `useDesk` guards this with a bare "not ready"; name the missing piece instead.
+      if (!ctx.desk.accounts.data?.cstock.configured)
+        throw new Error('no confidential account for this listing yet — run "onboard" first');
+      const before = ctx.desk.balances.data;
+      if (!before) throw new Error("the confidential balance has not been decrypted yet — give it a moment and retry");
+      if (before.pending === 0n)
+        return { nothingPending: true, available: before.available, note: "nothing to fold in; wrap something first" };
+      const sigs = await ctx.desk.applyPending.mutateAsync();
+      return { signatures: sigs, foldedIn: before?.pending ?? null };
+    },
+  },
+  {
+    id: "bid",
+    title: "Seal a bid and send it",
+    blurb:
+      "The real thing: encrypt the size to your key and the auditor's, prove it in range and above the minimum, and submit. Three transactions. Dry run first if you would rather look than send.",
+    needs: "keys",
+    writes: true,
+    params: [
+      {
+        key: "side",
+        kind: "choice",
+        label: "side",
+        default: "1",
+        choices: () => [
+          { value: "1", label: "borrow USDC" },
+          { value: "0", label: "lend USDC" },
+        ],
+      },
+      { key: "tick", kind: "int", label: "tick", default: 12, min: 0, max: 36, hint: "100 bp + 25 bp per tick" },
+      { key: "size", kind: "usdc", label: "size", default: 500, hint: "USDC — encrypted before it is sent" },
+    ],
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const cfg   = await sdk.fetchAuctionConfig(rpc);
+const epoch = await sdk.fetchEpoch(rpc, cfg.currentEpoch);     // carries the auditor key in force
+const plan  = await sdk.buildBidPlan({
+  member: signer,
+  signature: memberSignature,                                  // never logged
+  auditorPubkey: new Uint8Array(epoch.auditorPubkey),
+  epoch: cfg.currentEpoch,
+  side: ${ctx.p.int("side")},                                                     // 1 = borrow, 0 = lend
+  tick: ${ctx.p.int("tick")},                                                    // sdk.formatRate(${ctx.p.int("tick")}) = "${ctx.sdk.formatRate(ctx.p.int("tick"))}"
+  sizeMicroUsdc: ${ctx.p.big("size")}n,                                  // ${ctx.p.int("size").toLocaleString("en-US")} USDC
+  sMin: cfg.sMin,
+  rent: (space) => rpc.getMinimumBalanceForRentExemption(BigInt(space)).send(),
+});
+await sdk.sendPlan(rpc, plan, signer);   // create range ctx → verify range → verify validity + submit_bid`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      if (!ctx.desk.cfg.data?.hasOpenEpoch)
+        throw new Error("no window is open — a bid can only be sealed while one is");
+      const side = ctx.p.int("side") === 1 ? 1 : 0;
+      const sigs = await ctx.desk.bid.mutateAsync({
+        side,
+        tick: ctx.p.int("tick"),
+        sizeMicroUsdc: ctx.p.big("size"),
+      });
+      return {
+        epoch: ctx.desk.cfg.data.currentEpoch,
+        side: side === 1 ? "borrow" : "lend",
+        tick: ctx.p.int("tick"),
+        rate: ctx.sdk.formatRate(ctx.p.int("tick")),
+        sizeUsdc: ctx.p.int("size"),
+        signatures: sigs,
+        note: "the size is a ciphertext on chain; a match becomes a loan after the print",
+      };
+    },
+  },
+  {
+    id: "close-bid",
+    title: "Reclaim the rent from an old bid",
+    blurb:
+      "close_bid is permissionless and refunds the rent to the bid's own member, so anyone can tidy up after a window — including you, for your own. Nothing else in this app reaches it.",
+    needs: "wallet",
+    writes: true,
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const cfg  = await sdk.fetchAuctionConfig(rpc);
+const bids = await sdk.fetchBidsFor(rpc, wallet);                  // one account per (epoch, side, tick)
+const old  = bids.filter((b) => b.data.epoch < cfg.currentEpoch);  // a live window's bid cannot be closed
+const ix = await sdk.auction.getCloseBidInstructionAsync({
+  anyone: signer,                                                  // whoever pays the fee
+  epoch: await sdk.pda.epoch(old[0].data.epoch),
+  bid: old[0].address,
+  member: old[0].data.member,                                      // the rent goes here, not to the signer
+});
+await sdk.sendPlan(rpc, { txs: [{ label: "close bid", instructions: [ix], extraSigners: [] }] }, signer);`,
+    run: async (ctx) => {
+      if (!ctx.desk || !ctx.wallet) throw new Error("connect a wallet or take a burner first");
+      const cfg = await ctx.sdk.fetchAuctionConfig(ctx.rpc);
+      if (!cfg) throw new Error("auction config missing");
+      const bids = await ctx.sdk.fetchBidsFor(ctx.rpc, ctx.wallet);
+      const closable = bids
+        .filter((b) => b.data.epoch < cfg.currentEpoch)
+        .sort((a, b) => Number(a.data.epoch - b.data.epoch));
+      const first = closable[0];
+      if (!first)
+        return {
+          closed: null,
+          sealedBids: bids.length,
+          note:
+            bids.length === 0
+              ? "this wallet holds no bid accounts — seal one first"
+              : "every bid this wallet holds belongs to the window that is still open; they can be closed after it prints",
+        };
+      const sigs = await ctx.desk.closeBid.mutateAsync({
+        bid: first.address,
+        epoch: first.data.epoch,
+        member: first.data.member,
+      });
+      return {
+        closed: { bid: first.address, epoch: first.data.epoch, side: first.data.side, tick: first.data.tick },
+        rentRefundedTo: first.data.member,
+        remaining: closable.length - 1,
+        signatures: sigs,
+      };
+    },
+  },
+  {
+    id: "mark-stale",
+    title: "Record that a print is overdue",
+    blurb:
+      "mark_stale is permissionless, and the program checks the deadline itself — so it succeeds only when the keeper really is late. That check is what makes it safe to offer: you cannot slander a punctual keeper.",
+    needs: "wallet",
+    writes: true,
+    params: [
+      {
+        key: "epoch",
+        kind: "text",
+        label: "epoch",
+        default: "",
+        placeholder: "the last closed one",
+        example: "100",
+        hint: "an *open* epoch can never be stale — the program requires it closed",
+      },
+    ],
+    code: (ctx) => `${PRELUDE(ctx)}
+
+const cfg    = await sdk.fetchAuctionConfig(rpc);
+const epoch  = await sdk.fetchEpoch(rpc, cfg.currentEpoch - 1n);   // an open epoch can never be stale
+const oracle = await sdk.fetchOracle(rpc);
+// The program's own condition, so a refusal can be explained before it is attempted:
+const overdue = epoch.closeSlot > 0n && (await rpc.getSlot().send()) >= epoch.closeSlot + oracle.staleAfterSlots;
+const ix = await sdk.oracle.getMarkStaleInstructionAsync({
+  anyone: signer,
+  epoch: await sdk.pda.epoch(${chosenEpoch(ctx, "epoch") === null ? "cfg.currentEpoch - 1n" : `${chosenEpoch(ctx, "epoch")}n`}),
+  epochIndex: ${chosenEpoch(ctx, "epoch") === null ? "cfg.currentEpoch - 1n" : `${chosenEpoch(ctx, "epoch")}n`},
+});
+await sdk.sendPlan(rpc, { txs: [{ label: "mark stale", instructions: [ix], extraSigners: [] }] }, signer);
+// The program refuses unless the print is past its deadline — an on-chain check, not a convention.`,
+    run: async (ctx) => {
+      if (!ctx.desk) throw new Error("connect a wallet or take a burner first");
+      const asked = chosenEpoch(ctx, "epoch");
+      const cfg = await ctx.sdk.fetchAuctionConfig(ctx.rpc);
+      if (!cfg) throw new Error("auction config missing");
+      // The open epoch is never a candidate: the program requires `EpochStatus::Closed`. So the
+      // default is the one before it, the most recent that could possibly be overdue.
+      const index = asked ?? (cfg.currentEpoch > 0n ? cfg.currentEpoch - 1n : 0n);
+      const [epoch, oracle, slot] = await Promise.all([
+        ctx.sdk.fetchEpoch(ctx.rpc, index),
+        ctx.sdk.fetchOracle(ctx.rpc),
+        ctx.rpc.getSlot({ commitment: "confirmed" }).send(),
+      ]);
+      if (!epoch) throw new Error(`no epoch account for ${index}`);
+      if (!oracle) throw new Error("oracle state missing");
+      // Both of the program's conditions, checked here, so a refusal is a sentence rather than a
+      // simulation failure. A punctual keeper is the normal case, and saying so is the honest result.
+      if (epoch.closeSlot === 0n)
+        return { epoch: index, sent: false, reason: "this epoch is still open; only a closed one can be overdue" };
+      const deadline = epoch.closeSlot + oracle.staleAfterSlots;
+      const now = Number(slot);
+      if (now < Number(deadline))
+        return {
+          epoch: index,
+          sent: false,
+          closeSlot: epoch.closeSlot,
+          staleAfterSlots: oracle.staleAfterSlots,
+          deadlineSlot: deadline,
+          slotsRemaining: Number(deadline) - now,
+          reason: "the keeper is inside its deadline, so the program would refuse this — nothing was sent",
+        };
+      const sigs = await ctx.desk.markStale.mutateAsync(index);
+      return {
+        epoch: index,
+        sent: true,
+        deadlineSlot: deadline,
+        signatures: sigs,
+        note: "recorded on chain: this epoch's print missed its deadline",
+      };
+    },
   },
 ];

@@ -258,6 +258,38 @@ pool) and **0.02 SOL** → `39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM` (the a
 | the demo bid missed the print | the Autopilot bid two ticks past the last print and the window cleared three ticks higher. Four ticks now — free, because everyone matched clears at r\*, never at their own tick |
 | still open | a full bid → match → loan cycle could not be re-verified tonight: all three threads log `error sending request` against `api.devnet.solana.com`, which is the shared public endpoint, not the desk. A dedicated devnet RPC (`WINDOW_RPC_URL`, `?rpc=`) is the single best preparation for the day — `docs/DEMO_SCRIPT.md` §pre-flight |
 
+## 25 Sep: the developer pages stop being read-only
+
+Both developer-facing pages showed true things and could not be worked with. `#/agent` had no writes, no
+wallet hooks and no inputs at all — its only controls were a `refresh` that re-ran a read, one copy button and
+some links, while its own copy told the reader to go and run a CLI. `#/build`'s eleven recipes were real but
+read-only, and every parameter in them was a literal: `side: 1`, `tick: 8`, `1_000_000_000n`, a 60 s subscribe.
+
+| change | what it does |
+|---|---|
+| the agents' strategy, in the browser | `services/admin/src/agents.rs` ported to `app/src/features/agent/strategy.ts` — the anchor `(last r* + 12)/2`, the lender's −3, the `rand(5)` spread, the 100–2,100 USDC band, the 3-slot margin — every constant a dial, with a seeded xorshift64 so a run replays. `Quote now` seals a real bid through the Desk's own `buildBidPlan` → `sendPlan`; `Run every window` keeps quoting once per window while the tab is open. 17 unit tests, including the xorshift sequence checked against an independent implementation |
+| the six simulated members became addresses | the page showed two counts off the descriptor. Each row now reads its own wallet's sealed bids and loans from the chain — opt-in per row, because six agents is twelve `getProgramAccounts` and a public endpoint is not free |
+| the journey steps became runnable | each step names the `services/launch` commands that move it along. A dev-only Vite plugin (`app/vite/devBridge.mjs`) runs them and streams the output into the page and the console; the hosted site has no bridge and shows the line to copy instead. Allow-list by id, `shell: false`, validated arguments, spending refused without `WINDOW_DEV_BRIDGE_ALLOW_SPEND=1` *and* a second click, output scrubbed of `cpk_…`, 64-hex runs and keypair paths, cross-origin and non-JSON requests refused, one at a time (`docs/RUNBOOK.md` §6b) |
+| every recipe parameter became a dial | `Recipe.params` declares them; `code` and `run` both read `ctx.p`, so the snippet cannot show one number while the run uses another — and a test renders each recipe under two value sets and fails if the code is identical |
+| eight recipes that really send | derive keys, join, onboard, wrap, apply pending, bid, `close_bid`, `mark_stale`, all through `useDesk` rather than a second implementation. `close_bid` and `mark_stale` were permissionless instructions no UI reached. Each asks once before sending and offers a dry run that builds the plan — real proofs, real rent — and sends nothing; write recipes are never auto-retried, because re-running half a sent plan is how a bid goes twice |
+| the JSON-RPC underneath, as curl | the transport is wrapped once in `app/src/lib/chain.ts`; `rpcTap` records only while the inspector asks, and shows every call *inside* the SDK — `verify` is one function and five requests — each copyable as the `curl` that reproduces it |
+| a scratchpad | the focused recipe's own code, editable, run in the tab with `sdk`, `rpc`, `config` and the desk in scope. Labelled JavaScript, because nothing in a browser strips type annotations and calling it TypeScript would be a small lie |
+
+Found while verifying, all three by driving the real pages against a live localnet:
+
+| defect | cause |
+|---|---|
+| the inspector took the whole page down | `JSON.stringify` refuses a bigint, and RPC params carry them (a slot, a rent size). The throw happened inside the inspector's *render*, where React's error boundary swallowed it and replaced the page with the error screen — so a debugging aid destroyed the thing it was describing. `asCurl` now encodes bigints the way the wire does, says so when one is too large for a double, and cannot throw |
+| a first wrap always failed | the default wrap was 20,000,000 milli-shares, copied from the Rust agents, who are funded by `setup`. The faucet grants 10,000 shares, so Token-2022 answered `insufficient funds` — which reads as a broken app. One `DEFAULT_WRAP_SHARES` now serves the autopilot, the browser agent and the recipe |
+| `mark_stale` was offered on an epoch that can never be stale | the program requires `EpochStatus::Closed`, and the default was the open one. The recipe now checks both of the program's conditions — closed, and past `close_slot + stale_after_slots` — and reports the slots remaining instead of sending a transaction that must fail |
+| a localnet page with no admin service read devnet addresses | `chain.ts` bundles `deployments/devnet.json` as the offline fallback. On localnet that pointed every read at mints and PDAs the validator has never heard of, so the dashboard looked broken rather than unserved. It now says which it is |
+| the Agent page linked to itself, twice | `LenderAgent` was written with a `page` variant for that page and was never given it, so it repeated the whole Clawpump identity block and rendered a footer linking to `#/agent` from `#/agent`. `LenderTrack` did the same |
+
+Verified end to end on localnet: all 7 routes clean, the same 9 read recipes confirm, `interactive.mjs` grew
+from 14 named checks to 25 and all pass, and the write track ran for real from `#/build` — derive → join →
+onboard → wrap → bid, five confirmed transactions — and from `#/agent`, whose browser agent sealed
+`lend @ tick 13, 1,571 USDC` in epoch 215. 275 unit tests.
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a

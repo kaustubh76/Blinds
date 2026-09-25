@@ -48,22 +48,25 @@ window.thewindow = {
 };
 
 async function runRecipe(id: string) {
-  {
-    const { RECIPES } = await import("./features/build/recipes");
-    const r = RECIPES.find((x) => x.id === id);
-    if (!r) throw new Error(`${id} recipe missing`);
-    return r.run({
-      sdk,
-      rpc,
-      config,
-      deployment: null,
-      wallet: null,
-      memberSignature: null,
-      rentFor: async () => 0n,
-      signal: new AbortController().signal,
-      log: (line) => devConsole.push({ kind: "note", title: line }),
-    });
-  }
+  const { RECIPES, defaultValues, makeParams } = await import("./features/build/recipes");
+  const r = RECIPES.find((x) => x.id === id);
+  if (!r) throw new Error(`${id} recipe missing`);
+  // From DevTools there is no page to type parameters into, so the recipe's own defaults stand — and
+  // no wallet, so a write recipe refuses here and says to use the Build page.
+  return r.run({
+    sdk,
+    rpc,
+    config,
+    deployment: null,
+    wallet: null,
+    memberSignature: null,
+    rentFor: async () => 0n,
+    signal: new AbortController().signal,
+    log: (line) => devConsole.push({ kind: "note", title: line }),
+    p: makeParams(r.params, defaultValues(r.params)),
+    desk: null,
+    dryRun: true,
+  });
 }
 
 const root = document.getElementById("root");

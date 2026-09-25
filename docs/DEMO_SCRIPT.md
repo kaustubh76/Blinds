@@ -94,7 +94,7 @@ Roughly 400 words. If you are running long, cut the 1:05 beat to its first sente
 - **Pyth** — "Pyth is the coefficient `k_c` inside the solvency proof and the gate on `seize`. Two limits are enforced on chain per listing: how long ago the keeper posted, and how old the publisher's own timestamp is. That's why one of my listings is refusing loans right now."
 - **PreStocks** — "ANTHROPIC is listed beside a listed stock under one rate, at a 200 % haircut, marked by the published price. We also show the basis between the mark and the implied token price — and we label it an attested mark, not a signed feed, because the keeper copies it."
 - **Meteora** — "The curve isn't a token launch bolted on. It's quoted in a tokenized stock, the raise target is the desk's own $250k fully-diluted figure converted through Pyth, and the fee decays over exactly one loan tenor. Devnet rehearsal today, same program and configuration as the mainnet launch."
-- **Clawpump** — "The agent needed an identity that isn't me: a coin and a wallet, which is the pool's creator and fee claimer. The Agent page computes each step from the launch record or the chain — nothing is a claim."
+- **Clawpump** — "The agent needed an identity that isn't me: a coin and a wallet, which is the pool's creator and fee claimer. The Agent page computes each step from the launch record or the chain — nothing is a claim — and each step names the command that moves it along, so you can see exactly what is left to do and what it costs."
 
 ---
 
@@ -109,7 +109,8 @@ Roughly 400 words. If you are running long, cut the 1:05 beat to its first sente
 | *What's actually on chain vs in your app?* | "The proofs, the sums, the rate, the loans, the freshness rules. The dashboard only reads — Market, Explorer and Positions work with none of my services running." |
 | *Why one uniform rate?* | "It's a benchmark — xONIA, an overnight index average. Everyone who clears, clears at the same rate, which is what makes it quotable." |
 | *How big is the trusted piece?* | "One administrator, disclosed, whose every decryption is proven on chain at each print. That's the whole trust surface, and the threat model is written down." |
-| *Could I integrate this?* | "The Build page has runnable recipes, the IDLs and the SDK — `#/build`." |
+| *Could I integrate this?* | "`#/build`. Nineteen recipes that run against the RPC you configure: change the parameters and both the code and the run follow them, turn on `wire` and you get the JSON-RPC as `curl`, and the scratchpad at the bottom runs your own code in the tab. Eight of them write — join, wrap, seal a bid — each with a dry run that builds the whole plan and sends none of it." |
+| *Is that agent actually doing anything?* | "Its strategy is forty lines of arithmetic in the keeper. `#/agent` runs the same strategy in your browser under a throwaway key, with every constant as a dial — change the resting rate, watch the anchor move, press Quote now and a sealed bid goes in." |
 
 ---
 

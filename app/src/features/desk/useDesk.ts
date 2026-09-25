@@ -3,12 +3,14 @@ import { type Address, getAddressEncoder } from "@solana/kit";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   applyPendingBalanceInstruction,
+  auction,
   buildBidPlan,
   buildOnboardPlan,
   buildWrapPlan,
   fetchEpoch,
   fetchOracle,
   fetchPrint,
+  oracle as oracleProgram,
   PrintStatus,
   pda,
   proofs,
@@ -35,6 +37,16 @@ export const AUTOPILOT_TICK_MARGIN = 4;
 
 /** Where the autopilot bids when nothing has printed yet and there is no clearing rate to beat. */
 export const AUTOPILOT_FALLBACK_TICK = 8;
+
+/**
+ * How many *shares* a first wrap takes, for anything that wraps without being asked (the autopilot,
+ * the Agent page's browser agent, the Build page's wrap recipe).
+ *
+ * The faucet mints 10,000 shares (`services/admin/src/main.rs`, `mint_to … 10_000_000` at 3 decimals),
+ * so a default above that fails with Token-2022's `insufficient funds` — which reads as a broken app
+ * rather than as a number being too big. A tenth of the grant leaves room to wrap again.
+ */
+export const DEFAULT_WRAP_SHARES = 1_000;
 
 export function useSteps() {
   const [steps, setSteps] = useState<StepReport[]>([]);
@@ -281,6 +293,67 @@ export function useDesk(account: UiWalletAccount) {
     },
   });
 
+  /**
+   * `close_bid` — permissionless, and the rent goes back to the bid's own member. A sealed bid's
+   * account outlives the window it was made in; nothing in the app reclaimed one until now, so a
+   * wallet that has bid a few times is holding rent it can have back for one signature.
+   */
+  const closeBid = useMutation({
+    mutationFn: async (args: { bid: Address; epoch: bigint; member: Address }) => {
+      const ix = await auction.getCloseBidInstructionAsync({
+        anyone: txSigner,
+        epoch: await pda.epoch(args.epoch),
+        bid: args.bid,
+        member: args.member,
+      });
+      return sendPlan({ txs: [{ label: "close bid", instructions: [ix], extraSigners: [] }] }, txSigner, steps.onStep, {
+        title: "auction.getCloseBidInstructionAsync → sendPlan",
+        code: [
+          "// anyone may close a bid once its window is over; the rent is refunded to bid.member",
+          `const ix = await sdk.auction.getCloseBidInstructionAsync({`,
+          `  anyone: signer,`,
+          `  epoch: await sdk.pda.epoch(${args.epoch}n),`,
+          `  bid: address("${args.bid}"),`,
+          `  member: address("${args.member}"),`,
+          `});`,
+        ].join("\n"),
+      });
+    },
+    onSuccess: invalidate,
+  });
+
+  /**
+   * `mark_stale` — also permissionless. It succeeds only when the keeper really is past its deadline
+   * for that epoch; the program refuses it otherwise, which is what makes it safe to offer. Anyone
+   * noticing a late print can record that fact on chain rather than waiting for the administrator.
+   */
+  const markStale = useMutation({
+    mutationFn: async (epochIndex: bigint) => {
+      const ix = await oracleProgram.getMarkStaleInstructionAsync({
+        anyone: txSigner,
+        epoch: await pda.epoch(epochIndex),
+        epochIndex,
+      });
+      return sendPlan(
+        { txs: [{ label: `mark epoch ${epochIndex} stale`, instructions: [ix], extraSigners: [] }] },
+        txSigner,
+        steps.onStep,
+        {
+          title: "oracle.getMarkStaleInstructionAsync → sendPlan",
+          code: [
+            "// permissionless: the program checks the print really is overdue before it records anything",
+            `const ix = await sdk.oracle.getMarkStaleInstructionAsync({`,
+            `  anyone: signer,`,
+            `  epoch: await sdk.pda.epoch(${epochIndex}n),`,
+            `  epochIndex: ${epochIndex}n,`,
+            `});`,
+          ].join("\n"),
+        },
+      );
+    },
+    onSuccess: invalidate,
+  });
+
   // The latest rendered state, for the autopilot to wait on between steps (queries refetch after
   // every mutation; each step's preconditions are read from here, never from a stale closure).
   const latest = useRef({ keys: false, member: false, configured: false, balance: null as bigint | null, open: false });
@@ -303,12 +376,17 @@ export function useDesk(account: UiWalletAccount) {
   };
 
   /**
-   * Runs the whole desk in one go — derive → join → set up → wrap → bid — skipping what is done.
-   * Meant for the burner (no prompts); with an extension wallet it asks for each signature in turn.
+   * Everything a wallet needs before it can bid — derive → join → set up → wrap — skipping whatever
+   * is already done, then optionally waiting for a window. Extracted from the autopilot because the
+   * Agent page's browser agent needs the same preparation before it quotes, and one choreography in
+   * one place is the only way the two cannot drift.
+   *
+   * `label` names whoever asked, so the console says `autopilot: …` or `agent: …` truthfully.
    */
-  const autopilot = useMutation({
-    mutationFn: async (opts: { wrapShares: bigint; sizeMicroUsdc: bigint; side: 0 | 1 }) => {
-      const note = (title: string) => devConsole.push({ kind: "note", title: `autopilot: ${title}` });
+  const prepare = useMutation({
+    mutationFn: async (opts: { wrapShares: bigint; waitForWindow?: boolean; label?: string }) => {
+      const who = opts.label ?? "autopilot";
+      const note = (title: string) => devConsole.push({ kind: "note", title: `${who}: ${title}` });
       if (!latest.current.keys) {
         note(
           session.memberSignature
@@ -320,7 +398,7 @@ export function useDesk(account: UiWalletAccount) {
       } else note("keys already derived");
       if (!latest.current.member) {
         if (!dep.data?.faucet)
-          throw new Error("autopilot: the faucet is not reachable, so this wallet cannot be admitted");
+          throw new Error(`${who}: the faucet is not reachable, so this wallet cannot be admitted`);
         note("joining via the faucet");
         await join.mutateAsync();
         await waitFor("membership", () => latest.current.member);
@@ -336,11 +414,25 @@ export function useDesk(account: UiWalletAccount) {
         await wrap.mutateAsync(opts.wrapShares);
         await waitFor("the wrapped balance", () => (latest.current.balance ?? 0n) > 0n);
       } else note("already holds cSTOCK-W");
-      if (!latest.current.open) {
+      if (opts.waitForWindow !== false && !latest.current.open) {
         // Between windows the keeper prints and matches, then opens the next one (a few minutes).
         note("no window is open — waiting for the keeper to open the next one");
         await waitFor("an open window", () => latest.current.open, 10 * 60_000);
       }
+    },
+  });
+
+  /** True when this wallet could bid right now without any setup. */
+  const ready = () => latest.current.keys && latest.current.member && latest.current.configured;
+
+  /**
+   * Runs the whole desk in one go — derive → join → set up → wrap → bid — skipping what is done.
+   * Meant for the burner (no prompts); with an extension wallet it asks for each signature in turn.
+   */
+  const autopilot = useMutation({
+    mutationFn: async (opts: { wrapShares: bigint; sizeMicroUsdc: bigint; side: 0 | 1 }) => {
+      const note = (title: string) => devConsole.push({ kind: "note", title: `autopilot: ${title}` });
+      await prepare.mutateAsync({ wrapShares: opts.wrapShares });
       // Four ticks (100 bp) on the far side of the last clearing rate. The auction is uniform price:
       // everyone matched pays (or receives) r*, never their own tick, so bidding further out costs a
       // borrower nothing and only buys fill probability. Two ticks was not enough — on 23 Sep the
@@ -381,6 +473,10 @@ export function useDesk(account: UiWalletAccount) {
     wrap,
     applyPending,
     bid,
+    closeBid,
+    markStale,
+    prepare,
+    ready,
     autopilot,
   };
 }

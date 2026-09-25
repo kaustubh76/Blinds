@@ -126,6 +126,15 @@ The **Agent** page (`#/agent`) is where this lives: the journey from identity to
 the desk's numbers beside what the chain says, and the Clawpump identity. The Market page carries the same card,
 and the Build page's `launch-status` recipe reads the pool from raw bytes (`sdk.fetchDbc`) in your tab.
 
+The page is also where the desk's *other* agents can be operated. Each journey step names the
+`services/launch` command that moves it along — a button with the repo checked out, a line to copy
+otherwise (§B). Under it, the six simulated members are one row each, and any row reads its own wallet's
+sealed bids and loans off the chain. And **"Quote a window with the agents' own strategy"** runs
+`services/admin/src/agents.rs` in your browser under your own key: the resting tick, the spread, the
+lender's offset and the size band are the Rust constants as dials, the page shows the anchor it is
+quoting around, and `Quote now` seals a real bid through the Desk's own `buildBidPlan` → `sendPlan`.
+`Run every window` keeps it quoting, once per window, while the tab is open.
+
 ### Watch it yourself
 
 ```bash
@@ -179,8 +188,16 @@ paused, which is why the series and the explorer are populated even between runs
 ## What to look at
 
 - The Agent page (`#/agent`): five journey steps, each computed from a record or the chain, the pending ones
-  naming what they wait on; the PreStocks mark card on Market: the mark, the implied price and the basis
-  (the last two only while the market runs — the admin's `/marks`).
+  naming what they wait on and the command that would move them; the six simulated members as addresses you can
+  read off the chain; and the agents' own strategy, runnable under your key with its constants as dials.
+- The Build page (`#/build`): nineteen recipes. Eleven read — change a parameter and both the snippet and the
+  run follow it. Eight write: derive keys, join, set up the confidential account, wrap, fold in the pending
+  balance, seal a bid, reclaim an old bid's rent, flag an overdue print. Each write asks once before it sends and
+  offers a dry run that builds the whole plan — real proofs, real rent lookups — and sends none of it. Turn on
+  `wire` and the JSON-RPC underneath appears, request and response, copyable as `curl`. The scratchpad at the
+  bottom runs your own JavaScript against the live market with `sdk`, `rpc` and your signer in scope.
+- The PreStocks mark card on Market: the mark, the implied price and the basis (the last two only while the
+  market runs — the admin's `/marks`).
 - A bid transaction: the instruction data holds a 320-byte validity proof and no number.
 - The Epoch account: 74 × 96 bytes of accumulators, no sizes.
 - An attest transaction: four `VerifyZeroCiphertext` instructions (1,182 bytes total) followed by

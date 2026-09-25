@@ -3,15 +3,19 @@
  * mainnet, the Meteora curve set from the desk's numbers, its Clawpump identity, and the developer
  * surface. Every status comes from a record or the chain; every pending step names what it waits on.
  */
+import { useState } from "react";
+import { BridgeRun } from "../../components/BridgeRun";
 import { Card } from "../../components/Card";
 import { Icon, type IconName } from "../../components/Icon";
 import { Stat } from "../../components/Stat";
-import { Badge, ExplorerLink, Pill, type Tone } from "../../components/ui";
+import { Badge, ExplorerLink, Note, Pill, type Tone } from "../../components/ui";
 import { formatRate } from "../../lib/format";
 import { DEVNET_LAUNCH, LAUNCH, launchCluster, MAINNET_LAUNCH, useLaunch } from "../../lib/launch";
 import { useDeployment, useOracle } from "../../lib/queries";
 import { LenderTrack } from "../build/LenderTrack";
 import { LenderAgent } from "../market/LenderAgent";
+import { AgentRoster } from "./AgentRoster";
+import { BrowserAgent } from "./BrowserAgent";
 import { journey, type StepState } from "./journey";
 
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -22,6 +26,11 @@ const WORD: Record<StepState, string> = { done: "done", pending: "pending", bloc
 function Journey({ live }: { live: { isMigrated: boolean; progress: number } | null }) {
   const steps = journey(DEVNET_LAUNCH, MAINNET_LAUNCH, live);
   const done = steps.filter((s) => s.state === "done").length;
+  // The step you would act on: the first that is not finished, else the last one.
+  const [picked, setPicked] = useState<string | null>(null);
+  const suggested = steps.find((x) => x.state !== "done")?.id ?? steps[steps.length - 1]?.id ?? null;
+  const openId = picked ?? suggested;
+  const open = steps.find((x) => x.id === openId) ?? null;
   return (
     <Card
       eyebrow="the journey"
@@ -31,30 +40,51 @@ function Journey({ live }: { live: { isMigrated: boolean; progress: number } | n
           {MAINNET_LAUNCH ? "on mainnet" : "devnet rehearsal · mainnet next"}
         </Badge>
       }
+      footer="Pick a step to see what moves it along. Each command is this repo's own — a button where there is a checkout to run it on, a line to copy otherwise."
     >
       <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {steps.map((s, i) => (
-          <li
-            key={s.id}
-            className="grid content-start gap-1.5 rounded-[var(--radius-md)] border border-line bg-surface-0 p-3"
-            data-state={s.state}
-          >
-            <div className="flex items-center gap-2">
-              <span className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">step {i + 1}</span>
-              <Pill tone={TONE[s.state]} icon={ICON[s.state]}>
-                {WORD[s.state]}
-              </Pill>
-            </div>
-            <div className="text-sm font-semibold text-ink-1">{s.title}</div>
-            <p className="text-xs leading-relaxed text-ink-2">{s.detail}</p>
-            {s.href && (
-              <a href={s.href} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">
-                open →
-              </a>
-            )}
+          <li key={s.id} data-state={s.state}>
+            <button
+              type="button"
+              onClick={() => setPicked(s.id)}
+              aria-expanded={s.id === openId}
+              className={`grid h-full w-full content-start gap-1.5 rounded-[var(--radius-md)] border p-3 text-left transition-colors ${
+                s.id === openId ? "border-accent bg-surface-1" : "border-line bg-surface-0 hover:border-accent/50"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">step {i + 1}</span>
+                <Pill tone={TONE[s.state]} icon={ICON[s.state]}>
+                  {WORD[s.state]}
+                </Pill>
+              </div>
+              <div className="text-sm font-semibold text-ink-1">{s.title}</div>
+              <p className="text-xs leading-relaxed text-ink-2">{s.detail}</p>
+            </button>
           </li>
         ))}
       </ol>
+      {open && (
+        <div className="mt-4 grid gap-2 border-t border-line pt-4">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
+              step {steps.findIndex((x) => x.id === open.id) + 1}
+            </span>
+            <span className="text-sm font-semibold text-ink-1">{open.title}</span>
+            {open.href && (
+              <a href={open.href} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">
+                open →
+              </a>
+            )}
+          </div>
+          {open.commands?.length ? (
+            <BridgeRun ids={open.commands} />
+          ) : (
+            <Note>Nothing to run here: this step is a consequence of the others, not an action.</Note>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -100,6 +130,17 @@ function OnDesk() {
               ? `epoch ${oracle.data.lastPrintEpoch} · what the agent earns overnight`
               : "no print yet"
           }
+        />
+      </div>
+      <div className="mt-4">
+        <AgentRoster
+          agents={agents.map((a) => ({
+            index: a.index,
+            wallet: a.wallet,
+            role: a.role,
+            listing: a.listing,
+            symbol: listings[a.listing ?? 0]?.symbol,
+          }))}
         />
       </div>
       <p className="mt-3 text-sm text-ink-2">
@@ -314,14 +355,17 @@ export function Agent() {
       </div>
       <Journey live={live} />
       <OnDesk />
-      <LenderAgent />
+      <BrowserAgent />
+      {/* `page`: the numbers only. The agent's identity and its coin are the Clawpump card's job below,
+          and the `card` variant would repeat both here — plus a footer linking to this very page. */}
+      <LenderAgent variant="page" />
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <CurveFromDesk live={l.data} />
         <Clawpump />
       </div>
       <Card eyebrow="for developers" title="Read the pool the way the dashboard does">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-start">
-          <LenderTrack />
+          <LenderTrack here="agent" />
           <p className="text-xs text-ink-3 lg:max-w-[28ch]">
             <Icon name="code" size={11} className="mr-1 inline" />
             The Build page runs this as the <span className="mono">launch-status</span> recipe in your tab; DevTools has{" "}

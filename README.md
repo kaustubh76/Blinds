@@ -41,9 +41,12 @@ crates/     window-elgamal · window-clearing · window-proofs · window-proofs-
 services/   admin (Rust: administrator + keeper + operator + price poster, the simulated agents, /deployment + /join (rate-limited faucet) for the dashboard) · pyth-poster (Node: carries Pyth's signed update into Pyth's receiver on devnet so the Pyth listing can be priced from Pyth's own account) · launch (Node: the lender agent's token on a stock-quoted Meteora DBC pool, priced from Pyth, and its Clawpump identity)
 sdk/        @thewindow/solana-sdk (TypeScript on @solana/kit 8; codama-generated clients; transaction plans; wasm proofs; print re-verification)
 app/        dashboard (Vite 8 + React 19 + Tailwind 4; wallet-standard via @solana/react; a devnet burner, a
-            developer console, an Agent page, a Build page; a backdrop that follows the window — sealed bids drift,
-            a print converges and stamps — off under reduced motion, behind a preference, and off with `?motion=off`;
-            `pnpm dev` refuses a stale sdk/dist via scripts/check-sdk.mjs)
+            developer console, an Agent page that runs the agents' own quoting strategy under your key, a Build page
+            whose recipes take parameters, really send, show the JSON-RPC as curl and hand you an editable scratchpad;
+            a backdrop that follows the window — sealed bids drift, a print converges and stamps — off under reduced
+            motion, behind a preference, and off with `?motion=off`;
+            `pnpm dev` refuses a stale sdk/dist via scripts/check-sdk.mjs; a dev-only bridge (app/vite/devBridge.mjs)
+            lets the Agent page run this repo's own commands where there is a checkout to run them on)
 tests/      window-tests (LiteSVM: e2e, attacks, invariants, privacy, measurements) · integration (real validator, real services, TS SDK)
 config/     demo.toml · integration.toml · devnet.toml · prod.toml — the single source of market parameters
 scripts/    market.sh · serve_app.sh · watch_tunnels.sh · localnet.sh · deploy_devnet.sh · upgrade_devnet.sh · freeze.sh

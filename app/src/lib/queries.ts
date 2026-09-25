@@ -29,7 +29,7 @@ import { mainnetRpc } from "./pyth";
 const SLOT_MS = config.cluster === "devnet" ? 10_000 : 2_000;
 
 export const useDeployment = () =>
-  useQuery({ queryKey: ["deployment"], queryFn: fetchDeployment, staleTime: Number.POSITIVE_INFINITY });
+  useQuery({ queryKey: ["deployment"], queryFn: () => fetchDeployment(), staleTime: Number.POSITIVE_INFINITY });
 
 export const useSlot = () =>
   useQuery({

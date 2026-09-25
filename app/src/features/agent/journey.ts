@@ -14,6 +14,12 @@ export interface JourneyStep {
   detail: string;
   /** A link into the product or an explorer, when there is one. */
   href?: string | undefined;
+  /**
+   * Ids of the `services/launch` commands that move this step along, in the order you would run them
+   * (`app/vite/devBridge.mjs`). With the repo checked out they are buttons; on the hosted site they
+   * are lines to copy. A step with none is one nothing can be done about from here.
+   */
+  commands?: readonly string[];
 }
 
 /**
@@ -40,12 +46,14 @@ export function journey(
           state: "done",
           detail: `${agent.name} · ${agent.status === "running" ? "running on Clawpump" : `status ${agent.status ?? "unknown"}`} · wallet ${short(agent.walletAddress)} — the pool's creator and fee wallet`,
           href: `https://explorer.solana.com/address/${agent.walletAddress}`,
+          commands: ["agent-status", "agent-upsert"],
         }
       : {
           id: "identity",
           title: "A Clawpump identity",
           state: "pending",
           detail: "waits on services/launch agent (needs CLAWPUMP_API_KEY)",
+          commands: ["agent-upsert", "agent-status"],
         },
     devnet?.pool
       ? {
@@ -54,8 +62,15 @@ export function journey(
           state: "done",
           detail: `pool ${short(devnet.pool)} on a twin quote mint — same program, same configuration`,
           href: `https://explorer.solana.com/address/${devnet.pool}?cluster=devnet`,
+          commands: ["launch-status", "launch-buy"],
         }
-      : { id: "rehearsal", title: "Devnet rehearsal on Meteora DBC", state: "pending", detail: "not run yet" },
+      : {
+          id: "rehearsal",
+          title: "Devnet rehearsal on Meteora DBC",
+          state: "pending",
+          detail: "not run yet",
+          commands: ["launch-plan", "launch-preflight", "launch-create"],
+        },
     mainnet?.pool
       ? {
           id: "mainnet",
@@ -63,6 +78,7 @@ export function journey(
           state: "done",
           detail: `pool ${short(mainnet.pool)} · WLEND ${short(mainnet.baseMint)}`,
           href: `https://explorer.solana.com/address/${mainnet.pool}`,
+          commands: ["launch-status"],
         }
       : {
           id: "mainnet",
@@ -70,6 +86,7 @@ export function journey(
           state: "blocked",
           detail: `waits on ~0.05 SOL at the launch key ${short(launchKey)} — the pool cost 0.027 on devnet; nothing is sent below 0.04`,
           href: `https://explorer.solana.com/address/${launchKey}`,
+          commands: ["launch-plan", "launch-preflight", "launch-create"],
         },
     coin
       ? {
@@ -78,6 +95,7 @@ export function journey(
           state: "done",
           detail: `${coin.symbol} on pump.fun, paired with TSLAx · mint ${short(coin.mint)}`,
           href: coin.pumpUrl,
+          commands: ["agent-status"],
         }
       : {
           id: "coin",
@@ -87,6 +105,7 @@ export function journey(
             ? `waits on ~0.02 SOL at the agent's wallet ${short(agent.walletAddress)} — the agent pays its own launch (0.0092 SOL for a TSLAx pair)`
             : "needs the identity first",
           href: agent ? `https://explorer.solana.com/address/${agent.walletAddress}` : undefined,
+          commands: agent ? ["clawpump-preflight", "clawpump-launch"] : ["agent-upsert"],
         },
     live?.isMigrated
       ? {
@@ -104,6 +123,7 @@ export function journey(
             href: past.dammPool
               ? `https://explorer.solana.com/address/${past.dammPool}?cluster=devnet`
               : `https://explorer.solana.com/tx/${past.tx}?cluster=devnet`,
+            commands: ["launch-buy", "launch-graduate"],
           }
         : {
             id: "graduation",
@@ -112,6 +132,7 @@ export function journey(
             detail: live
               ? `${(live.progress * 100).toFixed(1)} % of the raise so far — buyers move the curve, nothing else does`
               : "once the pool reads, its progress shows here",
+            commands: ["launch-buy", "launch-graduate"],
           },
   ];
   return steps;

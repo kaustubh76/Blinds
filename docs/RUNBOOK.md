@@ -171,6 +171,40 @@ CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its
   `LAUNCH_NEW_QUOTE=1` mints a fresh one. The pool is a rehearsal — same program, same config, same code path.
 - Nothing here touches the desk's programs, the keeper or the market; it can run while the market is stopped.
 
+## 6b. Running these from the Agent page (the dev bridge)
+
+A page served as static files cannot start a process, so the hosted dashboard shows each command as a line
+to copy. With the repo checked out and `pnpm dev` running, the same rows are buttons: a dev-only Vite plugin
+(`app/vite/devBridge.mjs`, `apply: "serve"` — it cannot reach a build) runs one of a fixed list of this
+repo's own commands and streams its output into the page and the ` console.
+
+```sh
+cd app && pnpm dev                                          # the bridge comes up with the dev server
+curl -s localhost:5173/__dev/bridge | python3 -m json.tool   # the catalogue, and whether spending is allowed
+
+# anything that costs money is refused until you say so, and then still asks twice in the UI:
+WINDOW_DEV_BRIDGE_ALLOW_SPEND=1 pnpm dev
+```
+
+| what it will run | spends |
+|---|---|
+| `launch plan` · `launch status` · `launch launch --dry-run` | nothing |
+| `agent-status` · `clawpump-launch --preflight` (need `CLAWPUMP_API_KEY`) | nothing |
+| `agent` — creates/renames and starts the Clawpump agent | nothing on chain |
+| `window-admin price-check` · `zk-probe` | nothing |
+| `window-admin listings-sync` | localnet fees |
+| `launch buy <n>` · `launch launch` · `launch graduate` | **devnet** |
+| `clawpump-launch` | **mainnet** (~0.0092 SOL from the agent's own wallet) |
+
+What keeps it safe, in the order it matters: the command is chosen from an allow-list by id, so nothing in a
+request becomes a program name; `spawn` runs with `shell: false` and every argument is validated against the
+command's own spec; a spending command is refused outright without `WINDOW_DEV_BRIDGE_ALLOW_SPEND=1` **and**
+needs a second confirming click; the child's output is scrubbed for `cpk_…`, 64-hex runs and keypair paths
+before it leaves the process, because `.env` holds the Clawpump key and the auditor seed; a request without a
+JSON content-type or from another origin is refused, so no other page can reach it; and one command runs at a
+time. It is a convenience for whoever has the repo, not a service — and the buttons simply are not there
+otherwise.
+
 ## 7. The last action: freeze
 
 `./scripts/freeze.sh` sets every program's upgrade authority to none — **irreversible**. Only after the

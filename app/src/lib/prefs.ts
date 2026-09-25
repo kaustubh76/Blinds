@@ -18,6 +18,26 @@ export function writePref(key: string, value: boolean): void {
   }
 }
 
+/**
+ * The same namespace, for a preference that is not a yes/no: the Agent page's strategy dials and the
+ * Build page's recipe parameters. Still never anything secret, and still forgotten by `clearPrefs`.
+ */
+export function readPrefValue(key: string, dflt: string): string {
+  try {
+    return localStorage.getItem(`${PREFIX}${key}`) ?? dflt;
+  } catch {
+    return dflt;
+  }
+}
+
+export function writePrefValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(`${PREFIX}${key}`, value);
+  } catch {
+    // storage unavailable: the preference lives for this page load only
+  }
+}
+
 /** Forgets every preference in this namespace. "Reset to defaults" means all of them. */
 export function clearPrefs(): void {
   try {

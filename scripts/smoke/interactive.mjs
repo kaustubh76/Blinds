@@ -153,6 +153,133 @@ async function page(width, height, hash = "") {
   await p.close();
 }
 
+// 5. The Build page's own controls. A recipe declares its parameters, and both the snippet and the run
+//    read them back — so typing a number must change the code on screen. A snippet that keeps showing
+//    a literal is the failure mode this exists to catch.
+{
+  const p = await page(1500, 1200, "#/build");
+  const cards = await p.evaluate(() => [...document.querySelectorAll("[data-recipe]")].length);
+  check("every recipe renders", cards >= 19, `${cards} cards`);
+
+  const param = await p.evaluate(async () => {
+    const card = document.querySelector('[data-recipe="solvency"]');
+    if (!card) return { error: "no solvency card" };
+    [...card.querySelectorAll("button")].find((x) => /^code$/.test(x.textContent.trim()))?.click();
+    await new Promise((r) => setTimeout(r, 400));
+    const before = card.querySelector("pre")?.textContent ?? "";
+    const input = card.querySelector('input[type="number"]');
+    if (!input) return { error: "no parameter input" };
+    const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value");
+    desc.set.call(input, "2500");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 600));
+    const after = card.querySelector("pre")?.textContent ?? "";
+    return { changed: before !== after, shows: after.includes("2500000000") };
+  });
+  check("a parameter changes the snippet", param.changed === true && param.shows === true, JSON.stringify(param));
+  // The wire inspector: recording is off until asked for, and what it records must be reproducible
+  // outside the browser — which is the whole claim the `curl` makes.
+  const wire = await p.evaluate(async () => {
+    const card = document.querySelector('[data-recipe="config"]');
+    [...card.querySelectorAll("button")].find((x) => /^wire$/.test(x.textContent.trim()))?.click();
+    await new Promise((r) => setTimeout(r, 200));
+    [...card.querySelectorAll("button")].find((x) => /run here/i.test(x.textContent))?.click();
+    for (let i = 0; i < 80; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (/over the wire/.test(card.textContent)) break;
+    }
+    [...card.querySelectorAll("button")].find((x) => /request \/ response/.test(x.textContent))?.click();
+    await new Promise((r) => setTimeout(r, 400));
+    const pres = [...card.querySelectorAll("pre")].map((e) => e.textContent ?? "");
+    const m = card.textContent.match(/(\d+) calls?/);
+    return { calls: m ? Number(m[1]) : 0, curl: pres.some((x) => x.includes("curl -s") && x.includes('"method"')) };
+  });
+  check("the inspector records the wire", wire.calls > 0 && wire.curl, JSON.stringify(wire));
+
+  // The scratchpad: the developer's own code, against the live market, in this tab.
+  const scratch = await p.evaluate(async () => {
+    const ta = document.querySelector('textarea[aria-label="scratchpad"]');
+    if (!ta) return { error: "no scratchpad" };
+    const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ta), "value");
+    desc.set.call(ta, "const cfg = await sdk.fetchAuctionConfig(rpc);\nreturn { epoch: cfg.currentEpoch };");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    const section = ta.closest("section");
+    [...section.querySelectorAll("button")].find((x) => /run here/i.test(x.textContent))?.click();
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (/"epoch"/.test(section.textContent)) break;
+    }
+    return { ran: /"epoch"/.test(section.textContent) };
+  });
+  check("the scratchpad runs", scratch.ran === true, JSON.stringify(scratch));
+
+  // Nothing that writes may be reachable without a key, and each one asks before it sends.
+  const guarded = await p.evaluate(() =>
+    [...document.querySelectorAll("[data-recipe]")]
+      .filter((c) => /writes/.test(c.textContent))
+      .map((c) => ({
+        id: c.getAttribute("data-recipe"),
+        open: [...c.querySelectorAll("button")].some((x) => /run here/i.test(x.textContent) && !x.disabled),
+        dryRun: [...c.querySelectorAll("button")].some((x) => /dry run/i.test(x.textContent)),
+      })),
+  );
+  check(
+    "writes are gated without a key",
+    guarded.length >= 8 && guarded.every((g) => !g.open && g.dryRun),
+    JSON.stringify(guarded),
+  );
+  await p.close();
+}
+
+// 6. The Agent page: the six simulated members are addresses you can look up, the agents' own strategy
+//    is runnable under your own key, and every journey step names the command that moves it along.
+{
+  const p = await page(1500, 1200, "#/agent");
+  const before = await p.evaluate(() => ({
+    roster: /simulated members/i.test(document.body.innerText),
+    offersKey: /devnet burner/i.test(document.body.innerText),
+    quoteNow: [...document.querySelectorAll("button")].some((x) => /Quote now/.test(x.textContent)),
+    commands: [...document.querySelectorAll("pre")].filter((e) => /pnpm --filter|window-admin/.test(e.textContent))
+      .length,
+    // `variant="page"`: the Clawpump card owns the identity, so LenderAgent must not repeat it.
+    selfLinks: [...document.querySelectorAll('main a[href="#/agent"]')].length,
+  }));
+  check("the roster lists the simulated members", before.roster, JSON.stringify(before));
+  check("a journey step names its command", before.commands > 0, `${before.commands} command lines`);
+  check(
+    "the agent asks for a key before it offers to quote",
+    before.offersKey && !before.quoteNow,
+    JSON.stringify(before),
+  );
+  check("the agent page never links to itself", before.selfLinks === 0, `${before.selfLinks} self-links`);
+
+  await takeBurner(p);
+  await wait(4000);
+  const after = await p.evaluate(async () => {
+    const input = document.querySelector('input[aria-label="resting tick"]');
+    if (!input) return { error: "no dials" };
+    const anchorOf = () => (document.body.innerText.match(/anchor (\d+) = /) ?? [])[1] ?? null;
+    const before = anchorOf();
+    const desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value");
+    desc.set.call(input, "24");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 600));
+    return {
+      quoteNow: [...document.querySelectorAll("button")].some((x) => /Quote now/.test(x.textContent)),
+      anchorBefore: before,
+      anchorAfter: anchorOf(),
+    };
+  });
+  check("a key unlocks the agent's controls", after.quoteNow === true, JSON.stringify(after));
+  check(
+    "a dial moves the anchor the strategy quotes around",
+    after.anchorBefore !== null && after.anchorAfter !== null && after.anchorBefore !== after.anchorAfter,
+    JSON.stringify(after),
+  );
+  await p.close();
+}
+
 console.log(JSON.stringify({ out, errors }, bigintSafe, 1));
 await b.close();
 process.exit(Object.values(out).every((v) => v === "ok") && errors.length === 0 ? 0 : 1);
