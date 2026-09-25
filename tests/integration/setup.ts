@@ -21,6 +21,10 @@ function run(args: string[], log: string): ChildProcess {
       ...process.env,
       WINDOW_CLUSTER: "localnet",
       WINDOW_PROFILE: process.env.WINDOW_PROFILE ?? "integration",
+      // The integration profile's price window is 30 slots (~12 s). At the admin's default 20 s price
+      // tick the cache is stale for ~8 s of every 20 and a lock is a coin flip — which is exactly how
+      // tier 2 failed in CI from 24 Sep. The service clamps this too; being explicit keeps the log honest.
+      WINDOW_PRICE_TICK_MS: process.env.WINDOW_PRICE_TICK_MS ?? "2000",
       WINDOW_AUDITOR_SEED_HEX:
         process.env.WINDOW_AUDITOR_SEED_HEX ?? "1111111111111111111111111111111111111111111111111111111111111111",
       RUST_LOG: process.env.RUST_LOG ?? "info",

@@ -311,11 +311,30 @@ fn main() -> Result<()> {
             // 2026-09-22 pace (~0.17 s/slot) 1,200 slots is under four minutes, so a post that
             // waits for the loop arrives stale and every lock fails PriceStale. This thread checks
             // every `WINDOW_PRICE_TICK_MS` (default 20 s) and posts whatever is past half its window.
+            //
+            // The tick is clamped to half the tightest listing's window, because a profile can set a
+            // window shorter than the tick and then no post is ever fresh: the INTEGRATION profile's
+            // 30 slots (~12 s) against a 20 s tick left the cache stale for ~8 s of every 20 and made
+            // tier 2's lock a coin flip. Half a window is the cadence `post_prices` already assumes.
             {
+                let tightest_slots = profile
+                    .listings
+                    .iter()
+                    .map(|l| l.max_price_age_slots(&profile.market))
+                    .min()
+                    .unwrap_or(profile.market.max_price_age_slots);
+                // 400 ms is the slower end of every cluster we run on, so this errs toward posting more.
+                let half_window_ms = (tightest_slots * 400 / 2).max(500);
                 let price_tick_ms: u64 = std::env::var("WINDOW_PRICE_TICK_MS")
                     .ok()
                     .and_then(|v| v.parse().ok())
-                    .unwrap_or(20_000);
+                    .unwrap_or(20_000)
+                    .min(half_window_ms);
+                info!(
+                    price_tick_ms,
+                    tightest_window_slots = tightest_slots,
+                    "price thread cadence"
+                );
                 let price_ctx = Ctx {
                     chain: Box::new(RpcChain::new(&rpc)),
                     keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
