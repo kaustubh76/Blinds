@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0c0d10" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0d10" media="(prefers-color-scheme: dark)" />
     <title>THE WINDOW for Stocks</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <meta
@@ -17,6 +18,51 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <style>
+      /*
+       * The few colours that must exist before the bundle's CSS does: the page background for the
+       * first paint, and the boot fallback's palette — which is shown exactly when that CSS may
+       * never arrive. Both themes, because the default theme is the warm paper light one.
+       */
+      :root {
+        --boot-bg: #f6f3ec;
+        --boot-ink: #1a1724;
+        --boot-mute: #4f4b5c;
+        --boot-faint: #7c7889;
+        --boot-line: #e5dfd3;
+        --boot-panel: #ffffff;
+        --boot-accent: #6d4ff5;
+        --boot-accent-ink: #ffffff;
+        --boot-bad: #b91c1c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --boot-bg: #0c0d10;
+          --boot-ink: #f2efe8;
+          --boot-mute: #b7b3aa;
+          --boot-faint: #7d7a73;
+          --boot-line: #262a32;
+          --boot-panel: #1b1e24;
+          --boot-accent: #a78bfa;
+          --boot-accent-ink: #0c0d10;
+          --boot-bad: #ef4444;
+        }
+      }
+      :root[data-theme="dark"] {
+        --boot-bg: #0c0d10;
+        --boot-ink: #f2efe8;
+        --boot-mute: #b7b3aa;
+        --boot-faint: #7d7a73;
+        --boot-line: #262a32;
+        --boot-panel: #1b1e24;
+        --boot-accent: #a78bfa;
+        --boot-accent-ink: #0c0d10;
+        --boot-bad: #ef4444;
+      }
+      html {
+        background: var(--boot-bg);
+      }
+    </style>
   </head>
   <body>
     <div id="root">
@@ -28,31 +74,31 @@
       <div
         id="boot-fallback"
         hidden
-        style="max-width:44rem;margin:12vh auto;padding:0 1.5rem;color:#f2efe8;font:16px/1.55 ui-sans-serif,system-ui,sans-serif"
+        style="max-width:44rem;margin:12vh auto;padding:0 1.5rem;color:var(--boot-ink);font:16px/1.55 ui-sans-serif,system-ui,sans-serif"
       >
-        <p style="font:500 11px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#7d7a73">
+        <p style="font:500 11px/1 ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--boot-faint)">
           the dashboard did not start
         </p>
         <h1 style="margin:.6rem 0 0;font-size:28px;line-height:1.15;letter-spacing:-.02em">
           This page could not load its code.
         </h1>
-        <p style="margin:.9rem 0 0;color:#b7b3aa">
+        <p style="margin:.9rem 0 0;color:var(--boot-mute)">
           The chain is unaffected. This is the browser side — most often a cached copy of this page asking for a file
           that a newer deploy replaced, or an extension blocking a script.
         </p>
         <pre
           id="boot-error"
-          style="margin:1.1rem 0 0;padding:.9rem;overflow-x:auto;border:1px solid #262a32;border-radius:10px;background:#1b1e24;font:12px/1.5 ui-monospace,monospace;color:#ef4444"
+          style="margin:1.1rem 0 0;padding:.9rem;overflow-x:auto;border:1px solid var(--boot-line);border-radius:10px;background:var(--boot-panel);font:12px/1.5 ui-monospace,monospace;color:var(--boot-bad)"
         ></pre>
         <p style="margin:1.1rem 0 0">
           <button
             type="button"
             onclick="location.reload(true)"
-            style="border:0;border-radius:999px;padding:.55rem 1rem;background:#a78bfa;color:#0c0d10;font:500 14px/1 inherit;cursor:pointer"
+            style="border:0;border-radius:999px;padding:.55rem 1rem;background:var(--boot-accent);color:var(--boot-accent-ink);font:500 14px/1 inherit;cursor:pointer"
           >
             Reload
           </button>
-          <span style="margin-left:.6rem;color:#7d7a73;font-size:13px">
+          <span style="margin-left:.6rem;color:var(--boot-faint);font-size:13px">
             still blank? hold Shift and reload to bypass the cache
           </span>
         </p>

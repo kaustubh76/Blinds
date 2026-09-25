@@ -4,6 +4,7 @@
  * app's hooks, the admin service's API, and the DevTools handle.
  */
 import * as sdk from "@thewindow/solana-sdk";
+import type { UiWalletAccount } from "@wallet-standard/react";
 import { useRef, useState } from "react";
 import { Card } from "../../components/Card";
 import { CopyButton } from "../../components/DevConsole";
@@ -12,11 +13,17 @@ import { Badge, Button, ExplorerLink, Note } from "../../components/ui";
 import { config } from "../../config";
 import { rentFor, rpc } from "../../lib/chain";
 import { devConsole, jsonSafe } from "../../lib/console";
-import { useDeployment } from "../../lib/queries";
+import { capitalize, countWord } from "../../lib/format";
+import { useDeployment, useOracle } from "../../lib/queries";
+import { type RpcCall, rpcTap } from "../../lib/rpcTap";
 import { useSession } from "../../lib/wallet";
+import { useDesk } from "../desk/useDesk";
+import { Inspector, InspectorToggle } from "./Inspector";
 import { ProgramSurface } from "./ProgramSurface";
-import { RECIPES, type Recipe, type RecipeCtx } from "./recipes";
+import { ParamFields, storedValues } from "./params";
+import { type Desk, makeParams, RECIPES, type Recipe, type RecipeCtx } from "./recipes";
 import { Schedule } from "./Schedule";
+import { Scratchpad } from "./Scratchpad";
 import { Tracks } from "./Tracks";
 
 function Code({ children }: { children: string }) {
@@ -32,7 +39,95 @@ function Code({ children }: { children: string }) {
   );
 }
 
-function RecipeCard({ r }: { r: Recipe }) {
+/**
+ * `useDesk` needs an account, and hooks cannot be conditional — so the desk handle is made in a leaf
+ * that is mounted only when there is one. `RecipeCard` takes it as a prop and does not care which.
+ */
+function WithDesk({ account, children }: { account: UiWalletAccount; children: (d: Desk) => React.ReactNode }) {
+  const d = useDesk(account);
+  return <>{children(d)}</>;
+}
+
+/**
+ * Both recipe cards and the scratchpad, sharing one desk handle: `useDesk` holds mutations, and two
+ * copies of it would be two sets of in-flight state for the same wallet.
+ */
+function Recipes() {
+  const s = useSession();
+  const body = (desk: Desk | null) => <RecipeSections desk={desk} />;
+  return s.account ? <WithDesk account={s.account}>{(d) => body(d)}</WithDesk> : body(null);
+}
+
+function RecipeSections({ desk }: { desk: Desk | null }) {
+  const reads = RECIPES.filter((r) => !r.writes);
+  const writes = RECIPES.filter((r) => r.writes);
+  // The snippet the scratchpad loads: whichever recipe you looked at last, defaulting to the first.
+  const [seedId, setSeedId] = useState(reads[0]?.id ?? "");
+  const seed = RECIPES.find((r) => r.id === seedId) ?? reads[0];
+  return (
+    <>
+      <Card
+        eyebrow="live recipes · reads"
+        title="Run it here, copy it as code"
+        footer="Each run lands in the console (`) with the exact snippet. Secrets — the wallet signatures, bid openings — are never rendered. Change a parameter and both the snippet and the run follow it."
+      >
+        <ul className="grid gap-3">
+          {reads.map((r) => (
+            <RecipeCard key={r.id} r={r} desk={desk} onFocus={() => setSeedId(r.id)} />
+          ))}
+        </ul>
+      </Card>
+
+      <Card
+        eyebrow="live recipes · writes"
+        title="Drive the desk from here"
+        footer="Every one of these goes through the Desk's own flows, so a bid sealed here is the same on chain as one sealed there. Nothing is retried automatically: re-running half a sent plan is how a bid gets sent twice."
+      >
+        <Note tone="warn">
+          These send transactions and cost fees. Each asks once before it goes, and offers a dry run that builds the
+          whole plan — real proofs, real rent lookups — and sends none of it. On{" "}
+          <span className="mono">{config.cluster}</span> with a burner, none of it is worth anything.
+        </Note>
+        <ul className="mt-3 grid gap-3">
+          {writes.map((r) => (
+            <RecipeCard key={r.id} r={r} desk={desk} onFocus={() => setSeedId(r.id)} />
+          ))}
+        </ul>
+      </Card>
+
+      <Card
+        eyebrow="scratchpad"
+        title="Edit it and run it"
+        footer="It runs in this tab with the real SDK against the configured RPC. Nothing leaves the browser, and what you type is kept in this browser only."
+      >
+        <Scratchpad seed={seed ? seed.code(scratchCtx(seed, desk)) : ""} desk={desk} />
+      </Card>
+    </>
+  );
+}
+
+/**
+ * A context for rendering a snippet outside a card — parameters at their stored values, no abort signal
+ * to speak of, and nothing that runs.
+ */
+function scratchCtx(r: Recipe, desk: Desk | null): RecipeCtx {
+  return {
+    sdk,
+    rpc,
+    config,
+    deployment: null,
+    wallet: null,
+    memberSignature: null,
+    rentFor,
+    signal: new AbortController().signal,
+    log: () => {},
+    p: makeParams(r.params, storedValues(r.id, r.params)),
+    desk,
+    dryRun: true,
+  };
+}
+
+function RecipeCard({ r, desk, onFocus }: { r: Recipe; desk: Desk | null; onFocus?: () => void }) {
   const s = useSession();
   const dep = useDeployment();
   const [running, setRunning] = useState(false);
@@ -41,9 +136,13 @@ function RecipeCard({ r }: { r: Recipe }) {
   const [err, setErr] = useState<string | null>(null);
   const [ms, setMs] = useState<number | null>(null);
   const [showCode, setShowCode] = useState(false);
+  const [values, setValues] = useState(() => storedValues(r.id, r.params));
+  const [armed, setArmed] = useState(false);
+  const [wire, setWire] = useState(false);
+  const [calls, setCalls] = useState<readonly RpcCall[]>([]);
   const ctrl = useRef<AbortController | null>(null);
 
-  const ctx: RecipeCtx = {
+  const ctxFor = (over: { signal?: AbortSignal; dryRun?: boolean } = {}): RecipeCtx => ({
     sdk,
     rpc,
     config,
@@ -51,41 +150,55 @@ function RecipeCard({ r }: { r: Recipe }) {
     wallet: s.address,
     memberSignature: s.memberSignature,
     rentFor,
-    signal: ctrl.current?.signal ?? new AbortController().signal,
+    signal: over.signal ?? ctrl.current?.signal ?? new AbortController().signal,
     log: (line) => setLines((l) => [...l, line]),
-  };
+    p: makeParams(r.params, values),
+    desk,
+    dryRun: over.dryRun ?? false,
+  });
+  const ctx = ctxFor();
+  // `me` reads any address that is typed in, so it is only blocked when there is neither.
+  const hasSubject = !!s.address || !!values.wallet?.trim();
   const blocked =
-    r.needs === "wallet" && !s.address
+    r.needs === "wallet" && !hasSubject
       ? "connect a wallet or take a burner"
       : r.needs === "keys" && !s.memberSignature
-        ? "derive your keys on the Desk first"
-        : null;
+        ? 'derive your keys first — the "derive-keys" recipe does it here'
+        : r.writes && !desk
+          ? "connect a wallet or take a burner"
+          : null;
 
-  const run = async () => {
+  const run = async (opts: { dryRun?: boolean } = {}) => {
     const c = new AbortController();
     ctrl.current = c;
     setRunning(true);
     setLines([]);
     setOut(null);
     setErr(null);
+    setCalls([]);
+    setArmed(false);
     const t0 = performance.now();
+    const runCtx = ctxFor({ signal: c.signal, ...(opts.dryRun ? { dryRun: true } : {}) });
     const id = devConsole.push({
       kind: "call",
-      title: `recipe: ${r.title}`,
-      code: r.code({ ...ctx, signal: c.signal }),
+      title: `recipe: ${r.title}${opts.dryRun ? " (dry run)" : ""}`,
+      code: r.code(runCtx),
       state: "pending",
     });
+    if (wire) rpcTap.start();
     try {
       // The public devnet RPC answers 429 when the market, the agents and a browser share one IP; a
-      // recipe is idempotent, so retry the whole run a few times before showing the error.
+      // read recipe is idempotent, so retry the whole run a few times before showing the error. A
+      // write recipe is *not* retried: re-running half a sent plan is how you send a bid twice.
+      const attempts = r.writes ? 1 : 4;
       let v: unknown;
       for (let attempt = 1; ; attempt++) {
         try {
-          v = await r.run({ ...ctx, signal: c.signal });
+          v = await r.run(runCtx);
           break;
         } catch (e) {
-          if (attempt >= 4 || c.signal.aborted || !ctx.sdk.isTransientRpcError(e)) throw e;
-          setLines((l) => [...l, `the RPC did not answer (rate limit) — retrying (${attempt}/3)`]);
+          if (attempt >= attempts || c.signal.aborted || !ctx.sdk.isTransientRpcError(e)) throw e;
+          setLines((l) => [...l, `the RPC did not answer (rate limit) — retrying (${attempt}/${attempts - 1})`]);
           await new Promise((res) => setTimeout(res, 1500 * attempt));
         }
       }
@@ -96,6 +209,7 @@ function RecipeCard({ r }: { r: Recipe }) {
       setErr(m);
       devConsole.update(id, { state: "failed", error: m });
     } finally {
+      if (wire) setCalls(rpcTap.stop());
       setMs(Math.round(performance.now() - t0));
       setRunning(false);
       ctrl.current = null;
@@ -105,10 +219,26 @@ function RecipeCard({ r }: { r: Recipe }) {
   return (
     <li data-recipe={r.id} className="rounded-[var(--radius-lg)] border border-line bg-surface-1 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-ink-1">{r.title}</span>
+        <button
+          type="button"
+          className="text-left text-sm font-medium text-ink-1 hover:text-accent"
+          onClick={() => {
+            setShowCode((v) => !v);
+            onFocus?.();
+          }}
+          title="show this recipe's code, and load it into the scratchpad below"
+        >
+          {r.title}
+        </button>
+        {r.writes && (
+          <Badge tone="warn" icon="alert">
+            writes
+          </Badge>
+        )}
         {r.needs && <Badge tone={blocked ? "warn" : "good"}>{r.needs === "wallet" ? "wallet" : "keys"}</Badge>}
         {ms !== null && !running && <span className="mono text-[11px] text-ink-3">{ms} ms</span>}
         <span className="ml-auto flex items-center gap-1">
+          <InspectorToggle on={wire} onChange={setWire} />
           <Button variant="ghost" size="sm" icon="code" onClick={() => setShowCode((v) => !v)}>
             {showCode ? "hide code" : "code"}
           </Button>
@@ -116,6 +246,29 @@ function RecipeCard({ r }: { r: Recipe }) {
             <Button variant="ghost" size="sm" icon="stop" onClick={() => ctrl.current?.abort()}>
               abort
             </Button>
+          ) : r.writes ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="shield"
+                onClick={() => void run({ dryRun: true })}
+                disabled={!!blocked}
+                title="build everything this would send, and send none of it"
+              >
+                dry run
+              </Button>
+              <Button
+                size="sm"
+                variant={armed ? "danger" : "primary"}
+                icon={armed ? "alert" : "play"}
+                onClick={() => (armed ? void run() : setArmed(true))}
+                disabled={!!blocked}
+                {...(blocked ? { title: blocked } : {})}
+              >
+                {armed ? "really send" : "run here"}
+              </Button>
+            </>
           ) : (
             <Button
               size="sm"
@@ -131,6 +284,15 @@ function RecipeCard({ r }: { r: Recipe }) {
       </div>
       <p className="mt-1 text-xs text-ink-2">{r.blurb}</p>
       {blocked && <p className="mt-1 text-xs text-status-warning">{blocked}</p>}
+      {armed && !running && (
+        <p className="mt-1 text-xs text-status-warning">
+          This sends transactions signed by {s.wallet?.name === "Devnet burner" ? "your burner" : "your wallet"} on{" "}
+          <span className="mono">{config.cluster}</span>. Press again to go ahead.
+        </p>
+      )}
+      {r.params && r.params.length > 0 && (
+        <ParamFields recipeId={r.id} specs={r.params} values={values} onChange={setValues} ctx={ctx} />
+      )}
       {showCode && (
         <div className="mt-3">
           <Code>{r.code(ctx)}</Code>
@@ -149,6 +311,7 @@ function RecipeCard({ r }: { r: Recipe }) {
           {out}
         </pre>
       )}
+      <Inspector calls={calls} />
     </li>
   );
 }
@@ -196,12 +359,21 @@ const HOOKS: Array<[string, string]> = [
   ["usePositions(account)", "lock (priced solvency proof) · deposit (confidential transfer to escrow)"],
   ["useVerify(print)", "verifyPrint with per-stage timing → a verdict"],
   ["useConsole() / useLiveEvents()", "the developer console store · the WebSocket layer's state and last events"],
+  [
+    "useBackdrop() / backdrop.pulse(kind)",
+    "what the field behind the page is being told (phase, progress, sealed bids) · one impulse on top of it — the Desk pulses a landed bid, the Explorer a print it re-verified",
+  ],
 ];
 
 export function Build() {
   const dep = useDeployment();
+  const oracle = useOracle();
   const admin = dep.data?.adminUrl ?? config.adminUrl ?? "";
   const adminShown = admin || "http://127.0.0.1:9090";
+  // The DevTools sample is meant to be pasted and run, so it names this market's own last print and
+  // one of its own listings rather than whichever epoch and mint were live when it was written.
+  const sampleEpoch = oracle.data?.hasPrinted ? oracle.data.lastPrintEpoch.toString() : "0";
+  const sampleListing = dep.data?.listings.at(-1);
   return (
     <div className="grid gap-4">
       <Card
@@ -247,11 +419,13 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
             <div className="mono mt-3 text-[11px] uppercase tracking-[0.14em] text-ink-3">programs</div>
             <ul className="mt-1 grid gap-0.5 text-xs">
               {(Object.keys(sdk.PROGRAMS) as Array<keyof typeof sdk.PROGRAMS>).map((k) => (
-                <li key={k} className="flex items-center gap-2">
-                  <span className="w-16 text-ink-3">{k}</span>
-                  <ExplorerLink address={sdk.PROGRAMS[k]} cluster={config.cluster}>
-                    {sdk.PROGRAMS[k]}
-                  </ExplorerLink>
+                <li key={k} className="flex min-w-0 items-baseline gap-2">
+                  <span className="w-16 shrink-0 text-ink-3">{k}</span>
+                  <span className="min-w-0 break-all">
+                    <ExplorerLink address={sdk.PROGRAMS[k]} cluster={config.cluster}>
+                      {sdk.PROGRAMS[k]}
+                    </ExplorerLink>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -269,35 +443,30 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
 
       <Tracks />
 
-      <Card
-        eyebrow="live recipes"
-        title="Run it here, copy it as code"
-        footer="Each run lands in the console (`) with the exact snippet. Secrets — the wallet signatures, bid openings — are never rendered."
-      >
-        <ul className="grid gap-3">
-          {RECIPES.map((r) => (
-            <RecipeCard key={r.id} r={r} />
-          ))}
-        </ul>
-      </Card>
+      <Recipes />
 
-      <Card eyebrow="program surface" title="Five programs, from their IDLs">
+      <Card
+        eyebrow="program surface"
+        title={`${capitalize(countWord(Object.keys(sdk.PROGRAMS).length))} programs, from their IDLs`}
+      >
         <ProgramSurface />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card eyebrow="pdas" title="Seeds (sdk.pda.*)">
-          <table className="w-full text-xs">
-            <tbody>
-              {PDA_SEEDS.map(([p, fn, seeds]) => (
-                <tr key={fn} className="border-b border-line/60 last:border-0">
-                  <td className="py-1 pr-2 text-ink-3">{p}</td>
-                  <td className="mono py-1 pr-2 text-ink-1">{fn}</td>
-                  <td className="mono py-1 text-ink-2">{seeds}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-xs">
+              <tbody>
+                {PDA_SEEDS.map(([p, fn, seeds]) => (
+                  <tr key={fn} className="border-b border-line/60 last:border-0">
+                    <td className="py-1 pr-2 text-ink-3">{p}</td>
+                    <td className="mono py-1 pr-2 text-ink-1">{fn}</td>
+                    <td className="mono py-1 text-ink-2">{seeds}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
         <Card
           eyebrow="hooks"
@@ -347,9 +516,9 @@ WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule`}</Code>
           <div className="mt-3">
             <Code>{`const { sdk, rpc } = thewindow;
 await sdk.fetchAuctionConfig(rpc);
-await sdk.verifyPrint(rpc, 31n);
+await sdk.verifyPrint(rpc, ${sampleEpoch}n);
 await thewindow.schedule();                       // every listing: source, mark, both freshness verdicts, PDAs
-await sdk.fetchListing(rpc, "DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo");   // ANTHROPIC-mock by its cSTOCK mint
+await sdk.fetchListing(rpc, "${sampleListing?.cstockMint ?? "<a cSTOCK mint>"}");   // ${sampleListing?.symbol ?? "a listing"} by its cSTOCK mint
 thewindow.console.push({ kind: "note", title: "hello from DevTools" });
 thewindow.queryClient.invalidateQueries();`}</Code>
           </div>

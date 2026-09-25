@@ -24,8 +24,9 @@ fails every transaction and burns nothing — but shows nothing either.
 ## 2. Start
 
 **Judging day, in one command:** `./scripts/judging_day.sh up` — market, tunnel watchdog, published faucet URL,
-then it waits for a window to open and checks every route and every wallet-free recipe on the hosted site before
-anyone is watching; `status` shows the window and the measured burn; `down` stops everything and clears the
+then it waits for a window to open and checks every route, every wallet-free recipe, and the
+surfaces a page load never reaches — the wallet menu on a phone, the motion preference, the clock — on the
+hosted site before anyone is watching; `status` shows the window and the measured burn; `down` stops everything and clears the
 pointer. It refuses to start below 0.3 SOL and names the faucet. Everything below is what it runs.
 
 
@@ -116,13 +117,14 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | epochs print `no trade` although agents run; the agents log shows bids from two agents only | (fixed 18 Sep) the loan service used to run between agents' bids and outlast the window; the two-pass tick lets all six quote first | update the binary: `cargo build -p window-admin --release`, then `market.sh stop && start` |
 | `release failed: destination has no cSTOCK-W account … (retrying quietly)` once per loan | the payee holds no confidential account on the loan listing's cSTOCK mint (a lender on another listing) | agents: `window-admin listings-sync` creates them; a judge's wallet: Positions shows *Receive the payout · set up a … account* on the defaulted loan (two transactions) — the operator releases on its next tick |
 | a mark listing stops posting; `warn … re-posting last good` | PreStocks API down | nothing for 6 h (last-good is re-posted); after 48 h the chain halts that listing's locks |
-| faucet answers `429 busy` / `503 paused` | hourly cap (30) / balance floor (0.5 SOL) | wait, or top up |
+| faucet answers `429 busy` / `503 paused` | hourly cap (30) / balance floor (0.5 SOL) | wait, or top up — the Desk reads `GET /faucet` and greys out both *Join* and the autopilot's *Run it* before the 429, saying how many of the 30 joins are left (polled every 60 s, so it can lag a minute) |
 | judge's Join fails with a token-account error | the dashboard was built before 2026-09-18 | reload (the faucet now derives listing #0's account itself) |
 | agents log `transfer proofs: … InconsistentInput` or a loan sits `Requested` (locked, never deposited) | the account's AE "decryptable" balance cache disagreed with its ElGamal balance (a stale ApplyPendingBalance), or the deposit failed after the lock | since 2026-09-20 the agents resync the cache from the ElGamal balance and resume the deposit under the loan's own listing on the next pass — nothing to do; if it persists, `WINDOW_AGENTS_LOG` shows the cause after the dash |
-| a judge's bid prints `no trade` and no loan appears | the agents did not quote in that window (before 2026-09-19 their loan service could outlast a window on the public RPC), or the bid sat exactly at the print | agents quote in every window now (`bid submitted … epoch=N` for all six in `/tmp/window-agents-devnet.log`); the Autopilot bids 50 bp past the last print; bid again in the next window |
+| a judge's bid prints `no trade` and no loan appears | the agents did not quote in that window (before 2026-09-19 their loan service could outlast a window on the public RPC), or the bid sat exactly at the print | agents quote in every window now (`bid submitted … epoch=N` for all six in `/tmp/window-agents-devnet.log`); the Autopilot bids 100 bp (four ticks) past the last print; bid again in the next window |
 | Positions shows the loan but the lock button is disabled | the tab has no member signature (they never persist) | "Sign to derive" on Positions — one signature |
 | `make test-integration` fails at `setup` on a Linux x86_64 machine with `VerifyPubkeyValidity → SigmaProof(PubkeyValidity, AlgebraicRelation)` | the **prebuilt** Agave `solana-test-validator` for Linux x86_64 (4.2.1, 4.2.2 and 4.3.0 from release.anza.xyz; AMD Zen 3 and Zen 4 runners alike) refuses pubkey-validity proofs that the macOS arm64 build of the same commit, LiteSVM compiled on that same Linux machine, and devnet's own validators all accept — shown by `window-admin zk-probe`, which sends two proof-only transactions (this binary's proof and one made on macOS): both refused there, both accepted here. Same feature set, same version string, same bytes. Not this project's code | run `WINDOW_PROFILE=integration ./scripts/localnet.sh probe` to confirm on the machine, then run tier 2 on macOS or against devnet; `.github/workflows/tier2.yml` can build the validator from source (`build_validator=true`) |
 | hosted site 404 / Actions "not started … payments have failed" | GitHub billing hold on the account (suspends Actions **and** Pages, even for public repos) | github.com/settings/billing → fix the payment; then `gh api -X POST repos/kaustubh76/Blinds/pages -f build_type=workflow` and re-run the `pages` workflow; meanwhile `serve_app.sh` |
+| the page feels heavy on a judge's laptop, or the fans spin up | the backdrop paints a field behind every page at ~30 fps, and three surfaces blur over it (the header, the phone tab bar, an open developer console) | Settings → **Background motion** off (it applies at once, no reload), or share the link with `?motion=off` placed **before** the `#`; the system's own reduced-motion setting already switches it off, and nothing else on the page depends on it |
 | browser 429s on `api.devnet.solana.com` | admin + agents + browsers share one IP | a dedicated devnet RPC in Settings (`?rpc=`), or the repo variable `VITE_RPC_URL` |
 | listing cards say **post stale** and locks fail `PriceStale` although the keeper logs posts every few minutes | devnet's slot time changed (0.45 → ~0.17 s on 22 Sep): `max_price_age_slots = 1200` is a slot count, now ~3.4 min, and an admin started before 22 Sep posts prices only from its main loop, which a print or a loan-service pass can hold for longer than that | restart the market: since 22 Sep the admin posts prices from a dedicated thread every `WINDOW_PRICE_TICK_MS` (20 s) whenever a cache is past half its window; `pnpm schedule` shows the verdicts; the dashboard measures the slot rate itself |
 
@@ -168,6 +170,40 @@ CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its
 - **Devnet.** The quote is a plain 8-dp twin mint the tool creates and funds (1,000 units to the payer);
   `LAUNCH_NEW_QUOTE=1` mints a fresh one. The pool is a rehearsal — same program, same config, same code path.
 - Nothing here touches the desk's programs, the keeper or the market; it can run while the market is stopped.
+
+## 6b. Running these from the Agent page (the dev bridge)
+
+A page served as static files cannot start a process, so the hosted dashboard shows each command as a line
+to copy. With the repo checked out and `pnpm dev` running, the same rows are buttons: a dev-only Vite plugin
+(`app/vite/devBridge.mjs`, `apply: "serve"` — it cannot reach a build) runs one of a fixed list of this
+repo's own commands and streams its output into the page and the ` console.
+
+```sh
+cd app && pnpm dev                                          # the bridge comes up with the dev server
+curl -s localhost:5173/__dev/bridge | python3 -m json.tool   # the catalogue, and whether spending is allowed
+
+# anything that costs money is refused until you say so, and then still asks twice in the UI:
+WINDOW_DEV_BRIDGE_ALLOW_SPEND=1 pnpm dev
+```
+
+| what it will run | spends |
+|---|---|
+| `launch plan` · `launch status` · `launch launch --dry-run` | nothing |
+| `agent-status` · `clawpump-launch --preflight` (need `CLAWPUMP_API_KEY`) | nothing |
+| `agent` — creates/renames and starts the Clawpump agent | nothing on chain |
+| `window-admin price-check` · `zk-probe` | nothing |
+| `window-admin listings-sync` | localnet fees |
+| `launch buy <n>` · `launch launch` · `launch graduate` | **devnet** |
+| `clawpump-launch` | **mainnet** (~0.0092 SOL from the agent's own wallet) |
+
+What keeps it safe, in the order it matters: the command is chosen from an allow-list by id, so nothing in a
+request becomes a program name; `spawn` runs with `shell: false` and every argument is validated against the
+command's own spec; a spending command is refused outright without `WINDOW_DEV_BRIDGE_ALLOW_SPEND=1` **and**
+needs a second confirming click; the child's output is scrubbed for `cpk_…`, 64-hex runs and keypair paths
+before it leaves the process, because `.env` holds the Clawpump key and the auditor seed; a request without a
+JSON content-type or from another origin is refused, so no other page can reach it; and one command runs at a
+time. It is a convenience for whoever has the repo, not a service — and the buttons simply are not there
+otherwise.
 
 ## 7. The last action: freeze
 

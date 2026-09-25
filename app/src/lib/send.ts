@@ -2,9 +2,19 @@
  * Plan sending over the app's RPC (see the SDK's `sendPlan` for the mechanics) — and the one place
  * every chain write passes through, so the developer console sees each call and each transaction.
  */
-import type { TransactionModifyingSigner } from "@solana/kit";
+import {
+  addSignersToTransactionMessage,
+  appendTransactionMessageInstructions,
+  createTransactionMessage,
+  getBase64EncodedWireTransaction,
+  pipe,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  signTransactionMessageWithSigners,
+  type TransactionModifyingSigner,
+} from "@solana/kit";
 import { type OnStep, type Plan, type StepReport, sendPlan as sdkSendPlan } from "@thewindow/solana-sdk";
-import { rpc } from "./chain";
+import { retry, rpc } from "./chain";
 import { devConsole } from "./console";
 
 export type { OnStep, StepReport };
@@ -63,3 +73,73 @@ export const sendPlan = (plan: Plan, signer: TransactionModifyingSigner, onStep?
     },
   );
 };
+
+export interface SimulationView {
+  /** The program error, as the RPC reported it, or null when the transaction would succeed. */
+  err: string | null;
+  /** Compute units the runtime charged for the simulated run. */
+  unitsConsumed: number | null;
+  logs: readonly string[];
+  /** How many of the plan's transactions were simulated, and how many there are. */
+  simulated: number;
+  of: number;
+  /** Stated on the page whenever `of > 1`, because a partial simulation is not a green light. */
+  note?: string;
+}
+
+/**
+ * Simulates the *first* transaction of a plan and nothing else.
+ *
+ * This is deliberately not `simulatePlan`. The plans that matter here create a ZK proof-context
+ * account in transaction 1 and read it in 2 and 3, so simulating 2 against the current chain state
+ * fails on an account that does not exist yet — a red result that means nothing. One transaction
+ * simulated honestly beats three simulated misleadingly, and the caller is told which it got.
+ */
+export async function simulateOne(plan: Plan, signer: TransactionModifyingSigner): Promise<SimulationView> {
+  const tx = plan.txs[0];
+  if (!tx) throw new Error("the plan has no transactions to simulate");
+  const { value: blockhash } = await retry(() => rpc.getLatestBlockhash({ commitment: "confirmed" }).send());
+  const message = pipe(
+    createTransactionMessage({ version: 0 }),
+    (m) => setTransactionMessageFeePayerSigner(signer, m),
+    (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
+    (m) => appendTransactionMessageInstructions(tx.instructions, m),
+    (m) => addSignersToTransactionMessage(tx.extraSigners, m),
+  );
+  const signed = await signTransactionMessageWithSigners(message);
+  const res = await retry(() =>
+    rpc
+      .simulateTransaction(getBase64EncodedWireTransaction(signed), {
+        encoding: "base64",
+        commitment: "confirmed",
+        replaceRecentBlockhash: true,
+      })
+      .send(),
+  );
+  const v = res.value;
+  const view: SimulationView = {
+    err: v.err ? JSON.stringify(v.err, (_k, x) => (typeof x === "bigint" ? Number(x) : x)) : null,
+    unitsConsumed: v.unitsConsumed === undefined ? null : Number(v.unitsConsumed),
+    logs: v.logs ?? [],
+    simulated: 1,
+    of: plan.txs.length,
+    ...(plan.txs.length > 1
+      ? {
+          note: `only 1 of ${plan.txs.length} transactions was simulated: the later ones read a proof-context account that transaction 1 creates, so simulating them against the chain as it is now would fail for a reason that is not yours`,
+        }
+      : {}),
+  };
+  devConsole.push({
+    kind: "call",
+    title: `simulate ${tx.label} (1/${plan.txs.length})`,
+    state: view.err ? "failed" : "confirmed",
+    ...(view.err ? { error: view.err } : {}),
+    programs: Array.from(new Set(tx.instructions.map((ix) => ix.programAddress as string))),
+    detail: {
+      unitsConsumed: view.unitsConsumed,
+      logs: view.logs.slice(-12),
+      ...(view.note ? { note: view.note } : {}),
+    },
+  });
+  return view;
+}

@@ -93,7 +93,7 @@ export function ProgramSurface() {
             type="button"
             key={i.key}
             onClick={() => setKey(i.key)}
-            className={`rounded-[var(--radius-sm)] px-2.5 py-1 text-sm ${key === i.key ? "bg-surface-2 text-ink-1" : "text-ink-3 hover:text-ink-1"}`}
+            className={`rounded-[var(--radius-sm)] px-2.5 py-1 text-sm [@media(pointer:coarse)]:min-h-11 ${key === i.key ? "bg-surface-2 text-ink-1" : "text-ink-3 hover:text-ink-1"}`}
           >
             window_{i.key}
           </button>
@@ -109,7 +109,7 @@ export function ProgramSurface() {
             type="button"
             key={s}
             onClick={() => setSection(s)}
-            className={`-mb-px border-b-2 px-2 py-1 text-xs ${section === s ? "border-accent text-ink-1" : "border-transparent text-ink-3 hover:text-ink-1"}`}
+            className={`-mb-px border-b-2 px-2 py-1 text-xs [@media(pointer:coarse)]:min-h-11 ${section === s ? "border-accent text-ink-1" : "border-transparent text-ink-3 hover:text-ink-1"}`}
           >
             {s} <span className="mono text-ink-3">{idl[s].length}</span>
           </button>

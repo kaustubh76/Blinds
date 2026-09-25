@@ -24,8 +24,13 @@ function Snippet({ children }: { children: string }) {
   );
 }
 
-export function LenderTrack() {
+/**
+ * `here = "build"` (the default) links out to the Agent page, which owns the long story.
+ * `here = "agent"` is the same column *on* that page, so the links would point at itself — those go.
+ */
+export function LenderTrack({ here = "build" }: { here?: "build" | "agent" } = {}) {
   const l = useLaunch();
+  const elsewhere = here !== "agent";
   const s = l.data?.kind === "ok" ? l.data.state : null;
   const fee = s ? dbcFeeAt(s.config.baseFee, s.pool.activationPoint, Math.floor(Date.now() / 1000)) : null;
   return (
@@ -37,11 +42,18 @@ export function LenderTrack() {
       <p className="text-xs text-ink-2">
         The desk&apos;s lender owns a token on a Dynamic Bonding Curve quoted in a tokenized stock. Read that pool the
         way this dashboard does — from raw account bytes, no Meteora SDK in the browser — or run the operator&apos;s
-        CLI. What the curve is and why it is shaped that way lives on{" "}
-        <a href="#/agent" className="text-accent hover:underline">
-          the agent page
-        </a>
-        .
+        CLI.{" "}
+        {elsewhere ? (
+          <>
+            What the curve is and why it is shaped that way lives on{" "}
+            <a href="#/agent" className="text-accent hover:underline">
+              the agent page
+            </a>
+            .
+          </>
+        ) : (
+          "What the curve is and why it is shaped that way is the rest of this page."
+        )}
       </p>
       <div className="text-xs">
         <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">the pool now · {LAUNCH.cluster}</div>
@@ -51,10 +63,15 @@ export function LenderTrack() {
             {s.raisedQuote.toLocaleString("en-US", { maximumFractionDigits: 2 })} of{" "}
             {s.thresholdQuote.toLocaleString("en-US", { maximumFractionDigits: 2 })} quote · fee now{" "}
             {fee.bps >= 100 ? `${(fee.bps / 100).toFixed(2)} %` : `${fee.bps.toFixed(1)} bp`} (period {fee.period} of{" "}
-            {s.config.baseFee.numberOfPeriod}) ·{" "}
-            <a href="#/agent" className="text-accent hover:underline">
-              the agent page →
-            </a>
+            {s.config.baseFee.numberOfPeriod})
+            {elsewhere && (
+              <>
+                {" · "}
+                <a href="#/agent" className="text-accent hover:underline">
+                  the agent page →
+                </a>
+              </>
+            )}
           </p>
         ) : l.isError ? (
           <p className="mt-1 text-status-warning">the pool&apos;s RPC did not answer</p>

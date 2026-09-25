@@ -29,7 +29,7 @@ import { mainnetRpc } from "./pyth";
 const SLOT_MS = config.cluster === "devnet" ? 10_000 : 2_000;
 
 export const useDeployment = () =>
-  useQuery({ queryKey: ["deployment"], queryFn: fetchDeployment, staleTime: Number.POSITIVE_INFINITY });
+  useQuery({ queryKey: ["deployment"], queryFn: () => fetchDeployment(), staleTime: Number.POSITIVE_INFINITY });
 
 export const useSlot = () =>
   useQuery({
@@ -167,6 +167,39 @@ export const useMarks = () => {
         const res = await fetch(`${base}/marks`, { signal: AbortSignal.timeout(6000) });
         if (!res.ok) return null;
         return (await res.json()) as Record<string, MarkSnapshot>;
+      } catch {
+        return null;
+      }
+    },
+    enabled: dep.isFetched,
+    refetchInterval: 60_000,
+    retry: 0,
+  });
+};
+
+/** What `GET <admin>/faucet` answers: the demo faucet's remaining budget this hour. */
+export interface FaucetStatus {
+  remaining_this_hour: number;
+  max_per_hour: number;
+  min_balance_sol: number;
+}
+
+/**
+ * `GET <admin>/faucet` — how much of the demo faucet's hourly budget is left. The Desk says so
+ * before a Join rather than letting a rate limit arrive as an unexplained failure. `null` without an
+ * admin URL, or from a service older than the route.
+ */
+export const useFaucet = () => {
+  const dep = useDeployment();
+  const base = dep.data?.adminUrl ?? config.adminUrl ?? "";
+  return useQuery<FaucetStatus | null>({
+    queryKey: ["faucet", base],
+    queryFn: async () => {
+      if (!base) return null;
+      try {
+        const res = await fetch(`${base}/faucet`, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return null;
+        return (await res.json()) as FaucetStatus;
       } catch {
         return null;
       }

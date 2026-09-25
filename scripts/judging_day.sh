@@ -2,7 +2,8 @@
 # Judging day, in one command. Nothing here is new capability — it is the order of the steps, so that
 # none of them is forgotten while someone is waiting: start the market, keep the tunnel alive, publish
 # the faucet URL for the hosted site, wait for a window to open, then prove from the outside that the
-# hosted dashboard works (every route, every wallet-free recipe) before anyone is watching.
+# hosted dashboard works (every route, every wallet-free recipe, and the wallet menu, the settings and
+# the clock that a page load alone never reaches) before anyone is watching.
 #
 #   ./scripts/judging_day.sh up       # bring it all up and verify it (~4 min, mostly waiting for a window)
 #   ./scripts/judging_day.sh status   # what is running, what it costs, where the window is
@@ -60,6 +61,8 @@ case "${1:-status}" in
         python3 -c 'import json,sys; d=json.load(sys.stdin); bad={k:(v["pageErrors"],v["http4xx5xx"]) for k,v in d.items() if v["pageErrors"] or v["http4xx5xx"]}; print("routes: all clean" if not bad else f"routes: {bad}")') || echo "routes: driver unavailable"
       (cd scripts/smoke && node recipes.mjs "${APP_URL%/}#/build" 2>/dev/null |
         python3 -c 'import json,sys; d=json.load(sys.stdin)["out"]; bad=[k for k,v in d.items() if not isinstance(v,dict) or v.get("state")!="confirmed"]; print("recipes: all confirmed" if not bad else f"recipes: not confirmed {bad}")') || echo "recipes: driver unavailable"
+      (cd scripts/smoke && node interactive.mjs "${APP_URL%/}" 2>/dev/null |
+        python3 -c 'import json,sys; d=json.load(sys.stdin); bad=[k for k,v in d["out"].items() if v != "ok"] + d["errors"]; print("interactive: all passed" if not bad else f"interactive: {bad}")') || echo "interactive: driver unavailable"
     fi
     echo
     echo "── ready ──"

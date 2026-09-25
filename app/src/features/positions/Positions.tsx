@@ -113,6 +113,11 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
             the seized collateral is {bound.symbol}; the operator sends it once you hold an account there
           </span>
         </span>
+      ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased ? (
+        <Note tone="warn">
+          The seized collateral is a listing this dashboard does not know, so the payout account cannot be set up here.
+          Open the page against the deployment that carries it.
+        </Note>
       ) : null;
     return (
       <li key={address} className="rounded-[var(--radius-xl)] border border-line bg-surface-1 p-5">
@@ -213,6 +218,10 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
           </Button>
         </Callout>
       )}
+      {/* One timeline and one error for the page: `usePositions` shares a single step list across
+          locking, depositing and a lender's payout, so neither belongs inside one of the cards. */}
+      <TxTimeline steps={p.steps.steps} cluster={cluster} />
+      {err && <Note tone="bad">{describeError(err)}</Note>}
       <Card eyebrow="borrowing" title={`${borrowed.length} loan${borrowed.length === 1 ? "" : "s"}`}>
         {p.loans.data === undefined ? (
           <Skeleton className="h-16 w-full" />
@@ -231,8 +240,6 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         ) : (
           <ul className="grid gap-3">{borrowed.map((l) => card(l.address, l.data, "borrower"))}</ul>
         )}
-        <TxTimeline steps={p.steps.steps} cluster={cluster} />
-        {err && <Note tone="bad">{describeError(err)}</Note>}
       </Card>
       <Card
         eyebrow="lending"

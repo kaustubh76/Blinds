@@ -27,13 +27,26 @@ describe("deployment descriptor", () => {
         throw new Error("connection refused");
       }),
     );
-    const d = await fetchDeployment();
+    const d = await fetchDeployment("devnet");
     // The judging-critical property: no admin service, but still a usable view of the market.
     expect(d.faucet).toBe(false);
     expect(d.mockMint).toBe(bundled.mock_mint);
     expect(d.cstockMint).toBe(bundled.cstock_mint);
     expect(d.feedId.length).toBe(32);
     expect(d.auditorPubkey.length).toBe(32);
+  });
+
+  it("refuses to hand the devnet copy to a page pointed somewhere else, and says why", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("connection refused");
+      }),
+    );
+    // The bundled descriptor's mints, escrow and listing PDAs exist on devnet and nowhere else.
+    // Reading them off a localnet validator misses every account, which used to look like the
+    // dashboard being broken rather than the admin service being down.
+    await expect(fetchDeployment("localnet")).rejects.toThrow(/describes devnet, not this cluster/);
   });
 });
 

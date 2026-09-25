@@ -7,6 +7,7 @@
   "scripts": {
     "routes": "node routes.mjs",
     "recipes": "node recipes.mjs",
+    "interactive": "node interactive.mjs",
     "demo": "node demo.mjs",
     "positions": "node positions.mjs",
     "shot": "node shot.mjs"

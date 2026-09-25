@@ -42,7 +42,17 @@ export function collateralRequired(loanMicroUsdc: bigint, s: SolvencyScalars): b
   return (loanMicroUsdc * s.kL + s.kC - 1n) / s.kC;
 }
 
-/** The desk's pledge policy: 160% of the requirement, so a small price move does not strand the loan. */
+/**
+ * The desk's pledge policy as a fraction of the requirement: 16/10, so a small price move does not
+ * strand the loan. Exported because the dashboard states the cushion in words and must not restate
+ * this number from memory.
+ */
+export const PLEDGE_RATIO = { num: 16n, den: 10n } as const;
+
+/** The cushion over the requirement, in percent: 60 for a 160% pledge. */
+export const PLEDGE_CUSHION_PCT = Number((PLEDGE_RATIO.num - PLEDGE_RATIO.den) * 100n) / Number(PLEDGE_RATIO.den);
+
+/** The desk's pledge policy: `PLEDGE_RATIO` of the requirement. */
 export function collateralPledge(loanMicroUsdc: bigint, s: SolvencyScalars): bigint {
-  return (loanMicroUsdc * s.kL * 16n) / 10n / s.kC + 1n;
+  return (loanMicroUsdc * s.kL * PLEDGE_RATIO.num) / PLEDGE_RATIO.den / s.kC + 1n;
 }

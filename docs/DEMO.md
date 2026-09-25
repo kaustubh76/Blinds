@@ -23,13 +23,29 @@ account for the plaintext sizes.
 ## B. Dashboard against localnet
 
 ```bash
-WINDOW_PROFILE=demo ./scripts/localnet.sh up &      # validator + setup (6 simulated agents)
-./target/release/window-admin run &                  # administrator + keeper + operator + price poster (:9090)
-./target/release/window-admin agents &               # simulated members
-cd app && cp .env.example .env && pnpm dev           # http://localhost:5173
+cargo build -p window-admin --release                # §A's `make build` is anchor only; this is separate
+export WINDOW_AUDITOR_SEED_HEX=1111111111111111111111111111111111111111111111111111111111111111
+WINDOW_PROFILE=demo ./scripts/localnet.sh up &       # validator + setup (6 simulated agents)
+./target/release/window-admin --cluster localnet --profile demo run &     # keeper + operator + faucet (:9090)
+./target/release/window-admin --cluster localnet --profile demo agents &  # simulated members
+cd app && pnpm dev                                   # http://localhost:5173
 ```
 
-The wallet must expose a `solana:localnet` account (Phantom and Solflare do). Seven pages — *Home* (1),
+Three things that will otherwise cost you a cycle each. The seed **must be the one `setup` ran with** —
+`localnet.sh` defaults to that value, and it derives the auditor key, the escrows *and* all six agent
+wallets, so a different one silently keeps a different market. Pass `--cluster` and `--profile`
+explicitly: both are environment-backed arguments, so a shell that has sourced `.env` would point a bare
+`window-admin run` at devnet. And `pnpm dev` needs no environment at all — a dev build resolves localnet,
+`127.0.0.1:8899` and `:9090` by itself — but it refuses to start on a stale `sdk/dist`, so run §A first.
+
+Expect the first window or two to print `no trade`: on a fresh ledger nothing has printed, so the
+autopilot falls back to 3.00 % while the simulated lenders ask higher, and they do not cross. Once one
+window has printed it bids past that rate and clears. A field animates behind every page; it is off under
+the system's reduced-motion setting, toggleable in Settings → **Background motion**, and off for one page
+load with `?motion=off` placed **before** the hash.
+
+The wallet must expose a `solana:localnet` account (Phantom and Solflare do) — if it does not, the
+header's wallet chip turns amber and its menu says so. Seven pages — *Home* (1),
 *Desk* (2), *Positions* (3), *Market* (4), *Agent* (5), *Explorer* (6), *Build* (7); the number keys switch
 between them. The four that carry the desk itself:
 
@@ -44,7 +60,8 @@ between them. The four that carry the desk itself:
    proofs, verify them in wasm, recompute r\*) and ends in a verdict that compares the printed rate
    with the recomputed one.
 3. **Desk** (key 2) — five steps that say why they are blocked: *Derive keys* (two wallet signatures;
-   nothing leaves the tab) → *Join* (the demo faucet registers the key, mints 10,000 mock shares and
+   nothing leaves the tab) → *Join* (the demo faucet registers the key, mints a starting balance of every
+   listed collateral — 10,000 shares each today — and
    sends 0.1 SOL) → *confidential account* → *Wrap* → *Seal and submit* a bid. Your own balances
    open in place, labelled "decrypted in this tab"; every transaction of a plan is listed with an
    explorer link.
@@ -109,6 +126,15 @@ The **Agent** page (`#/agent`) is where this lives: the journey from identity to
 the desk's numbers beside what the chain says, and the Clawpump identity. The Market page carries the same card,
 and the Build page's `launch-status` recipe reads the pool from raw bytes (`sdk.fetchDbc`) in your tab.
 
+The page is also where the desk's *other* agents can be operated. Each journey step names the
+`services/launch` command that moves it along — a button with the repo checked out, a line to copy
+otherwise (§B). Under it, the six simulated members are one row each, and any row reads its own wallet's
+sealed bids and loans off the chain. And **"Quote a window with the agents' own strategy"** runs
+`services/admin/src/agents.rs` in your browser under your own key: the resting tick, the spread, the
+lender's offset and the size band are the Rust constants as dials, the page shows the anchor it is
+quoting around, and `Quote now` seals a real bid through the Desk's own `buildBidPlan` → `sendPlan`.
+`Run every window` keeps it quoting, once per window, while the tab is open.
+
 ### Watch it yourself
 
 ```bash
@@ -139,7 +165,7 @@ your browser; pick a listing, and *Autopilot* runs derive → join → set up �
 every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
 the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
-key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
+key. *Build* (key 7) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 
@@ -162,8 +188,16 @@ paused, which is why the series and the explorer are populated even between runs
 ## What to look at
 
 - The Agent page (`#/agent`): five journey steps, each computed from a record or the chain, the pending ones
-  naming what they wait on; the PreStocks mark card on Market: the mark, the implied price and the basis
-  (the last two only while the market runs — the admin's `/marks`).
+  naming what they wait on and the command that would move them; the six simulated members as addresses you can
+  read off the chain; and the agents' own strategy, runnable under your key with its constants as dials.
+- The Build page (`#/build`): nineteen recipes. Eleven read — change a parameter and both the snippet and the
+  run follow it. Eight write: derive keys, join, set up the confidential account, wrap, fold in the pending
+  balance, seal a bid, reclaim an old bid's rent, flag an overdue print. Each write asks once before it sends and
+  offers a dry run that builds the whole plan — real proofs, real rent lookups — and sends none of it. Turn on
+  `wire` and the JSON-RPC underneath appears, request and response, copyable as `curl`. The scratchpad at the
+  bottom runs your own JavaScript against the live market with `sdk`, `rpc` and your signer in scope.
+- The PreStocks mark card on Market: the mark, the implied price and the basis (the last two only while the
+  market runs — the admin's `/marks`).
 - A bid transaction: the instruction data holds a 320-byte validity proof and no number.
 - The Epoch account: 74 × 96 bytes of accumulators, no sizes.
 - An attest transaction: four `VerifyZeroCiphertext` instructions (1,182 bytes total) followed by

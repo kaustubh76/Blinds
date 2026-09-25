@@ -4,7 +4,7 @@
  * encrypted in this browser before it touches a transaction; the administrator (auditor key) can
  * read it, other members cannot. All logic lives in `useDesk`; this file is presentation.
  */
-import { TICKS } from "@thewindow/solana-sdk";
+import { TICK_BPS, TICKS } from "@thewindow/solana-sdk";
 import type { UiWalletAccount } from "@wallet-standard/react";
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../../components/Card";
@@ -20,11 +20,11 @@ import { config } from "../../config";
 import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
 import { describeError } from "../../lib/chain";
 import { formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
-import { useDeployment, useOracle, usePrices, useSlot } from "../../lib/queries";
+import { useDeployment, useFaucet, useOracle, usePrices, useSlot } from "../../lib/queries";
 import { useWindowClock } from "../../lib/useWindowClock";
 import { useSession } from "../../lib/wallet";
 import { DESK_PREFILL_KEY } from "../home/Home";
-import { useDesk } from "./useDesk";
+import { AUTOPILOT_FALLBACK_TICK, AUTOPILOT_TICK_MARGIN, useDesk } from "./useDesk";
 
 export function Desk() {
   const s = useSession();
@@ -116,7 +116,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const [wrapAmount, setWrapAmount] = useState("1000");
   const [side, setSide] = useState<0 | 1>(1);
   const lastTick = oracle.data?.hasPrinted && oracle.data.lastRStarTick !== 255 ? oracle.data.lastRStarTick : null;
-  const [tick, setTick] = useState(lastTick ?? 8);
+  const [tick, setTick] = useState(lastTick ?? AUTOPILOT_FALLBACK_TICK);
   const [size, setSize] = useState(prefill?.usdc ? String(prefill.usdc) : "1000");
   const [picked, setPicked] = useState<number | null>(null);
   const cluster = config.cluster;
@@ -125,6 +125,9 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   const configured = !!d.accounts.data?.cstock.configured;
   const decimals = d.listing?.decimals ?? d.dep.data?.decimals ?? 3;
   const faucet = !!d.dep.data?.faucet;
+  const budget = useFaucet();
+  // The faucet is out only for a wallet that still needs it; a member never asks it for anything.
+  const faucetSpent = budget.data?.remaining_this_hour === 0 && !isMember;
   const busy =
     d.deriveKeys.isPending ||
     d.join.isPending ||
@@ -190,7 +193,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
       {/* Rail */}
-      <aside className="grid content-start gap-4">
+      <aside className="grid content-start gap-4 md:grid-cols-3 lg:grid-cols-1">
         <div className="rounded-[var(--radius-lg)] border border-line bg-surface-1 p-3">
           <div className="t-eyebrow px-2 pb-2 pt-1">your progress</div>
           <ProgressRail steps={rail} onPick={setPicked} />
@@ -287,20 +290,28 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               </div>
             ) : (
               <p className="text-sm leading-relaxed text-ink-2">
-                The administrator registers your wallet and member key, mints you 10,000 shares of every listed
-                collateral and sends 0.1 SOL for fees. Membership is a public fact; your positions are not.
+                The administrator registers your wallet and member key, mints you a starting balance of every listed
+                collateral and sends the SOL this desk allots for rent and fees. Membership is a public fact; your
+                positions are not.
               </p>
             )}
-            <div className="mt-5">
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 size="lg"
                 onClick={() => d.join.mutate()}
                 loading={d.join.isPending}
-                disabled={busy || !keysReady || !faucet || isMember}
+                disabled={busy || !keysReady || !faucet || isMember || faucetSpent}
                 icon="arrowRight"
               >
                 {isMember ? "Joined" : "Join"}
               </Button>
+              {!isMember && budget.data && (
+                <Note tone={budget.data.remaining_this_hour === 0 ? "warn" : "mute"}>
+                  {budget.data.remaining_this_hour === 0
+                    ? `The desk has funded ${budget.data.max_per_hour} wallets in the last hour, which is its limit. It reopens as those age out — reading the chain and the market is unaffected meanwhile.`
+                    : `${budget.data.remaining_this_hour} of ${budget.data.max_per_hour} joins left in the last hour.`}
+                </Note>
+              )}
             </div>
           </StepCard>
         )}
@@ -515,7 +526,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
                 })
               }
               loading={d.autopilot.isPending}
-              disabled={busy || (!faucet && !isMember) || !d.accounts.data}
+              disabled={busy || (!faucet && !isMember) || faucetSpent || !d.accounts.data}
             >
               {d.autopilot.isPending ? "running…" : "Run it"}
             </Button>
@@ -523,10 +534,23 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         >
           <p className="text-sm leading-relaxed text-ink-2">
             Derive → join → set up → wrap 1,000 shares → seal a{" "}
-            {prefill?.usdc ? prefill.usdc.toLocaleString("en-US") : "1,000"} USDC borrow bid 50 bp above the last
-            clearing rate, so it clears. Every step is skipped if already done; every transaction lands in the console
-            (`). {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}
+            {prefill?.usdc ? prefill.usdc.toLocaleString("en-US") : "1,000"} USDC borrow bid{" "}
+            {lastTick !== null ? (
+              <>{AUTOPILOT_TICK_MARGIN * TICK_BPS} bp above the last clearing rate, so it clears</>
+            ) : (
+              <>at {formatRate(AUTOPILOT_FALLBACK_TICK)}, since nothing has printed yet to bid past</>
+            )}
+            . Every step is skipped if already done; every transaction lands in the console (`).{" "}
+            {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}
           </p>
+          {/* The budget note lives in the Join step, which is not on screen when someone comes
+              straight here — and this button is disabled by the same cap. Say why, where it is. */}
+          {faucetSpent && budget.data && (
+            <Note tone="warn">
+              Waiting on the faucet: this desk has funded {budget.data.max_per_hour} wallets in the last hour, which is
+              its limit. It reopens as those age out. Reading the market is unaffected.
+            </Note>
+          )}
         </Card>
 
         {(d.steps.steps.length > 0 || err) && (

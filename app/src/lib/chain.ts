@@ -1,12 +1,18 @@
 /** One RPC client and the admin service's deployment descriptor. Everything on-chain is read here. */
-import { type Address, address, createSolanaRpc } from "@solana/kit";
+import { type Address, address, createDefaultRpcTransport, createSolanaRpcFromTransport } from "@solana/kit";
 import { isTransientRpcError, pda, priceSourceTag, withRpcRetry } from "@thewindow/solana-sdk";
 // Baked in at build time so Market, Explorer and Positions work from the chain alone, with no
 // admin service reachable. Only the Desk's faucet (`POST /join`) needs the service to be up.
+// This is the *devnet* descriptor: see `fetchDeployment`, which refuses to hand it to a localnet page.
 import bundledDeployment from "../../../deployments/devnet.json";
 import { config } from "../config";
+import { tapTransport } from "./rpcTap";
 
-export const rpc = createSolanaRpc(config.rpcUrl);
+// The transport is wrapped once, here, because a live `Rpc` cannot have one swapped underneath it.
+// The tap records nothing until the Build page's inspector asks it to (`lib/rpcTap.ts`).
+export const rpc = createSolanaRpcFromTransport(
+  tapTransport(createDefaultRpcTransport({ url: config.rpcUrl }), config.rpcUrl),
+);
 export type Rpc = typeof rpc;
 
 /** `GET /deployment` of the admin service (mirrors `deployments/<cluster>.json`). */
@@ -193,8 +199,11 @@ async function probe(url: string): Promise<Deployment | null> {
  * The deployment descriptor. Preferred live from the admin service (which also tells us the faucet
  * is up); otherwise the copy committed to the repo, so a judge with only a browser still gets the
  * market, the explorer and their own positions.
+ *
+ * `cluster` is a parameter only so a test can say which case it is exercising: the bundled copy
+ * describes devnet, and handing it to a localnet page is worse than failing (see below).
  */
-export async function fetchDeployment(): Promise<DeploymentView> {
+export async function fetchDeployment(cluster: string = config.cluster): Promise<DeploymentView> {
   const candidates = [config.adminUrl];
   const hosted = await hostedAdminUrl();
   if (hosted && hosted !== config.adminUrl) candidates.push(hosted);
@@ -206,6 +215,15 @@ export async function fetchDeployment(): Promise<DeploymentView> {
       return withListingPdas(view(raw, url));
     }
   }
+  // The bundled copy describes *devnet*. Handing it to a localnet page would point every read at
+  // devnet mints, escrow and listing PDAs on a validator that has never heard of them: the dashboard
+  // would look up and find nothing, with no reason given. Say the real reason instead.
+  if (cluster !== "devnet")
+    throw new Error(
+      `no deployment: the admin service at ${config.adminUrl || "(none configured)"} did not answer, and the ` +
+        "bundled descriptor describes devnet, not this cluster. Start it with `window-admin --cluster " +
+        "localnet --profile demo run`, or point the page at devnet.",
+    );
   const bundled = bundledDeployment as unknown as Deployment;
   if (!bundled?.mock_mint) throw new Error("no deployment: admin service unreachable and no bundled copy");
   return withListingPdas(view(bundled, null));

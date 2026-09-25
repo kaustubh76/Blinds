@@ -14,7 +14,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { chartTheme } from "../../lib/theme";
+import { useChartTheme } from "../../lib/theme";
+import { BELOW_SM, useMediaQuery } from "../../lib/useMediaQuery";
 
 const k = (v: number) => (v >= 1000 ? `${+(v / 1000).toFixed(1)}k` : `${Math.round(v)}`);
 
@@ -27,7 +28,8 @@ export function DepthChart({
   rStar: number | null;
   height?: number;
 }) {
-  const t = chartTheme();
+  const t = useChartTheme();
+  const compact = useMediaQuery(BELOW_SM);
   const data = curve.map((p) => ({ bps: p.bps, supply: Number(p.supply) / 1e6, demand: Number(p.demand) / 1e6 }));
   // Clean ticks: a nice ceiling with headroom for the legend, split in four.
   const peak = Math.max(1, ...data.map((d) => Math.max(d.supply, d.demand)));
@@ -46,7 +48,14 @@ export function DepthChart({
             tickFormatter={(v: number) => `${v / 100}%`}
             minTickGap={28}
           />
-          <YAxis tickLine={false} axisLine={false} width={44} tickFormatter={k} domain={[0, top]} ticks={ticks} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={compact ? 36 : 44}
+            tickFormatter={k}
+            domain={[0, top]}
+            ticks={ticks}
+          />
           <Tooltip
             cursor={{ stroke: t.lineStrong, strokeWidth: 1 }}
             content={({ active, payload, label }) => {
@@ -69,13 +78,15 @@ export function DepthChart({
               );
             }}
           />
-          <Legend
-            verticalAlign="top"
-            align="left"
-            iconType="plainline"
-            height={28}
-            wrapperStyle={{ paddingBottom: 6 }}
-          />
+          {!compact && (
+            <Legend
+              verticalAlign="top"
+              align="left"
+              iconType="plainline"
+              height={28}
+              wrapperStyle={{ paddingBottom: 6 }}
+            />
+          )}
           <Area
             type="stepAfter"
             dataKey="supply"
