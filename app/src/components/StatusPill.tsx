@@ -12,7 +12,7 @@ export function StatusPill() {
   const phase =
     t.clock.phase === "open" && t.clock.secondsLeft !== null
       ? `closes in ${Math.floor(t.clock.secondsLeft / 60)}:${String(t.clock.secondsLeft % 60).padStart(2, "0")}`
-      : t.clock.phase === "overdue"
+      : t.clock.phase === "overdue" || t.clock.phase === "stalled"
         ? "paused"
         : t.clock.phase === "printed" && t.clock.rStar !== null
           ? `printed ${formatRate(t.clock.rStar)}`

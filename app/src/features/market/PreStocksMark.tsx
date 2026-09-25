@@ -57,12 +57,18 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
     snap?.mark_valuation_usd && snap.implied_valuation_usd
       ? ((snap.implied_valuation_usd - snap.mark_valuation_usd) / snap.mark_valuation_usd) * 10_000
       : null;
+  /**
+   * The three extensions that carry the argument — the machinery the desk wraps, the rebase the proof
+   * must carry, and the hook that stops a bonding curve quoting it — kept to whichever the chain
+   * actually returned, so a rename upstream shortens the line instead of asserting something absent.
+   */
+  const named = ["confidentialTransferMint", "scaledUiAmountConfig", "transferHook"].filter((e) =>
+    real.data?.extensions.includes(e),
+  );
   const EXT_NOTE: Record<string, string> = {
     confidentialTransferMint: "confidential transfers — the same Token-2022 machinery the desk wraps with",
     scaledUiAmountConfig: "a rebasing multiplier, which is why the proof carries one",
     transferHook: "a transfer hook — and a hook or a fee is why a Meteora pool cannot quote in it",
-    transferFeeConfig: "a transfer fee",
-    permanentDelegate: "a permanent delegate, as the desk's own escrow needs",
   };
 
   return (
@@ -194,18 +200,23 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
         </div>
         {real.data && (
           <p className="mt-3 text-xs leading-relaxed text-ink-3">
-            {real.data.extensions.length} Token-2022 extensions, among them{" "}
-            {["confidentialTransferMint", "scaledUiAmountConfig", "transferHook"]
-              .filter((e) => real.data?.extensions.includes(e))
-              .map((e, i, all) => (
-                <span key={e}>
-                  <span className="mono text-ink-2" title={EXT_NOTE[e]}>
-                    {e}
+            {real.data.extensions.length} Token-2022 extensions
+            {named.length > 0 && (
+              <>
+                , among them{" "}
+                {named.map((e, i) => (
+                  <span key={e}>
+                    <span className="mono text-ink-2" title={EXT_NOTE[e]}>
+                      {e}
+                    </span>
+                    {i < named.length - 1 ? " · " : ""}
                   </span>
-                  {i < all.length - 1 ? " · " : ""}
-                </span>
-              ))}
-            {" — "}a transfer hook is why a bonding curve cannot quote in it.{" "}
+                ))}
+              </>
+            )}
+            {real.data.extensions.includes("transferHook")
+              ? " — a transfer hook is why a bonding curve cannot quote in it. "
+              : " — which is why this desk wraps a twin. "}
             <DocLink to="LISTINGS.md">why a twin →</DocLink>
           </p>
         )}

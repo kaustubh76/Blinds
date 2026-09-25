@@ -71,6 +71,7 @@ const DRIFT: Record<Phase, number> = {
   open: 1,
   overdue: 0.14,
   closed: 0.06,
+  stalled: 0.05,
   printing: 0.5,
   printed: 0.7,
   notrade: 0.55,

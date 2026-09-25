@@ -11,6 +11,7 @@ const PHASE_LABEL: Record<Phase, string> = {
   open: "window open",
   overdue: "window overdue",
   closed: "window closed",
+  stalled: "market paused",
   printing: "printing",
   printed: "printed",
   notrade: "no trade",
@@ -28,7 +29,7 @@ export function WindowClock({ clock, size = 160, detail = true }: { clock: Clock
   const ringColor =
     phase === "open"
       ? "var(--color-lend)"
-      : phase === "overdue"
+      : phase === "overdue" || phase === "stalled"
         ? "var(--color-status-warning)"
         : phase === "printing"
           ? "var(--color-accent)"
@@ -87,7 +88,7 @@ export function WindowClock({ clock, size = 160, detail = true }: { clock: Clock
                 </text>
               </>
             )}
-            {phase === "overdue" && (
+            {(phase === "overdue" || phase === "stalled") && (
               <>
                 <text x="50%" y="46%" fontSize={size / 7} fontWeight={600}>
                   paused
@@ -125,7 +126,7 @@ export function PhaseDot({ phase }: { phase: Phase }) {
       ? "bg-lend"
       : phase === "printing" || phase === "printed"
         ? "bg-accent"
-        : phase === "overdue"
+        : phase === "overdue" || phase === "stalled"
           ? "bg-status-warning"
           : "bg-ink-3";
   return (
@@ -146,6 +147,8 @@ function phaseCopy(c: Clock): string {
       return "Reading the chain.";
     case "overdue":
       return "The keeper has not closed it — the market is paused.";
+    case "stalled":
+      return "Closed and never printed — the market is paused; every past print stays verifiable.";
     case "closed":
       return "Frozen · the per-tick sums are about to be proven.";
     case "printing":

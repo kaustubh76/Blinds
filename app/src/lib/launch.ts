@@ -147,8 +147,14 @@ export interface LaunchState {
   progress: number;
   raisedQuote: number;
   thresholdQuote: number;
+  /** The creator's share. Zero on a pool configured the way this one is — see `claimableFeeQuote`. */
   creatorFeeQuote: number;
   partnerFeeQuote: number;
+  /**
+   * What the fee claimer can actually take: the partner stream, plus the creator's only if the
+   * creator and the claimer are the same wallet. This is the number the agent earns.
+   */
+  claimableFeeQuote: number;
   totalFeeQuote: number;
   /** Spot, in quote per base token. */
   spotQuote: number;
@@ -182,6 +188,10 @@ export function deriveLaunchState(
     thresholdQuote: Number(dbc.config.migrationQuoteThreshold) / dec,
     creatorFeeQuote: Number(dbc.pool.creatorQuoteFee) / dec,
     partnerFeeQuote: Number(dbc.pool.partnerQuoteFee) / dec,
+    claimableFeeQuote:
+      (Number(dbc.pool.partnerQuoteFee) +
+        (dbc.pool.creator === dbc.config.feeClaimer ? Number(dbc.pool.creatorQuoteFee) : 0)) /
+      dec,
     totalFeeQuote: Number(dbc.pool.totalTradingQuoteFee) / dec,
     spotQuote: dbcPrice(dbc.pool.sqrtPrice, LAUNCH_BASE_DECIMALS, record.quote.decimals),
     quoteUsd,
@@ -191,7 +201,15 @@ export function deriveLaunchState(
       ? dbc.config.feeClaimer === record.agent.walletAddress && dbc.config.creatorTradingFeePercentage === 0
       : null,
   };
-  const finite = [out.progress, out.raisedQuote, out.thresholdQuote, out.creatorFeeQuote, out.spotQuote, out.quoteUsd];
+  const finite = [
+    out.progress,
+    out.raisedQuote,
+    out.thresholdQuote,
+    out.creatorFeeQuote,
+    out.claimableFeeQuote,
+    out.spotQuote,
+    out.quoteUsd,
+  ];
   if (!finite.every(Number.isFinite) || out.thresholdQuote <= 0 || out.quoteUsd <= 0) return null;
   return out;
 }

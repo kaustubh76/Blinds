@@ -92,7 +92,8 @@ describe("the PreStocks mark card", () => {
     const { container } = render(<PreStocksMark />);
     const t = container.textContent ?? "";
     expect(t).toContain("mainnet RPC unreachable");
-    expect(t).not.toContain("What the real token is");
+    // The extensions line exists only when the mainnet read succeeded.
+    expect(t).not.toContain("Token-2022 extensions");
     expect(t).toContain("$1,051.44"); // the on-chain mark still shows
   });
   it("says what the implied price waits on when the keeper does not answer", () => {

@@ -118,8 +118,11 @@ function Stats({ s }: { s: LaunchState }) {
         />
         <Stat
           label="fees to the agent"
-          value={q(s.creatorFeeQuote)}
-          hint={`${q(s.totalFeeQuote)} traded in total · partner ${q(s.partnerFeeQuote)}`}
+          // The agent is the fee *claimer*, so its stream is the partner one. The creator's share is
+          // zero by construction (`services/launch/src/plan.ts`), and reading it here showed 0 for
+          // every fee the pool had actually earned.
+          value={q(s.claimableFeeQuote)}
+          hint={`${q(s.totalFeeQuote)} traded in total${s.creatorFeeQuote > 0 ? ` · creator ${q(s.creatorFeeQuote)}` : ""}`}
         />
       </div>
       <div className="mt-3">
@@ -164,7 +167,7 @@ function AgentBlock({ s }: { s: LaunchState | null }) {
           {s?.feesToAgent === false &&
             (LAUNCH.cluster === "mainnet" ? (
               <Badge tone="warn" icon="alert">
-                creator or fee claimer is not the agent wallet
+                the fee claimer is not the agent, or the creator keeps a share
               </Badge>
             ) : (
               <Badge tone="mute">rehearsal launched by the payer, before the identity</Badge>
@@ -324,7 +327,8 @@ export function LenderAgent({ focus = false, variant = "card" }: { focus?: boole
         )}
         {variant === "card" && <AgentBlock s={s} />}
         <p className="mono mt-2 text-[11px] text-ink-3">
-          config <ExplorerLink address={LAUNCH.config} cluster={launchCluster} /> · creator{" "}
+          config <ExplorerLink address={LAUNCH.config} cluster={launchCluster} /> · claims{" "}
+          <ExplorerLink address={LAUNCH.feeClaimer} cluster={launchCluster} /> · signs{" "}
           <ExplorerLink address={LAUNCH.creator} cluster={launchCluster} /> · quote{" "}
           <ExplorerLink address={LAUNCH.quote.mint} cluster={launchCluster} />
           {LAUNCH.txs.createConfigAndPool && (

@@ -12,14 +12,16 @@ const record = {
     migrationQuoteThreshold: 168.5,
     feeBps: { open: 300, rest: 30, periods: 48, durationSecs: 14400 },
     raiseToAgentPct: 10,
-    creatorFeePct: 50,
+    creatorFeePct: 0,
     supply: 1e9,
   },
   token: { symbol: "WLEND" },
   config: "HsfeZeTwmebMbu1Mtj2dLBU5EW2BvAhZErayN8RJGPZr",
   pool: "EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg",
   baseMint: "72QJmsn48nkLKM6zDr5hjVvoEuJGrRRtS81iv8geZL1m",
-  creator: "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
+  // Two roles, as a real record now carries them: the launch key signs, the agent claims.
+  creator: "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX",
+  feeClaimer: "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
   txs: {},
   agent: {
     id: "0044b672-ec2c",

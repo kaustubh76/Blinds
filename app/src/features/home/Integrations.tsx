@@ -107,7 +107,7 @@ export function Integrations() {
       name: "Clawpump",
       tone: "good",
       icon: "users",
-      role: "The agent's identity and wallet — the pool's creator and fee claimer.",
+      role: "The agent's identity and wallet — the pool's fee claimer, earning every fee.",
       live: LAUNCH.agent ? LAUNCH.agent.name : null,
       liveHint: LAUNCH.clawpump
         ? `${LAUNCH.clawpump.symbol} live on pump.fun`

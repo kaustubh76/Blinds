@@ -36,6 +36,7 @@ const TINT: Record<Phase, string> = {
   open: "lend",
   overdue: "status-warning",
   closed: "line-strong",
+  stalled: "status-warning",
   printing: "accent",
   printed: "accent",
   notrade: "ink-3",

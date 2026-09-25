@@ -63,6 +63,47 @@ describe("window clock", () => {
     expect(c.nonzero).toBe(5);
   });
 
+  /**
+   * Devnet sat closed-and-unprinted for four days while the front page said a print was about to
+   * happen. The deadline is the chain's own: `mark_stale` is accepted past
+   * `closeSlot + stale_after_slots`, so that is exactly where the ring stops implying imminence.
+   */
+  it("a closed epoch nobody printed goes from closed to stalled at the chain's own deadline", () => {
+    const closed = epoch({ status: EpochStatus.Closed, closeSlot: 1_900n });
+    const at = (slot: number, staleAfterSlots?: number) =>
+      derivePhase({
+        ...base,
+        hasOpenEpoch: false,
+        epoch: closed,
+        print: null,
+        slot,
+        ...(staleAfterSlots === undefined ? {} : { staleAfterSlots }),
+      }).phase;
+
+    // Just closed: a print really is next.
+    expect(at(1_950, 450)).toBe("closed");
+    // One slot short of the deadline, and then on it.
+    expect(at(2_349, 450)).toBe("closed");
+    expect(at(2_350, 450)).toBe("stalled");
+    // Four days later, which is what the hosted site was showing.
+    expect(at(2_800_000, 450)).toBe("stalled");
+  });
+
+  it("without the oracle's deadline, one more whole window is the benefit of the doubt", () => {
+    const closed = epoch({ status: EpochStatus.Closed, closeSlot: 1_900n });
+    const at = (slot: number) => derivePhase({ ...base, hasOpenEpoch: false, epoch: closed, print: null, slot }).phase;
+    expect(at(2_700)).toBe("closed"); // 800 slots past, inside the 900-slot fallback
+    expect(at(2_801)).toBe("stalled");
+  });
+
+  it("a print in progress is never stalled, however long it has taken", () => {
+    const closed = epoch({ status: EpochStatus.Closed, closeSlot: 1_900n });
+    const attesting = print({ status: PrintStatus.Attesting, attested: 2 });
+    expect(derivePhase({ ...base, hasOpenEpoch: false, epoch: closed, print: attesting, slot: 9_000_000 }).phase).toBe(
+      "printing",
+    );
+  });
+
   it("printed keeps r* on the ring until the next window opens", () => {
     const done = epoch({ status: EpochStatus.Printed, closeSlot: 1_900n });
     const p = print({

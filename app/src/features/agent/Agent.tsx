@@ -194,7 +194,9 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
         ? s.feesToAgent === true
           ? "the agent claims the fees; the creator keeps none (verified on chain)"
           : s.feesToAgent === false
-            ? `the creator keeps ${s.config.creatorTradingFeePercentage} % — the rehearsal predates the identity`
+            ? s.config.feeClaimer !== (LAUNCH.agent?.walletAddress ?? "")
+              ? `the claimer is ${s.config.feeClaimer.slice(0, 4)}…, not the agent`
+              : `the creator keeps ${s.config.creatorTradingFeePercentage} % of the fee`
             : `claimer ${LAUNCH.feeClaimer.slice(0, 4)}…${LAUNCH.feeClaimer.slice(-4)} (no agent recorded)`
         : "reads from the pool",
     ],
@@ -296,7 +298,7 @@ function Clawpump() {
         <Stat
           label="wallet"
           value={a ? <ExplorerLink address={a.walletAddress} cluster="mainnet-beta" /> : "—"}
-          hint="the Meteora pool's creator and fee claimer; pays its own pump.fun launch"
+          hint="the pool's fee claimer and leftover receiver; pays its own pump.fun launch"
         />
         <Stat
           label="identity coin"

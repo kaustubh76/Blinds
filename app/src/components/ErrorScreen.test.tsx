@@ -30,7 +30,7 @@ describe("the crash screen", () => {
         <Boom />
       </ErrorScreen>,
     );
-    fireEvent.click(screen.getByText(/Clear this site's settings and reload/));
+    fireEvent.click(screen.getByText(/Clear saved settings and reload/));
     expect(localStorage.getItem("thewindow:settings")).toBeNull();
     expect(reload).toHaveBeenCalled();
     quiet.mockRestore();

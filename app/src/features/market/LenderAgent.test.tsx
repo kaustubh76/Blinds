@@ -19,6 +19,8 @@ const state = {
   creatorFeeQuote: 0.06,
   partnerFeeQuote: 0.06,
   totalFeeQuote: 0.12,
+  // The devnet rehearsal's creator and claimer were one wallet, so both streams were claimable.
+  claimableFeeQuote: 0.12,
   spotQuote: 7.72e-8,
   quoteUsd: 367.5,
   quoteFeed: "Equity.US.TSLA/USD",
@@ -40,6 +42,7 @@ const record = {
   pool: "EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg",
   baseMint: pool.baseMint,
   creator: pool.creator,
+  feeClaimer: config.feeClaimer,
   txs: {},
   agent: { id: "a", name: "The Window Lender", walletAddress: pool.creator },
 };
@@ -108,7 +111,7 @@ describe("the lender agent card", () => {
     expect(t).not.toContain("graduated to DAMM v2");
   });
 
-  it("says so when the chain's creator or fee claimer is not the agent wallet (a rehearsal fact on devnet)", () => {
+  it("says so when the chain's fee claimer is not the agent wallet (a rehearsal fact on devnet)", () => {
     query.mockReturnValue({ ...base, data: { kind: "ok", state: { ...state, feesToAgent: false } } });
     const { container } = render(<LenderAgent />);
     expect(container.textContent).toContain("rehearsal launched by the payer, before the identity");

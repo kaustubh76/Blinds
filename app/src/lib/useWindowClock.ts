@@ -12,10 +12,15 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { backdrop } from "./backdrop";
 import type { PulseKind } from "./backdropField";
 import { devConsole } from "./console";
-import { useAuctionConfig, useEpoch, usePrint, useSlot } from "./queries";
+import { useAuctionConfig, useEpoch, useOracle, usePrint, useSlot } from "./queries";
 import { SLOT_SECONDS_DEFAULT, SLOT_SECONDS_MAX, SLOT_SECONDS_MIN, setSlotSeconds, slotsToSecs } from "./slotTime";
 
-export type Phase = "loading" | "open" | "overdue" | "closed" | "printing" | "printed" | "notrade" | "idle";
+/**
+ * `overdue` is a window the keeper never closed; `stalled` is one it closed and never printed. The
+ * second needs its own name because the copy for `closed` says a print is about to happen, and after
+ * the chain's own deadline has passed that is no longer a true thing to say.
+ */
+export type Phase = "loading" | "open" | "overdue" | "closed" | "stalled" | "printing" | "printed" | "notrade" | "idle";
 
 export interface Clock {
   phase: Phase;
@@ -55,6 +60,13 @@ export function derivePhase(args: {
   print: Print | null;
   epochSlots: number;
   slot: number | null;
+  /**
+   * `OracleState.stale_after_slots` — the deadline `mark_stale` enforces on chain. Past
+   * `closeSlot + this`, a print is not imminent and the ring must stop implying it is. Absent (the
+   * oracle has not loaded), one more whole window stands in: if it has not printed by then, it is not
+   * about to.
+   */
+  staleAfterSlots?: number | undefined;
   /** The config has not arrived yet: nothing is known, not even whether a window exists. */
   loading?: boolean;
 }): Omit<Clock, "slot"> {
@@ -89,8 +101,12 @@ export function derivePhase(args: {
   }
   const bids = epoch.totalBids;
   if (!print || print.status === PrintStatus.Attesting) {
+    // Closed and never printed, past the deadline the chain itself would accept `mark_stale` at: the
+    // keeper is gone, not busy. Devnet sat like this for four days telling everyone a print was next.
+    const deadline = Number(epoch.closeSlot) + (args.staleAfterSlots ?? epochSlots);
+    const stalled = !print && epoch.closeSlot > 0n && slot !== null && slot >= deadline;
     return {
-      phase: print ? "printing" : "closed",
+      phase: stalled ? "stalled" : print ? "printing" : "closed",
       ...none,
       epoch: epoch.index,
       progress: 1,
@@ -276,6 +292,9 @@ export function useWindowClock(): Clock {
   const print = usePrint(current);
   const slotQ = useSlot();
   const slot = useEstimatedSlot(slotQ.data);
+  // For the deadline the chain enforces on a missed print. A shared query, so this costs no new poll.
+  const oracle = useOracle();
+  const staleAfterSlots = oracle.data ? Number(oracle.data.staleAfterSlots) : undefined;
   const clock = useMemo(() => {
     const d = derivePhase({
       hasOpenEpoch: cfg.data?.hasOpenEpoch ?? false,
@@ -284,10 +303,11 @@ export function useWindowClock(): Clock {
       print: print.data ?? null,
       epochSlots: Number(cfg.data?.epochSlots ?? 0) || 1,
       slot,
+      ...(staleAfterSlots === undefined ? {} : { staleAfterSlots }),
       loading: cfg.data === undefined || (current !== null && epoch.data === undefined),
     });
     return { ...d, slot };
-  }, [cfg.data, current, epoch.data, print.data, slot]);
+  }, [cfg.data, current, epoch.data, print.data, slot, staleAfterSlots]);
   // Phase transitions are chain facts worth a line in the developer console — one line, however many
   // clocks are mounted, which is why the key lives in the module and not in a ref.
   useEffect(() => {
