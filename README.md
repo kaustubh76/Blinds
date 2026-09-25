@@ -29,7 +29,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 | [![Market](docs/screens/market.png)](docs/screens/market.png) | [![Explorer](docs/screens/explorer.png)](docs/screens/explorer.png) |
 | **Market** — xONIA by epoch, the last proven curve, the collateral schedule, the Pyth mark beside the underlying equity, and the PreStocks mark with its implied price and basis. | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
 | [![Agent](docs/screens/agent.png)](docs/screens/agent.png) | [![On a phone](docs/screens/home-phone.png)](docs/screens/home-phone.png) |
-| **Agent** — the lender agent: its journey from a Clawpump identity to a graduated pool, the Meteora curve set from the desk's numbers beside what the chain says, and its identity coin. | **On a phone** — the same pages, the same numbers; every card wraps rather than truncates. The tab bar is the nav on a tablet too, up to 1024 px. |
+| **Agent** — the lender agent: its journey from a Clawpump identity to a mainnet pool, the Meteora curve set from the desk's numbers beside what the chain says, its identity coin, and its strategy runnable under your own key. | **On a phone** — the same pages, the same numbers; every card wraps rather than truncates. The tab bar is the nav on a tablet too, up to 1024 px. |
 
 Light and dark themes (the header toggle, or `?theme=light|dark`); the same pages on a phone: [`docs/screens/home-phone.png`](docs/screens/home-phone.png).
 
@@ -137,9 +137,10 @@ The hosted dashboard is built to be hooked into, not just looked at:
   arguments (wallet signatures and bid openings are never rendered), every transaction with an
   inspector (logs, compute units, programs), the window's phase changes, and the programs' events
   decoded as they arrive over the WebSocket.
-- **Agent** (key 5) — the lender agent: its journey to a token on mainnet, the Meteora curve set from the
-  desk's numbers, its Clawpump identity and coin; Home's "built with" strip and the Market's PreStocks card
-  are the other two integration surfaces.
+- **Agent** (key 5) — the lender agent, now live on mainnet: `WLEND` on a Meteora bonding curve quoted in
+  TSLAx with every fee claiming to the agent's own wallet, and its `LENDER` identity coin on pump.fun. The
+  page also runs the agents' own quoting strategy under your key, with each Rust constant as a dial, and
+  lists the six simulated members as addresses you can read off the chain.
 - **Build** (key 7) — recipes that run in the tab against the configured RPC and copy as code
   (read the market, the last print and its curve, re-verify a print, your membership and loans, a
   bid plan dry run, subscribe to events); the five programs' instructions, accounts, events and

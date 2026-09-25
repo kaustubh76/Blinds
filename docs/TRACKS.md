@@ -293,6 +293,44 @@ from 14 named checks to 25 and all pass, and the write track ran for real from `
 onboard → wrap → bid, five confirmed transactions — and from `#/agent`, whose browser agent sealed
 `lend @ tick 13, 1,571 USDC` in epoch 215. 275 unit tests.
 
+## 25 Sep, later: the pool is on mainnet, and the fees actually reach the agent
+
+The mainnet launch refused to send, and for a good reason. Meteora makes a pool's creator a **signer**;
+the plan set the creator to the agent's Clawpump wallet; and that wallet's key belongs to Clawpump. So
+"the creator is the agent" was never achievable, and the design had conflated two different things.
+
+The fee claimer and the leftover receiver are plain config fields with no signature attached. They are
+now separate from the creator: the launch key signs, the agent claims, and the creator's own shares —
+`creatorTradingFeePercentage` and the migration fee's creator share — are **zero**, so signing earns
+nothing and everything the pool produces reaches one wallet a judge can watch. That is a stronger claim
+than the 50/10 split it replaces, and unlike it, it is true.
+
+| | |
+|---|---|
+| pool | [`Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux`](https://solscan.io/account/Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux) |
+| config | [`7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx`](https://solscan.io/account/7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx) |
+| WLEND | [`3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh`](https://solscan.io/account/3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh) |
+| quoted in | TSLAx `XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, priced from `Equity.US.TSLA/USD` at $367.86 |
+| signs, earns nothing | [`3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX`](https://solscan.io/account/3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX) |
+| claims every fee | [`39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM`](https://solscan.io/account/39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM) — The Window Lender |
+| identity coin | `LENDER` [`D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k`](https://pump.fun/coin/D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k), paired with TSLAx, paid for by the agent's own wallet |
+
+The dashboard's claim moved with the arrangement. "Fees flow to the agent" used to test whether the
+agent was both creator and claimer — after this, impossible — so it now tests what decides the money:
+the claimer is the agent, and the creator keeps none. Reading that needed
+`creatorTradingFeePercentage` in the SDK's raw config decoder, and a byte offset against real funds is
+not something to guess: **offset 245** was found by reading both clusters' live config accounts and
+keeping the single byte that was 0 on mainnet and 50 on devnet, and a fixture test pins it.
+
+Two smaller faults the launch exposed. The identity coin was first recorded against devnet because
+`LAUNCH_CLUSTER` was unset, and a mainnet mint in the devnet file made the page report "identity coin
+pending" about a coin that was already trading — pump.fun has no devnet, so the coin now records
+against the mainnet launch whenever one exists. And `launch-status`'s snippet stopped naming the desk's
+RPC, because the pool it reads is on another cluster; the test that every recipe leads with the
+configured endpoint now states why that one differs rather than failing.
+
+The Agent page reads **5 of 5**, on mainnet, with a live Jupiter link.
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a

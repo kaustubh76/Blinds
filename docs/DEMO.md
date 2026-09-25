@@ -108,7 +108,26 @@ ours, and the depth they provide is not organic demand.
 Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — $25,000 → $250,000
 fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $378.30 per quote
 (the curve raises 162.68 quote before it graduates), fee 300 → 30 bp
-over one tenor, and every trading fee plus 10 % of the raise to the agent. This is a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6).
+over one tenor, and every trading fee plus 10 % of the raise to the agent.
+
+**On mainnet since 25 Sep**, quoted in TSLAx itself and priced from Pyth `Equity.US.TSLA/USD`:
+
+| | address |
+|---|---|
+| pool (Meteora DBC) | [`Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux`](https://solscan.io/account/Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux) |
+| WLEND mint | [`3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh`](https://solscan.io/account/3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh) |
+| config | [`7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx`](https://solscan.io/account/7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx) |
+| quote mint (TSLAx) | [`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`](https://solscan.io/account/XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB) |
+| fee claimer — the agent's wallet | [`39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM`](https://solscan.io/account/39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM) |
+| creator — signs only, earns nothing | [`3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX`](https://solscan.io/account/3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX) |
+| launch tx | [`BGuGw4DNpMyypSVcGaBthvQNH8DzbNJq…`](https://solscan.io/tx/BGuGw4DNpMyypSVcGaBthvQNH8DzbNJqHRBTn8cov4dEfWKxmDTatogQAbEMmiJpGct2R1dLKzHPMCZQ7tmmbSW) |
+| identity coin `LENDER` on pump.fun | [`D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k`](https://pump.fun/coin/D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k) |
+
+Meteora makes a pool's creator a **signer**, and the agent's wallet belongs to Clawpump — so the
+creator is the launch key and its own fee share is set to zero. Every lamport the pool earns reaches
+the agent through the fee claimer, which is the arrangement the Agent page verifies against the chain.
+
+The **devnet rehearsal** below ran the same program, configuration and code path first.
 
 | | address |
 |---|---|
