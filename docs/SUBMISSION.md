@@ -4,7 +4,8 @@
 
 > The rate is public. The price is public. The position never was.
 
-Live on devnet: <https://kaustubh76.github.io/Blinds/>
+Live: <https://kaustubh76.github.io/Blinds/> (mirror: <https://the-window-for-stocks.vercel.app/>). The desk is on
+devnet; the lender agent's pool and identity coin are on **mainnet**.
 
 ## The problem
 
@@ -28,10 +29,14 @@ proven against the public Pyth price with the **corporate-action multiplier insi
 
 ## What is live
 
-- **Five Anchor programs on devnet**, printing autonomously every ~7 minutes.
+- **Five Anchor programs on devnet**, printing autonomously once per window (~2.5 min at devnet's current pace).
+  The market runs in windows and costs SOL while it does — `docs/RUNBOOK.md` §1. When no keeper is running the
+  dashboard says the market is paused; every print already made stays on chain and re-verifiable.
 - **A dashboard** on GitHub Pages: a burner wallet (no extension), a guided path plus an autopilot that borrows in ~20 seconds, an explorer that re-proves any print locally, and developer pages that run real SDK calls in the tab.
 - **Two collaterals under one rate**: TSLAx (Pyth, 150 % haircut) and ANTHROPIC (PreStocks, 200 %).
-- **A mainnet Meteora DBC pool** for the lender agent, quoted in real TSLAx.
+- **A mainnet Meteora DBC pool** for the lender agent, quoted in real TSLAx — pool `Gk98wZ…DQux`, WLEND
+  `3SpA84…eBDh` — plus its `LENDER` identity coin on pump.fun `D9K6pb…h92k`. Every fee claims to
+  the agent's own wallet `39VKQn…A7sM`; the key that signed keeps nothing.
 - **Tests**: 32 attack cases plus e2e, invariant, privacy and measurement suites on Solana's real runtime, and a second tier against a real validator. A leak audit scans every account, transaction and log for secrets in plaintext.
 
 ## Track integrations
@@ -46,6 +51,7 @@ proven against the public Pyth price with the **corporate-action multiplier insi
 
 ## Honest limits
 
-Devnet twins, not mainnet tokens. One disclosed key plays administrator, keeper, operator and price poster. Escrow sits in the operator's confidential account, because a program address cannot produce confidential-transfer proofs. Funding and repayment magnitudes are attested, not proven. Auction depth comes from labelled simulated agents. xONIA is a devnet reference rate, not a regulated benchmark. Unaudited — never custody real value.
+Devnet twins, not mainnet tokens. One disclosed key plays administrator, keeper, operator and price poster. Escrow sits in the operator's confidential account, because a program address cannot produce confidential-transfer proofs. Funding and repayment magnitudes are attested, not proven. Auction depth comes from labelled simulated agents. Wrapping collateral in has no UI for wrapping it back out
+(the program instruction exists; the plan builder is roadmap). xONIA is a devnet reference rate, not a regulated benchmark. Unaudited — never custody real value.
 
 More: `docs/SPEC.md` · `docs/TRACKS.md` · `docs/THREAT_MODEL.md` · `docs/project.excalidraw` (the whole product on one canvas).

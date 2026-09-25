@@ -49,16 +49,18 @@ const STATUS = {
   CORE: { label: "CORE", stroke: "#1f2937", bg: "#e5e7eb" },
 };
 
-// Part B (Meteora DBC + Clawpump) is being built in this working tree; say what exists, not what is hoped.
+// Part B (Meteora DBC + Clawpump). Say what exists, not what is hoped — and read the file the launch
+// actually writes: `deployments/launch-mainnet.json`. This checked `launch.json`, which has never
+// existed under any name, so every Part B box stayed amber and "not yet committed" after it shipped.
 const partB = (() => {
-  const launched = existsSync(join(ROOT, "deployments", "launch.json"));
+  const launched = existsSync(join(ROOT, "deployments", "launch-mainnet.json"));
   const service = existsSync(join(ROOT, "services", "launch", "src", "main.ts"));
   const sdk = existsSync(join(ROOT, "sdk", "src", "dbc.ts"));
   const card = existsSync(join(ROOT, "app", "src", "features", "market", "LenderAgent.tsx"));
-  const status = launched ? "BUILT" : service || sdk ? "INPROGRESS" : "PLANNED";
+  const status = launched ? "LIVE" : service || sdk ? "INPROGRESS" : "PLANNED";
   const have = [service && "services/launch/src", sdk && "sdk/src/dbc.ts", card && "LenderAgent.tsx"].filter(Boolean);
   const line = launched
-    ? "Status: BUILT · gated — pool launched, see deployments/launch.json (mainnet numbers are real)."
+    ? "Status: LIVE — the pool and the identity coin are on mainnet (25 Sep), see deployments/launch-mainnet.json."
     : service || sdk
       ? `Status: IN PROGRESS — in the working tree today (21 Sep): ${have.join(" · ")}; not yet committed.`
       : "Status: PLANNED — decided 21 Sep, no code yet (plan in docs/TRACKS.md Part B).";
@@ -533,7 +535,7 @@ frame("f1", "START HERE — read this strip first; every other frame is the same
     "t.badges.note",
     bx + 10,
     101,
-    "← every box carries one of these: LIVE = running on devnet now · BUILT · gated = deployed, waiting on an external key · IN PROGRESS = being written today · PLANNED · RETIRED / DROPPED (removed 21 Sep) · ROADMAP (after the hackathon) · CORE = the mechanism itself",
+    "← every box carries one of these: LIVE = running now (devnet desk, mainnet agent pool) · BUILT · gated = deployed, waiting on an external key · IN PROGRESS = being written today · PLANNED · RETIRED / DROPPED (removed 21 Sep) · ROADMAP (after the hackathon) · CORE = the mechanism itself",
     { fontSize: 11 },
   );
   const r = row(20, 132);
@@ -579,7 +581,7 @@ proof of every round in the browser (Explorer). Rows: actors → lifecycles → 
     `HOW TO READ THIS MAP
 Colours: green = on chain · slate = other people's programs we call · indigo = the maths ·
 grey = the bots and ops · teal = SDK, dashboard, members · violet = Pyth · orange = PreStocks ·
-amber = Meteora + Clawpump (IN PROGRESS / PLANNED) · sky = xStocks · blue = roadmap · rose = what
+amber = Meteora + Clawpump (LIVE on mainnet, 25 Sep) · sky = xStocks · blue = roadmap · rose = what
 is private vs public · dashed grey = RETIRED / DROPPED (Tessera, 21 Sep).
 Arrows: 2 px = an instruction that carries a proof · 1 px = a call · dotted = one program only
 READS another's account · dashed violet = the Pyth path still waiting on a key · dashed amber =
@@ -678,7 +680,7 @@ LiteSVM — Solana's runtime run inside a test (tier 1). Tier 2 — the same flo
 Faucet — the admin's /join endpoint that admits a wallet and funds it. Burner — a throwaway wallet
   the dashboard creates in the browser so no extension is needed.
 DBC — Meteora's Dynamic Bonding Curve: a launch pool whose price follows a curve. Clawpump — a
-  service that gives an AI agent an identity, a wallet and a token launch (Part B, IN PROGRESS / PLANNED).
+  service that gives an AI agent an identity, a wallet and a token launch (Part B, LIVE on mainnet).
 SDK — the TypeScript library the dashboard and tests use. Explorer — the page that re-verifies prints.`,
     C.tests,
   );
@@ -1598,7 +1600,7 @@ price) still work, so its open loans settle. The dashboard shows it as "retired"
       "tr.mc.h",
       `METEORA DBC + CLAWPUMP — "the lender agent" (Part B, decided 21 Sep)
 THE WINDOW's lender is already an autonomous agent: it lends USDC every round and earns xONIA on
-stock-collateralised loans. Part B gives that agent a Clawpump identity and wallet and launches
+stock-collateralised loans. Part B gave that agent a Clawpump identity and wallet and launched
 its own token on a Meteora Dynamic Bonding Curve pool on MAINNET, quoted in TSLAx and configured
 from the desk's own numbers. Honest framing: the pool and its fees are real; the lending loop
 behind it is the devnet desk.
@@ -1609,7 +1611,7 @@ ${partB.line}`,
       "tr.mc.plan",
       `The pool is configured from the desk (services/launch/src/plan.ts)
 The raise target is the agent's lending capital, converted to TSLAx through the same Pyth read
-the desk uses; the trading fee decays over one overnight window (the desk's tenor); the creator
+the desk uses; the fee claimer is the agent's wallet\nand the creator keeps nothing; the trading fee decays over one overnight window (the desk's tenor); the creator
 fee stream is the agent's wallet; on graduation the pool migrates to a regular Meteora pool.
 xStocks are approved as quote tokens on Meteora; pre-IPO tokens are not, which is why the pool is
 quoted in TSLAx.`,
@@ -2167,14 +2169,15 @@ that needs a real circuit and a trusted setup.`,
     );
     c1.box(
       "rm.status",
-      `WHERE THE BUILD STANDS — 21 Sep 2026 (deadline Fri 26 Sep)
+      `WHERE THE BUILD STANDS — 25 Sep 2026 (deadline Fri 26 Sep)
 Every phase of the build plan is done: the primitives and the
 gate, the print, priced credit, the bots and devnet, the
-dashboard (hosted, the judge path verified three days running).
+dashboard (hosted on Pages and Vercel, both verified).
 Every track stage is done; flipping TSLAx to Pyth's own account
 waits for a Pyth key; freezing the programs waits for the user.
-Today's working tree: Tessera retired (DROPPED / RETIRED), and
-Part B — Meteora + Clawpump (${STATUS[partB.status].label}).`,
+Tessera retired (DROPPED / RETIRED). Part B — Meteora + Clawpump
+(${STATUS[partB.status].label}): the pool and the identity coin
+are on mainnet, and the agent's wallet claims every fee.`,
       C.desk,
     );
 

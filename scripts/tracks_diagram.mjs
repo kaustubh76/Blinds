@@ -587,7 +587,7 @@ box(
   { ...C.launch, align: "left", fontSize: 12 },
 );
 arrow("e.pyth.plan", "s.pyth.accounts", "b.plan", "the same Pyth read", { ...C.pyth, dashed: true });
-arrow("e.agent.plan", "b.agent", "b.plan", "creator · fee wallet", C.launch);
+arrow("e.agent.plan", "b.agent", "b.plan", "fee claimer · leftover", C.launch);
 arrow("e.plan.pool", "b.plan", "b.pool", "config + pool, one tx", C.launch);
 arrow("e.pool.card", "b.pool", "b.card", "raw account bytes", C.app);
 arrow("e.card.evidence", "b.pool", "b.evidence", null, { ...C.launch, dashed: true });

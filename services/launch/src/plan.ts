@@ -7,7 +7,8 @@
  *     collateral with — a stock-quoted pool priced in dollars;
  *   • the trading fee starts wide and decays over one overnight window (the desk's tenor), then rests;
  *   • every graduated LP position is locked forever (no one, us included, can pull the pool), and the
- *     creator fee stream is the agent's wallet — the "revenue" a Clawpump agent lives on;
+ *     fee-claimer stream is the agent's wallet — the "revenue" a Clawpump agent lives on, and the
+ *     creator's own share is zero, because Meteora makes the creator a signer we cannot be;
  *   • a slice of the raise (the migration fee) is paid to the agent at graduation: its lending capital.
  *
  * Pure: no RPC, no signing — unit-tested with fixture quotes.

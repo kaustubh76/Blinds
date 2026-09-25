@@ -110,7 +110,7 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 |---|---|
 | Originality of the DBC use case | A **stock-quoted** curve for an agent whose yield comes from loans against that stock class; the raise target and the fee horizon are the desk's own (USD lending capital priced through Pyth, one tenor). Not a memecoin launcher and not a Pyth-anchored stock/stock pool. |
 | Technical soundness | `createConfigAndPool` from the SDK (`@meteora-ag/dynamic-bonding-curve-sdk` 1.5.12) with the token badge passed when the quote has one; `tokenSupply` left to the program when a migration fee is set (the program's `InvalidTokenSupply` rule); creator-fee percentage tied to the migration fee (the program's other rule). The dashboard reads the pool **without** the SDK: `sdk.fetchDbc` decodes `VirtualPool` / `PoolConfig` from bytes (owner-checked against `dbcij3LW…`), with fixtures captured from the devnet pool. |
-| Working code on mainnet | Devnet rehearsal done end to end (below). The mainnet launch is one command once the launch key holds ~0.05 SOL (`launch` checks the balance first and sends nothing below 0.04) — the tool refuses to price it on a Pyth quote older than 3 days. |
+| Working code on mainnet | **Live 25 Sep**: pool [`Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux`](https://solscan.io/account/Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux), WLEND `3SpA841y…eBDh`, quoted in TSLAx, launch tx `BGuGw4DNpMyy…`. It went out behind the preflight (balance, Pyth quote age, quote decimals, Meteora token badge, DAMM v2 config). The devnet rehearsal ran the whole lifecycle first (below). |
 | Life after the hackathon | `status`/`graduate` are operator commands; the Market card and the `launch-status` recipe follow whichever cluster the record names; the fee stream and the locked LP outlive the event. |
 | Product surface | The **Agent** page (`#/agent`, 22 Sep): the journey (five steps, each computed from the records and the pool, every pending one naming what it waits on), the agent on the desk (lender/borrower agents, last xONIA), the Meteora card (fee now with the schedule drawn, progress, fees), "the curve, set from the desk's numbers" (parameter → desk number → on-chain value), the Clawpump identity, the developer column. Home's "built with" strip links to it with the live progress. |
 
@@ -118,7 +118,7 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 
 | Judged on | Where it is answered |
 |---|---|
-| An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` gives it its Clawpump identity — the key's one agent is reused and renamed (`POST /agents/{id}`), else created — and records `id` + `walletAddress`; that wallet is the Meteora pool's **creator and fee claimer** by default, and the card checks the chain agrees ("fees flow to the agent"). `services/launch clawpump-launch` has Clawpump launch the agent's **identity coin `LENDER` on pump.fun, paired with TSLAx** (`POST /launch`, `pumpQuoteMint` = TSLAx, `selfFunded` — the agent's own wallet pays 0.0092 SOL). |
+| An agent, launched with a stock-paired pool | The lender agent is a real actor of the desk (it quotes every window). `services/launch agent` gives it its Clawpump identity — the key's one agent is reused and renamed (`POST /agents/{id}`), else created — and records `id` + `walletAddress`; that wallet is the Meteora pool's **fee claimer and leftover receiver**, and the card checks the chain agrees ("fees flow to the agent"); the *creator* is the launch key, because Meteora makes the creator a signer and this wallet's key is Clawpump's, with its own fee share set to zero. `services/launch clawpump-launch` has Clawpump launch the agent's **identity coin `LENDER` on pump.fun, paired with TSLAx** (`POST /launch`, `pumpQuoteMint` = TSLAx, `selfFunded` — the agent's own wallet pays 0.0092 SOL). |
 | Where a judge sees it | The Agent page's Clawpump card (name, id, wallet on mainnet, the coin's pump.fun/mint/tx links once launched) and the journey's steps 1 and 4; the Home strip's Clawpump tile. |
 | Two coins, two roles | Clawpump's launch venue is pump.fun (confirmed 21 Sep from its developer reference: `/launch`, `/launch/self-funded`; `/pump-pairs` lists TSLAx and 21 other xStocks); it cannot create a Meteora pool, and a DBC pool mints its own token. So the agent has an identity coin (Clawpump → pump.fun, TSLAx pair) and a capital token (WLEND on Meteora, configured from the desk). One agent, one revenue wallet; the card and the docs say which is which. |
 
@@ -132,9 +132,8 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 | the same numbers from raw bytes | `sdk/test/dbc.test.ts` (3) against the captured accounts; the Market card and the Build page's `launch-status` recipe on the dev server show 2.9 % / 4.85 of 168.50 quote / $28k fully diluted |
 | unit tests | `services/launch/test/plan.test.ts` (6): USD → quote conversion, the raise scales with the quote price, fee/lock/agent slice, refuses nonsense, and which Pyth read prices the quote |
 
-Still open (needs inputs, not code): ~0.05 mainnet SOL to the launch keypair and ~0.02 to the Clawpump agent
-wallet (the key is in place). Then: `agent` → `LAUNCH_CLUSTER=mainnet launch` → `clawpump-launch` → commit
-`deployments/launch-mainnet.json` → re-render DEMO (`docs/RUNBOOK.md` §6).
+Done 25 Sep: both transfers landed, then `agent` → `LAUNCH_CLUSTER=mainnet launch` → `clawpump-launch`, recorded
+in `deployments/launch-mainnet.json` and re-rendered into `docs/DEMO.md` §B. See "25 Sep, later" below.
 
 ## Honest limits
 
@@ -159,7 +158,7 @@ Each of these is stated on the relevant page as a single line, with a link back 
 | 3 | `Listing` upgrade of `window_credit` (+ `migrate_loan`), per-listing keeper sources (Tessera, PreStocks), SDK/app selectors and schedule, tier-1/2 tests, devnet upgrade with three listings | done 17 Sep — tier 1 green, tier 2 15/15, devnet upgraded (programdata +33,125 B; listings `5pJXoG…` TSLAx, `BAUiqw…` T-OpenAI (retired 21 Sep), `4qQ4A9…` ANTHROPIC; 65 loans migrated) |
 | 4 | The Pyth listing reads Pyth's receiver-owned account on chain: `quote.rs`, `price_source = 4`, `BadPriceAccount`/`WrongFeed`, `attack_11` (7 cases), SDK `fetchQuotes`/`decodePriceUpdate`, `services/pyth-poster`, `listing-set-source`, poster wired into `market.sh` | program + poster done 18 Sep; **devnet upgraded to A15** (`window_credit` slot 500375381, `e2c2dbb`); only the TSLAx flip (`listing-set-source mock_tsla 4`) waits for `PYTH_API_KEY` — the poster needs Hermes; until then TSLAx stays source 0 and honestly stale, and every dashboard surface already reads a source-4 listing where the program would (`fetchQuotes`) |
 | 5 | `docs/PYTH.md`, `docs/LISTINGS.md`, README, submissions, market restart, freeze + tag | docs written 17 Sep; **verified on devnet 18 Sep** (below); `docs/RUNBOOK.md`; hosted site back on GitHub Pages 19 Sep (repo public); submission blurbs final (below); freeze + tag are the last action, on the user's go |
-| 6 | Part B: `services/launch`, `sdk/src/dbc.ts`, the Market card, `launch-status` recipe, RUNBOOK §6 | devnet rehearsal verified 21 Sep; mainnet launch + Clawpump agent wait for the two inputs above |
+| 6 | Part B: `services/launch`, `sdk/src/dbc.ts`, the Market card, `launch-status` recipe, RUNBOOK §6 | devnet rehearsal verified 21 Sep; **mainnet pool + identity coin live 25 Sep** |
 
 ## Verified on devnet, 18 Sep 2026
 
@@ -246,8 +245,8 @@ page, the Market's Pyth card and the header read the keeper's cache even for a s
 | and a live curve beside it | a fresh devnet pool `B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm` (base `7n3bcPaq…`, priced from `Crypto.TSLAX/USD` at $378.30), `buy 6` → the record keeps the finished rehearsal as `previousGraduation`, so the Agent page shows both |
 | the market | stopped to save devnet SOL (0.97 left). `market.sh status` now reports the **measured** cost from the log — 88 epochs in 23.2 h ≈ 0.12 SOL/h of epoch rent — instead of a model |
 
-Mainnet still waits on the two transfers: **0.05 SOL** → `3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX` (the Meteora
-pool) and **0.02 SOL** → `39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM` (the agent pays its own pump.fun launch).
+Both transfers landed on 25 Sep — **0.05 SOL** to the launch key and **0.02 SOL** to the agent's wallet — and both
+launches sent. See "25 Sep, later" below.
 
 ## 24 Sep: three clocks, and a window that becomes a loan again
 
@@ -378,24 +377,26 @@ we say so and price from the underlying `Equity.US.TSLA/USD` instead, recording 
 letting a stale number pass as fresh.
 
 **Meteora DBC.** THE WINDOW's lender is an autonomous agent that lends against tokenized stocks every
-overnight window and earns the xONIA rate. Its token, WLEND, launches on a Dynamic Bonding Curve **quoted in
+overnight window and earns the xONIA rate. Its token, WLEND, **is live** on a Dynamic Bonding Curve **quoted in
 TSLAx**, and the curve is set from the desk's numbers: the raise target is the agent's lending capital in USD,
 converted into the quote stock through the same Pyth read the desk marks collateral with; the fee decays over
-one tenor of the desk; the creator fee stream is the agent's wallet; graduated liquidity is locked for good.
+one tenor of the desk; every trading fee claims to the agent's wallet and the key that signed keeps none;
+graduated liquidity is locked for good.
 The dashboard reads the pool from raw bytes (no SDK in the browser) and shows progress, the raise, the fee in
 force right now with its schedule drawn, and the fee stream. We ran the **whole lifecycle** on devnet, not a
 slide: a pool filled its curve (168.50157356 of 168.50157355 quote), we built the migration-metadata
 instruction Meteora's SDK does not expose, derived the DAMM v2 config from the pool's own migration fee option,
-and migrated — pool `BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`, both LP positions permanently locked. The
-mainnet pool is one command behind a preflight that checks the balance, the Pyth quote's age, the quote mint's
-decimals, TSLAx's Meteora token badge and the DAMM v2 config before a lamport moves.
+and migrated — pool `BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`, both LP positions permanently locked. The mainnet
+pool went out behind a preflight that checked the balance, the Pyth quote's age, the quote mint's decimals,
+TSLAx's Meteora token badge and the DAMM v2 config before a lamport moved: pool `Gk98wZsN…DQux`.
 
 **Clawpump.** The lender agent has a Clawpump identity and wallet, and it is **running** — Clawpump's own API
 says so, and the dashboard shows what the API reports rather than what we hoped it would. That wallet is the
-creator and fee claimer of its stock-paired Meteora pool, so everything the agent earns — trading fees, its
-share of the raise, and the xONIA it lends at — flows to one address a judge can watch. Its identity coin is
-launched through Clawpump onto pump.fun paired with TSLAx, priced by Clawpump's own quote (0.0092 SOL, paid by
-the agent's wallet). Honest notes we keep on the page: Clawpump's venue is pump.fun, not Meteora, so the agent
+**fee claimer** of its stock-paired Meteora pool and the creator's own share is zero, so everything the agent
+earns — trading fees, its share of the raise, and the xONIA it lends at — flows to one address a judge can watch.
+Meteora makes a pool's creator a signer and this wallet's key is Clawpump's, so our launch key signs and keeps
+nothing rather than pretending the agent could sign. Its identity coin `LENDER` is live on pump.fun paired with TSLAx, mint
+[`D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k`](https://pump.fun/coin/D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k), priced by Clawpump's own quote (0.0092 SOL, paid by the agent's own wallet). Honest notes we keep on the page: Clawpump's venue is pump.fun, not Meteora, so the agent
 has two coins with two jobs; and its partner API accepts a persona only at creation, so this agent (made in
 Clawpump's console) carries none.
 

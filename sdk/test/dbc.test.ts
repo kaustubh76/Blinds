@@ -81,8 +81,19 @@ describe("Meteora DBC accounts, decoded from raw bytes", () => {
  * reaches the fee claimer. The offset was found by matching both clusters' live accounts.
  */
 describe("the creator's fee share", () => {
-  it("reads 50 on the devnet rehearsal's config", () => {
-    const cfg = decodeDbcConfig(b64("dbc_config_devnet.b64"));
-    expect(cfg.creatorTradingFeePercentage).toBe(50);
+  /**
+   * Both halves, because either alone would pass at the wrong offset: the devnet config carries 50 at
+   * more than one plausible byte, and only the mainnet config distinguishes them by carrying 0. These
+   * are the live accounts of the two pools, captured from the chain.
+   */
+  it("reads 50 on the devnet rehearsal and 0 on the mainnet pool", () => {
+    expect(decodeDbcConfig(b64("dbc_config_devnet.b64")).creatorTradingFeePercentage).toBe(50);
+    expect(decodeDbcConfig(b64("dbc_config_mainnet.b64")).creatorTradingFeePercentage).toBe(0);
+  });
+
+  it("reads the mainnet pool's fee claimer, which is the agent's wallet", () => {
+    expect(decodeDbcConfig(b64("dbc_config_mainnet.b64")).feeClaimer).toBe(
+      "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
+    );
   });
 });

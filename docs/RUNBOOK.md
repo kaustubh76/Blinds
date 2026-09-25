@@ -150,12 +150,16 @@ CLAWPUMP_API_KEY=cpk_… pnpm --filter @thewindow/launch clawpump-launch   # its
 - **Which price.** The plan is priced from Pyth's own mainnet account for `Crypto.TSLAX/USD`; when that account
   is older than a day (its only push account died on 12 Sep) the underlying `Equity.US.TSLA/USD` prices it and
   the record says so (`quote.feed`). A mainnet launch refuses a quote older than 3 days.
-- **Mainnet, in order.** (1) `agent` — needs only the key; records the agent wallet. (2) Fund two addresses:
+- **Mainnet — done 25 Sep**, recorded in `deployments/launch-mainnet.json`; the procedure is kept here.
+  (1) `agent` — needs only the key; records the agent wallet. (2) Fund two addresses:
   the launch key `WINDOW_LAUNCH_KEYPAIR` with **~0.05 SOL** (the pool cost 0.0266 on devnet; `launch` refuses
   below 0.04 and sends nothing) and the **agent wallet with ~0.02 SOL** (Clawpump's TSLAx-paired launch costs
   0.0092 and the agent pays it). (3) `LAUNCH_CLUSTER=mainnet launch` — the quote is TSLAx
-  (`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, Meteora-badged); the creator and fee claimer default to the
-  recorded agent wallet (`LAUNCH_CREATOR` overrides). (4) `clawpump-launch` — a 402 means the agent wallet is
+  (`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, Meteora-badged). **The creator defaults to the launch key**,
+  because Meteora makes the creator a transaction signer and the agent's wallet key belongs to Clawpump; the
+  **fee claimer** and leftover receiver default to the recorded agent wallet, and the creator's own fee share is
+  zero, so everything the pool earns reaches the agent. `LAUNCH_CREATOR` overrides the signer — never set it to
+  the agent wallet. (4) `clawpump-launch` — a 402 means the agent wallet is
   not funded yet; nothing is retried blindly. (5) `status`, commit `deployments/launch-mainnet.json` (the
   dashboard prefers it the moment it exists, `app/src/lib/launch.ts`), `python3 scripts/render_devnet_docs.py`.
 - **Graduation.** `migrateToDammV2` reads a migration-metadata account that Meteora's SDK does not create, so

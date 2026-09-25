@@ -95,7 +95,7 @@ describe("docs/project.excalidraw", () => {
     for (const c of contexts("Tessera")) expect(c).toMatch(/RETIRED|DROPPED/);
     for (const n of ["Meteora", "Clawpump"]) {
       expect(contexts(n).length).toBeGreaterThan(0);
-      for (const c of contexts(n)) expect(c).toMatch(/PLANNED|IN PROGRESS|BUILT/);
+      for (const c of contexts(n)) expect(c).toMatch(/PLANNED|IN PROGRESS|BUILT|LIVE/);
     }
   });
 

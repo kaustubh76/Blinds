@@ -47,9 +47,18 @@ def launch_block():
             (f"{l['token']['symbol']} mint", l["baseMint"]),
             ("config", l["config"]),
             ("quote mint" + ("" if cluster == "mainnet" else " (a devnet twin of TSLAx)"), l["quote"]["mint"]),
-            ("creator · fee wallet" + (" (the Clawpump agent)" if l.get("agent") else ""), l["creator"]),
+            # Two roles, and the table has to keep them apart: Meteora makes the creator a signer, so
+            # it is the launch key; the claimer is the agent, and it is the one that earns.
+            ("fee claimer" + (" — the agent's wallet" if l.get("agent") else ""), l.get("feeClaimer") or l["creator"]),
+            ("creator — signs only, earns nothing", l["creator"]),
         ]
         table = "\n".join(f"| {k} | [`{v}`]({exl(v)}) |" for k, v in rows)
+        coin = l.get("clawpump") or {}
+        if coin.get("mint"):
+            table += (
+                f"\n| identity coin `{coin['symbol']}` on pump.fun |"
+                f" [`{coin['mint']}`]({coin.get('pumpUrl') or exl(coin['mint'])}) |"
+            )
         past = l.get("previousGraduation") or {}
         grad = l.get("graduated") or {}
         done = grad or past
@@ -65,13 +74,18 @@ def launch_block():
             )
         tx = l.get("txs", {}).get("createConfigAndPool", "")
         note = ("the mainnet pool, quoted in TSLAx" if cluster == "mainnet"
-                else "a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6)")
+                else "a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path")
         return f"""
 **The lender agent's token** ([`docs/TRACKS.md`](TRACKS.md) Part B): `{l['token']['symbol']}` on a Meteora Dynamic
 Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — ${n['initialUsd']:,} → ${n['migrationUsd']:,}
 fully diluted, priced through Pyth `{l['quote'].get('feed', 'Crypto.TSLAX/USD')}` at ${l['quote']['usd']:,.2f} per quote
 (the curve raises {n['migrationQuoteThreshold']:.2f} quote before it graduates), fee {n['feeBps']['open']} → {n['feeBps']['rest']} bp
-over one tenor, {n['creatorFeePct']} % of fees and {n['raiseToAgentPct']} % of the raise to the agent. This is {note}.
+over one tenor, every trading fee and {n['raiseToAgentPct']} % of the raise to the fee claimer (the creator's own
+share is {n['creatorFeePct']} %). This is {note}.
+
+Meteora makes a pool's creator a transaction **signer**, and the agent's wallet belongs to Clawpump — so the
+creator is the launch key and its own share is zero. Every lamport the pool earns reaches the agent through the
+fee claimer, and the Agent page checks that against the chain rather than asserting it.
 
 | | address |
 |---|---|

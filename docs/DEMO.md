@@ -106,53 +106,30 @@ ours, and the depth they provide is not organic demand.
 
 **The lender agent's token** ([`docs/TRACKS.md`](TRACKS.md) Part B): `WLEND` on a Meteora Dynamic
 Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — $25,000 → $250,000
-fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $378.30 per quote
-(the curve raises 162.68 quote before it graduates), fee 300 → 30 bp
-over one tenor, and every trading fee plus 10 % of the raise to the agent.
+fully diluted, priced through Pyth `Equity.US.TSLA/USD` at $367.86 per quote
+(the curve raises 167.30 quote before it graduates), fee 300 → 30 bp
+over one tenor, every trading fee and 10 % of the raise to the fee claimer (the creator's own
+share is 0 %). This is the mainnet pool, quoted in TSLAx.
 
-**On mainnet since 25 Sep**, quoted in TSLAx itself and priced from Pyth `Equity.US.TSLA/USD`:
+Meteora makes a pool's creator a transaction **signer**, and the agent's wallet belongs to Clawpump — so the
+creator is the launch key and its own share is zero. Every lamport the pool earns reaches the agent through the
+fee claimer, and the Agent page checks that against the chain rather than asserting it.
 
 | | address |
 |---|---|
-| pool (Meteora DBC) | [`Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux`](https://solscan.io/account/Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux) |
-| WLEND mint | [`3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh`](https://solscan.io/account/3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh) |
-| config | [`7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx`](https://solscan.io/account/7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx) |
-| quote mint (TSLAx) | [`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`](https://solscan.io/account/XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB) |
-| fee claimer — the agent's wallet | [`39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM`](https://solscan.io/account/39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM) |
-| creator — signs only, earns nothing | [`3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX`](https://solscan.io/account/3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX) |
-| launch tx | [`BGuGw4DNpMyypSVcGaBthvQNH8DzbNJq…`](https://solscan.io/tx/BGuGw4DNpMyypSVcGaBthvQNH8DzbNJqHRBTn8cov4dEfWKxmDTatogQAbEMmiJpGct2R1dLKzHPMCZQ7tmmbSW) |
+| pool (Meteora DBC) | [`Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux`](https://explorer.solana.com/address/Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux) |
+| WLEND mint | [`3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh`](https://explorer.solana.com/address/3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh) |
+| config | [`7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx`](https://explorer.solana.com/address/7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx) |
+| quote mint | [`XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`](https://explorer.solana.com/address/XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB) |
+| fee claimer — the agent's wallet | [`39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM`](https://explorer.solana.com/address/39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM) |
+| creator — signs only, earns nothing | [`3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX`](https://explorer.solana.com/address/3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX) |
 | identity coin `LENDER` on pump.fun | [`D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k`](https://pump.fun/coin/D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k) |
+| launch tx | [`BGuGw4DNpMyypSVcGaBthvQNH8DzbNJqHRBTn8cov4dEfWKxmDTatogQAbEMmiJpGct2R1dLKzHPMCZQ7tmmbSW`](https://explorer.solana.com/tx/BGuGw4DNpMyypSVcGaBthvQNH8DzbNJqHRBTn8cov4dEfWKxmDTatogQAbEMmiJpGct2R1dLKzHPMCZQ7tmmbSW) |
 
-Meteora makes a pool's creator a **signer**, and the agent's wallet belongs to Clawpump — so the
-creator is the launch key and its own fee share is set to zero. Every lamport the pool earns reaches
-the agent through the fee claimer, which is the arrangement the Agent page verifies against the chain.
-
-The **devnet rehearsal** below ran the same program, configuration and code path first.
-
-| | address |
-|---|---|
-| pool (Meteora DBC) | [`B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm`](https://explorer.solana.com/address/B3A4V88vwE5MBxqww3TWpthKLRZb9VPoEmG8HHp6SgCm?cluster=devnet) |
-| WLEND mint | [`7n3bcPaqD3cSBndsW39uKavDJu4rwhMSbwwN2hiV8jpP`](https://explorer.solana.com/address/7n3bcPaqD3cSBndsW39uKavDJu4rwhMSbwwN2hiV8jpP?cluster=devnet) |
-| config | [`9UARa2GAvLc6aWnNGdnkP4DNJuTFD9zYgg8ghAGd8GAG`](https://explorer.solana.com/address/9UARa2GAvLc6aWnNGdnkP4DNJuTFD9zYgg8ghAGd8GAG?cluster=devnet) |
-| quote mint (a devnet twin of TSLAx) | [`GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn`](https://explorer.solana.com/address/GY41SK2WptpFx6C4jiXACtHJC8zZVhpJd5voWPNfqhbn?cluster=devnet) |
-| creator · fee wallet | [`8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5`](https://explorer.solana.com/address/8S6dkUV5uby7raYz9aoqHBLDdCL3LvSikyYR5BjkwHf5?cluster=devnet) |
-| launch tx | [`3ASS2WF5ppFmfTk79tNadi9YoTMTKzB2xqo84JysijJ4xyqhJW6FGcUTee53BTuqR7KJ6MauY1GqZDun35j4SruA`](https://explorer.solana.com/tx/3ASS2WF5ppFmfTk79tNadi9YoTMTKzB2xqo84JysijJ4xyqhJW6FGcUTee53BTuqR7KJ6MauY1GqZDun35j4SruA?cluster=devnet) |
-
-
-The whole lifecycle has been run on this cluster: pool [`EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg`](https://explorer.solana.com/address/EZyMqXWBk5Z5jLnrZJ1NM8AseSmFaRvn2XSKZSrv6BTg?cluster=devnet) filled its curve and migrated into DAMM v2 pool [`BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe`](https://explorer.solana.com/address/BYmPeXgRzK5Apaf6J4MMEmJyJou8Xnz5FK4794ep3XKe?cluster=devnet) ([tx](https://explorer.solana.com/tx/uBG36giq2rdd9KaHhxwU7menP84ZRabJUdrHvEuWAfpyRZX8NwdqJqBxGGiYuvzmt8niQ8XVpbpfssK9xaS64q3?cluster=devnet)), with both LP positions permanently locked.
 
 The **Agent** page (`#/agent`) is where this lives: the journey from identity to graduation, the curve set from
 the desk's numbers beside what the chain says, and the Clawpump identity. The Market page carries the same card,
 and the Build page's `launch-status` recipe reads the pool from raw bytes (`sdk.fetchDbc`) in your tab.
-
-The page is also where the desk's *other* agents can be operated. Each journey step names the
-`services/launch` command that moves it along — a button with the repo checked out, a line to copy
-otherwise (§B). Under it, the six simulated members are one row each, and any row reads its own wallet's
-sealed bids and loans off the chain. And **"Quote a window with the agents' own strategy"** runs
-`services/admin/src/agents.rs` in your browser under your own key: the resting tick, the spread, the
-lender's offset and the size band are the Rust constants as dials, the page shows the anchor it is
-quoting around, and `Quote now` seals a real bid through the Desk's own `buildBidPlan` → `sendPlan`.
-`Run every window` keeps it quoting, once per window, while the tab is open.
 
 ### Watch it yourself
 
@@ -166,7 +143,7 @@ pnpm leak-audit --cluster devnet
 
 ### The dashboard
 
-Hosted: <https://kaustubh76.github.io/Blinds/> — if that answers 404 (GitHub Pages is tied to the account's billing state), the fallback is the link `./scripts/serve_app.sh status` prints on the operator's machine.
+Hosted: <https://kaustubh76.github.io/Blinds/> — if that answers 404 (Pages is tied to the repo being public and to the account's billing state), the mirror at <https://the-window-for-stocks.vercel.app/> serves the same build, and `./scripts/serve_app.sh status` prints a local link.
 
 ```bash
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev
@@ -184,7 +161,7 @@ your browser; pick a listing, and *Autopilot* runs derive → join → set up �
 every transaction landing in the console (`` ` `` toggles it) as the SDK code that produced it. After
 the next print, a bid at the clearing rate becomes a loan on *Positions*, where the borrower's lock
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
-key. *Build* (key 7) has the recipes, the IDLs and the API for anyone who wants to integrate.
+key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
 ### Running the market yourself
 

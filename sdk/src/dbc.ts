@@ -49,7 +49,9 @@ export interface DbcConfig {
    *
    * It matters because Meteora makes the creator a signer: a pool whose earnings are meant to reach a
    * wallet nobody here can sign for has to route them through the claimer, which is only true when this
-   * is zero. Offset confirmed against both clusters' live config accounts (0 on mainnet, 50 on devnet).
+   * is zero. Offset found by reading both clusters' live config accounts and keeping the single byte that
+   * was 0 on mainnet and 50 on devnet; `sdk/test/dbc.test.ts` pins both halves against captured fixtures,
+   * because either alone would also pass at the wrong offset.
    */
   creatorTradingFeePercentage: number;
   baseFee: DbcBaseFee;
