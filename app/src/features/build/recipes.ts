@@ -439,8 +439,11 @@ console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Numb
           : ctx.config.cluster === "devnet"
             ? ctx.rpc
             : createSolanaRpc("https://api.devnet.solana.com");
-      const d = await ctx.sdk.fetchDbc(rpc, address(LAUNCH.pool));
-      if (!d) return { pool: LAUNCH.pool, present: false };
+      const read = await ctx.sdk.fetchDbc(rpc, address(LAUNCH.pool));
+      // `fetchDbc` distinguishes a pool that is not there from one whose config account is gone, so a
+      // recipe result names the account that was missing instead of asserting it was the pool.
+      if (!read.ok) return { pool: LAUNCH.pool, present: false, missing: read.why, account: read.account };
+      const d = read;
       const dec = 10 ** LAUNCH.quote.decimals;
       return {
         cluster: LAUNCH.cluster,

@@ -13,9 +13,12 @@ const quotes: Record<string, unknown> = {
   pyth: null,
   prestocks: { price: 105143999341n, expo: -8, publishTime: Math.floor(Date.now() / 1000) - 3600 },
 };
+const coin = vi.fn(() => ({ data: null, isError: false }) as { data: { supply: number } | null; isError: boolean });
 vi.mock("../../lib/queries", () => ({
   useDeployment: () => ({ data: { listings: [{ source: "pyth" }, { source: "prestocks" }] } }),
   useQuote: (l: { source: string } | undefined) => ({ data: l ? quotes[l.source] : null }),
+  // The Clawpump tile reads the identity coin from mainnet rather than trusting the record.
+  useMainnetMint: () => coin(),
 }));
 const { Integrations } = await import("./Integrations");
 
@@ -28,7 +31,7 @@ describe("the built-with strip", () => {
     expect(t).toContain("$369.91"); // Pyth: the equity feed while the wrapper cache is empty
     expect(t).toContain("$1,051.44"); // PreStocks: the on-chain mark
     expect(t).toContain("2.9 %"); // Meteora: progress
-    expect(t).toContain("The Window Lender"); // Clawpump: the identity
+    expect(t).toContain("The Window Lender"); // Clawpump: the identity, while the mint has not answered
     expect(container.querySelector('a[href="#/agent"]')).not.toBeNull();
     expect(container.querySelector('a[href="#/market/prestocks"]')).not.toBeNull();
     expect(t).not.toContain("NaN");

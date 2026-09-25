@@ -8,7 +8,7 @@ import { Pill, Section, type Tone } from "../../components/ui";
 import { formatAge, formatPrice } from "../../lib/format";
 import { LAUNCH, useLaunch } from "../../lib/launch";
 import { FEEDS, useUnderlying } from "../../lib/pyth";
-import { useDeployment, useQuote } from "../../lib/queries";
+import { useDeployment, useMainnetMint, useQuote } from "../../lib/queries";
 
 interface Tile {
   name: string;
@@ -55,6 +55,7 @@ export function Integrations() {
   const prestocksHaircut = Number.isFinite(haircutPct) ? `${haircutPct} %` : "its own";
   const launch = useLaunch();
   const pool = launch.data?.kind === "ok" ? launch.data.state : null;
+  const coin = useMainnetMint(LAUNCH.clawpump?.mint);
 
   const tiles: Tile[] = [
     {
@@ -62,10 +63,12 @@ export function Integrations() {
       tone: "accent",
       icon: "chart",
       role: "The mark inside every solvency proof, and the gate on every seizure.",
+      // The fallback swaps both feed and cluster — the desk's devnet mark for the underlying equity on
+      // mainnet. A hint under a 32px number is not enough to carry that, so the value says it.
       live: pyth.data
         ? formatPrice(pyth.data.price, pyth.data.expo)
         : equity.data
-          ? formatPrice(equity.data.price, equity.data.expo)
+          ? `${formatPrice(equity.data.price, equity.data.expo)} TSLA`
           : null,
       liveHint: pyth.data
         ? `TSLAx mark · quote published ${formatAge(pyth.data.publishTime)}`
@@ -108,12 +111,18 @@ export function Integrations() {
       tone: "good",
       icon: "users",
       role: "The agent's identity and wallet — the pool's fee claimer, earning every fee.",
-      live: LAUNCH.agent ? LAUNCH.agent.name : null,
-      liveHint: LAUNCH.clawpump
-        ? `${LAUNCH.clawpump.symbol} live on pump.fun`
-        : LAUNCH.agent
-          ? "identity recorded · the coin waits on the agent's wallet"
-          : "no identity recorded yet",
+      // "live" used to be the presence of a mint in the record. The coin is read from the chain here,
+      // the way the Agent page reads it, so the word is a fact about mainnet or it is not used.
+      live: coin.data ? `${LAUNCH.clawpump?.symbol ?? "the coin"} live` : LAUNCH.agent ? LAUNCH.agent.name : null,
+      liveHint: coin.data
+        ? `${coin.data.supply.toLocaleString("en-US")} minted on mainnet · ${LAUNCH.agent?.name ?? "the agent"}`
+        : LAUNCH.clawpump
+          ? coin.isError
+            ? `${LAUNCH.clawpump.symbol} recorded · mainnet RPC did not answer`
+            : `${LAUNCH.clawpump.symbol} recorded · reading mainnet…`
+          : LAUNCH.agent
+            ? "identity recorded · the coin waits on the agent's wallet"
+            : "no identity recorded yet",
       href: "#/agent",
       cta: "the agent, its wallet, its coin →",
     },
@@ -123,7 +132,7 @@ export function Integrations() {
     <Section
       eyebrow="built with"
       title="Four integrations, each doing a job"
-      lead="Every number below is read from the chain, from Pyth, or from a launch record."
+      lead="Every number below is a live read — of the desk's chain, of Pyth, of the pool, of the coin."
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (

@@ -32,6 +32,8 @@ export function journey(
   devnet: LaunchRecord | null,
   mainnet: LaunchRecord | null,
   live: { isMigrated: boolean; progress: number } | null,
+  /** The identity coin as mainnet holds it: `null` until the mint answers, so a step can wait for it. */
+  coinOnChain?: { supply: number } | null,
 ): JourneyStep[] {
   const agent = mainnet?.agent ?? devnet?.agent ?? null;
   const past = mainnet?.previousGraduation ?? devnet?.previousGraduation ?? null;
@@ -44,7 +46,7 @@ export function journey(
           id: "identity",
           title: "A Clawpump identity",
           state: "done",
-          detail: `${agent.name} · ${agent.status === "running" ? "running on Clawpump" : `status ${agent.status ?? "unknown"}`} · ${short(agent.walletAddress)}, the fee wallet`,
+          detail: `${agent.name} · ${agent.status === "running" ? `running on Clawpump${agent.checkedAt ? ` (checked ${new Date(agent.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}` : `status ${agent.status ?? "unknown"}`} · ${short(agent.walletAddress)}, the fee wallet`,
           href: `https://explorer.solana.com/address/${agent.walletAddress}`,
           commands: ["agent-status", "agent-upsert"],
         }
@@ -97,8 +99,12 @@ export function journey(
       ? {
           id: "coin",
           title: "The identity coin, launched by Clawpump",
-          state: "done",
-          detail: `${coin.symbol} on pump.fun, paired with TSLAx · mint ${short(coin.mint)}`,
+          // The mint, not the record: a record ahead of the chain used to show this green over a badge
+          // saying mainnet had not answered — the same contradiction the pool step was fixed for.
+          state: coinOnChain ? "done" : "pending",
+          detail: coinOnChain
+            ? `${coin.symbol} on pump.fun · ${coinOnChain.supply.toLocaleString("en-US")} minted · mint ${short(coin.mint)}`
+            : `${coin.symbol} recorded at ${short(coin.mint)} · reading mainnet`,
           href: coin.pumpUrl,
           commands: ["agent-status"],
         }

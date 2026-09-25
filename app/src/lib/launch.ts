@@ -10,6 +10,7 @@ import devnetLaunch from "../../../deployments/launch-devnet.json";
 import { config } from "../config";
 import { rpc as deskRpc } from "./chain";
 import { FEEDS, fetchFreshest, mainnetRpc } from "./pyth";
+import { mintFacts } from "./queries";
 
 /** `deployments/launch-<cluster>.json`, as `services/launch` writes it. */
 export interface LaunchRecord {
@@ -107,7 +108,10 @@ export const MAINNET_LAUNCH: LaunchRecord | null = mainnetLaunch ? withAgent(mai
 /** The launch the dashboard shows: mainnet when there is one, else the devnet rehearsal. */
 export const LAUNCH: LaunchRecord = MAINNET_LAUNCH ?? DEVNET_LAUNCH;
 export const launchCluster = LAUNCH.cluster === "mainnet" ? "mainnet-beta" : "devnet";
-/** The base token's decimals (`services/launch/src/plan.ts`: an SPL mint with 6). */
+/**
+ * What the base token's decimals are *meant* to be (`services/launch/src/plan.ts` mints with 6). Used
+ * only when the mint itself will not read: the chain's own field is the one that scales a price.
+ */
 export const LAUNCH_BASE_DECIMALS = 6;
 /** Where the token trades once it is on mainnet; nothing on devnet (a twin quote mint no venue lists). */
 export const tradeUrl =
@@ -166,6 +170,12 @@ export interface LaunchState {
   quoteUsd: number;
   quoteFeed: QuoteFeed | null;
   quoteAgeSecs: number | null;
+  /** The base token's whole supply, and the decimals both sides were scaled by. */
+  supply: number;
+  quoteDecimals: number;
+  baseDecimals: number;
+  /** True when the decimals and the supply came from the mints rather than the launch record. */
+  scaledFromChain: boolean;
   /** True when `quoteUsd` came from a Pyth read inside its age limit, false when it is the record's. */
   quoteLive: boolean;
   /**
@@ -182,9 +192,18 @@ export interface LaunchState {
 export function deriveLaunchState(
   dbc: { pool: DbcPool; config: DbcConfig; progress: number },
   quote: { price: bigint; expo: number; feed: QuoteFeed; ageSecs: number; fresh: boolean } | null,
-  record: Pick<LaunchRecord, "quote" | "agent" | "creator">,
+  record: Pick<LaunchRecord, "quote" | "agent" | "creator" | "numbers">,
+  /**
+   * The two mints as the chain holds them. Everything quote-denominated is scaled by a power of ten,
+   * so taking that power from a bundled record made a wrong record a silent power-of-ten error on a
+   * mainnet card; `services/launch` preflights the same field before it launches.
+   */
+  mints?: { quote: { decimals: number; supply: number } | null; base: { decimals: number; supply: number } | null },
 ): LaunchState | null {
-  const dec = 10 ** record.quote.decimals;
+  const quoteDecimals = mints?.quote?.decimals ?? record.quote.decimals;
+  const baseDecimals = mints?.base?.decimals ?? LAUNCH_BASE_DECIMALS;
+  const supply = mints?.base?.supply ?? record.numbers.supply;
+  const dec = 10 ** quoteDecimals;
   const quoteUsd = quote ? Number(quote.price) * 10 ** quote.expo : record.quote.usd;
   const out: LaunchState = {
     pool: dbc.pool,
@@ -199,11 +218,15 @@ export function deriveLaunchState(
         (dbc.pool.creator === dbc.config.feeClaimer ? Number(dbc.pool.creatorQuoteFee) : 0)) /
       dec,
     totalFeeQuote: Number(dbc.pool.totalTradingQuoteFee) / dec,
-    spotQuote: dbcPrice(dbc.pool.sqrtPrice, LAUNCH_BASE_DECIMALS, record.quote.decimals),
+    spotQuote: dbcPrice(dbc.pool.sqrtPrice, baseDecimals, quoteDecimals),
     quoteUsd,
     quoteFeed: quote?.feed ?? null,
     quoteAgeSecs: quote?.ageSecs ?? null,
     quoteLive: quote?.fresh === true,
+    supply,
+    quoteDecimals,
+    baseDecimals,
+    scaledFromChain: !!mints?.quote && !!mints?.base,
     feesToAgent: record.agent
       ? dbc.config.feeClaimer === record.agent.walletAddress && dbc.config.creatorTradingFeePercentage === 0
       : null,
@@ -221,21 +244,41 @@ export function deriveLaunchState(
   return out;
 }
 
-export type LaunchQuery = { kind: "ok"; state: LaunchState } | { kind: "missing" } | { kind: "malformed" };
+/** A mint's own decimals and supply, read on the launch's cluster. `null` when it does not answer. */
+async function readMint(mint: string): Promise<{ decimals: number; supply: number } | null> {
+  try {
+    const res = await launchRpc
+      .getAccountInfo(address(mint), { encoding: "jsonParsed", commitment: "confirmed" })
+      .send();
+    const f = mintFacts(res.value);
+    return f ? { decimals: f.decimals, supply: f.supply } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type LaunchQuery =
+  | { kind: "ok"; state: LaunchState }
+  /** Which account was not there, so the screen names the right one rather than guessing the pool. */
+  | { kind: "missing"; why: "no-pool" | "not-dbc" | "no-config"; account: string; owner?: string }
+  | { kind: "malformed" };
 
 export function useLaunch() {
   return useQuery<LaunchQuery>({
     queryKey: ["launch", LAUNCH.pool],
     queryFn: async () => {
       // Three attempts, not the SDK's six: an RPC that is down should show as such within seconds.
-      const [dbc, wrapper, equity] = await Promise.all([
+      const [dbc, wrapper, equity, quoteMint, baseMint] = await Promise.all([
         withRpcRetry(() => fetchDbc(launchRpc, address(LAUNCH.pool)), { attempts: 3, label: "dbc" }),
         fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"]).catch(() => null),
         fetchFreshest(mainnetRpc, FEEDS["Equity.US.TSLA/USD"]).catch(() => null),
+        readMint(LAUNCH.quote.mint),
+        readMint(LAUNCH.baseMint),
       ]);
-      if (!dbc) return { kind: "missing" };
+      if (!dbc.ok)
+        return { kind: "missing", why: dbc.why, account: dbc.account, ...(dbc.owner ? { owner: dbc.owner } : {}) };
       const quote = chooseQuote(wrapper, equity, Math.floor(Date.now() / 1000));
-      const state = deriveLaunchState(dbc, quote, LAUNCH);
+      const state = deriveLaunchState(dbc, quote, LAUNCH, { quote: quoteMint, base: baseMint });
       return state ? { kind: "ok", state } : { kind: "malformed" };
     },
     refetchInterval: 30_000,

@@ -45,10 +45,19 @@ describe("the lender agent's journey", () => {
         pumpUrl: "https://pump.fun/coin/x",
       },
     } as unknown as LaunchRecord;
-    const s = journey(devnet, mainnet, { isMigrated: false, progress: 0.5 });
+    // The coin step waits for the mint, like the pool step waits for the pool: with the record alone it
+    // is pending, and only a mainnet read makes it done.
+    const recordOnly = journey(devnet, mainnet, { isMigrated: false, progress: 0.5 });
+    expect(recordOnly.find((x) => x.id === "coin")?.state).toBe("pending");
+    const s = journey(devnet, mainnet, { isMigrated: false, progress: 0.5 }, { supply: 1_000_000_000 });
+    expect(s.find((x) => x.id === "coin")?.detail).toContain("1,000,000,000 minted");
     expect(s.filter((x) => x.state === "done")).toHaveLength(4);
     expect(s[3]?.href).toBe("https://pump.fun/coin/x");
-    expect(journey(devnet, mainnet, { isMigrated: true, progress: 1 }).every((x) => x.state === "done")).toBe(true);
+    expect(
+      journey(devnet, mainnet, { isMigrated: true, progress: 1 }, { supply: 1_000_000_000 }).every(
+        (x) => x.state === "done",
+      ),
+    ).toBe(true);
   });
 
   it("counts a pool that already graduated on this cluster, and says the live one is a new curve", () => {

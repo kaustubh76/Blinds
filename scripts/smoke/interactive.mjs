@@ -387,6 +387,31 @@ async function page(width, height, hash = "") {
   rmSync(dir, { recursive: true, force: true });
 }
 
+// 9. One chain, one verdict. The PreStocks card judged only the quote's own age, so it showed the
+//    all-good badge while the schedule two cards above said "post stale" and the program would have
+//    answered PriceStale. Two surfaces reading one chain must not disagree about whether a lock lands.
+{
+  const p = await page(1440, 1200, "#/market");
+  const seen = await p.evaluate(() => {
+    // The schedule lives in a <details>; a closed one renders no text.
+    for (const d of document.querySelectorAll("details")) d.setAttribute("open", "");
+    const card = document.querySelector("#prestocks")?.innerText ?? "";
+    const row =
+      [...document.querySelectorAll("tr")].map((r) => r.innerText || "").find((t) => /ANTHROPIC/i.test(t)) ?? "";
+    return { card, row };
+  });
+  const cardKnows = /would accept a lock|locks refused/.test(seen.card);
+  const rowKnows = /lock & seize|quote stale|post stale/.test(seen.row);
+  const cardOk = /would accept a lock/.test(seen.card);
+  const rowOk = /lock & seize/.test(seen.row);
+  check(
+    "the card and the schedule give one verdict",
+    !cardKnows || !rowKnows || cardOk === rowOk,
+    JSON.stringify({ card: seen.card.slice(0, 120), row: seen.row.slice(0, 120) }),
+  );
+  await p.close();
+}
+
 console.log(JSON.stringify({ out, errors }, bigintSafe, 1));
 await b.close();
 // `out.words` is a report, not a named check: skip it when deciding the exit code.

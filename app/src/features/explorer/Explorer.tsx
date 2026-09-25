@@ -69,6 +69,21 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
     if (n >= 0n && (latest === null || n <= latest)) go("explorer", n.toString());
   };
 
+  // The prev/next buttons name `[` and `]` in their tooltips, so the keys work. Same guards the shell
+  // uses for its own shortcuts: no modifiers, and nothing while a field has focus.
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      const t = (ev.target as HTMLElement | null)?.tagName;
+      if (t === "INPUT" || t === "SELECT" || t === "TEXTAREA") return;
+      if (ev.key !== "[" && ev.key !== "]") return;
+      ev.preventDefault();
+      nav(ev.key === "[" ? -1n : 1n);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const quietTicks = e
     ? (e.accCommitment[0]?.filter((_, t) => (e.bidCount[0]?.[t] ?? 0) + (e.bidCount[1]?.[t] ?? 0) === 0).length ?? 0)
     : 0;

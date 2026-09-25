@@ -24,7 +24,9 @@ const ICON: Record<StepState, IconName> = { done: "check", pending: "clock", blo
 const WORD: Record<StepState, string> = { done: "done", pending: "pending", blocked: "waits on you" };
 
 function Journey({ live }: { live: { isMigrated: boolean; progress: number } | null }) {
-  const steps = journey(DEVNET_LAUNCH, MAINNET_LAUNCH, live);
+  // The identity-coin step waits for the mint to answer, the same way the pool step waits for the pool.
+  const coin = useMainnetMint(LAUNCH.clawpump?.mint);
+  const steps = journey(DEVNET_LAUNCH, MAINNET_LAUNCH, live, coin.data ? { supply: coin.data.supply } : null);
   const done = steps.filter((s) => s.state === "done").length;
   // The step you would act on: the first that is not finished, else the last one.
   const [picked, setPicked] = useState<string | null>(null);
@@ -206,7 +208,13 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
         : "reads from the pool",
     ],
     ["after graduation", "liquidity moves to DAMM v2", "both LP positions permanently locked (what graduate sends)"],
-    ["supply", "fixed, no vesting", `${n.supply.toLocaleString("en-US")} ${LAUNCH.token.symbol}, 6 decimals`],
+    [
+      "supply",
+      "fixed, no vesting",
+      s
+        ? `${s.supply.toLocaleString("en-US")} ${LAUNCH.token.symbol}, ${s.baseDecimals} decimals${s.scaledFromChain ? " (from the mint)" : " (planned)"}`
+        : `${n.supply.toLocaleString("en-US")} ${LAUNCH.token.symbol} (planned)`,
+    ],
   ];
   return (
     <Card

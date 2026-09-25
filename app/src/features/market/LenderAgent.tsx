@@ -115,8 +115,12 @@ function Stats({ s }: { s: LaunchState }) {
         />
         <Stat
           label={`${LAUNCH.token.symbol} fully diluted`}
-          value={usd(s.spotQuote * s.quoteUsd * LAUNCH.numbers.supply)}
-          hint={`spot ${s.spotQuote.toExponential(3)} quote · $${(s.spotQuote * s.quoteUsd).toPrecision(3)} per token · supply from the launch record`}
+          value={usd(s.spotQuote * s.quoteUsd * s.supply)}
+          hint={`spot ${s.spotQuote.toExponential(3)} quote · $${(s.spotQuote * s.quoteUsd).toPrecision(3)} per token · ${
+            s.scaledFromChain
+              ? `${s.baseDecimals}/${s.quoteDecimals} decimals and supply from the mints`
+              : "decimals and supply from the launch record"
+          }`}
         />
         <Stat
           label="fees to the agent"
@@ -317,9 +321,29 @@ export function LenderAgent({ focus = false, variant = "card" }: { focus?: boole
             one in Settings, which is the desk&apos;s devnet RPC. Refresh; a rate limit clears on its own.
           </EmptyState>
         ) : l.data?.kind === "missing" ? (
-          <EmptyState icon="clock" title="the pool is not on chain yet">
-            The launch record names <span className="mono">{LAUNCH.pool}</span> on {launchCluster}, and no Meteora DBC
-            account lives there. Either the launch has not run or this record is ahead of the chain.
+          // Three different facts, and saying the wrong one is worse than saying nothing: the pool may be
+          // absent, or present under another program, or present with its config account gone.
+          <EmptyState
+            icon="clock"
+            title={l.data.why === "no-config" ? "the pool's config account is gone" : "the pool is not on chain yet"}
+          >
+            {l.data.why === "no-pool" ? (
+              <>
+                The launch record names <span className="mono">{l.data.account}</span> on {launchCluster}, and nothing
+                lives there. Either the launch has not run or this record is ahead of the chain.
+              </>
+            ) : l.data.why === "not-dbc" ? (
+              <>
+                Something lives at <span className="mono">{l.data.account}</span>, owned by{" "}
+                <span className="mono">{l.data.owner}</span> rather than Meteora&apos;s bonding-curve program — so this
+                record points at the wrong account.
+              </>
+            ) : (
+              <>
+                The pool is there, but the config it names —<span className="mono"> {l.data.account}</span> — is not, so
+                the fee schedule and the raise target cannot be read.
+              </>
+            )}
           </EmptyState>
         ) : (
           <EmptyState icon="alert" title="the pool's numbers do not add up">

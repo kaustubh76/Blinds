@@ -8,6 +8,7 @@ vi.mock("./chain", () => ({ rpc: {} }));
 vi.mock("./pyth", () => ({ FEEDS: {}, fetchFreshest: async () => null, mainnetRpc: {} }));
 
 const { chooseQuote, deriveLaunchState, QUOTE_MAX_AGE_SECS } = await import("./launch");
+type LaunchRecord = Parameters<typeof deriveLaunchState>[2] & { numbers: { supply: number } };
 
 const fixture = (f: string) =>
   new Uint8Array(
@@ -19,6 +20,8 @@ const dbc = { pool, config, progress: Number(pool.quoteReserve) / Number(config.
 const record = {
   quote: { mint: config.quoteMint, decimals: 8, usd: 365, pythAccount: "", publishTime: 0, ageSecs: 0 },
   creator: pool.creator,
+  // Only `supply` is read from here, and only when the base mint will not answer.
+  numbers: { supply: 1_000_000_000 } as LaunchRecord["numbers"],
 };
 
 describe("which Pyth read prices the quote stock", () => {

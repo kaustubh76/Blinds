@@ -551,7 +551,12 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
             {lastTick !== null ? (
               <>{AUTOPILOT_TICK_MARGIN * TICK_BPS} bp above the last clearing rate, so it clears</>
             ) : (
-              <>at {formatRate(AUTOPILOT_FALLBACK_TICK)}, since nothing has printed yet to bid past</>
+              // The margin is applied on this path too (useDesk: tick = fallback + margin), so the rate
+              // the autopilot actually seals at is the fallback plus four ticks — not the fallback.
+              <>
+                at {formatRate(AUTOPILOT_FALLBACK_TICK + AUTOPILOT_TICK_MARGIN)}, since nothing has printed yet to bid
+                past
+              </>
             )}
             . Every step is skipped if already done; every transaction lands in the console (`).{" "}
             {isBurner ? "The burner signs silently." : "An extension wallet asks for each signature in turn."}

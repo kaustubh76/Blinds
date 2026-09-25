@@ -143,21 +143,30 @@ export function dbcFeeAt(fee: DbcBaseFee, activationPoint: bigint | number, nowS
   return { bps: Math.max(0, step(period)), period, periodsLeft, secsToNext, restingBps };
 }
 
-/** The pool and its config in one RPC call; `null` where an account is missing. */
-export async function fetchDbc(
-  rpc: RpcClient,
-  pool: Address,
-): Promise<{ pool: DbcPool; config: DbcConfig; progress: number } | null> {
+/**
+ * What a read of the pool can find. The three failures are kept apart on purpose: they mean different
+ * things, and one `null` for all of them had the dashboard say "no Meteora DBC account lives there"
+ * about a pool that existed and whose *config* was gone.
+ */
+export type DbcRead =
+  | { ok: true; pool: DbcPool; config: DbcConfig; progress: number }
+  /** `account` is the address that was missing or foreign, so a screen can name it. */
+  | { ok: false; why: "no-pool" | "not-dbc" | "no-config"; account: Address; owner?: Address };
+
+/** Two reads: the pool, then the config account the pool names. */
+export async function fetchDbc(rpc: RpcClient, pool: Address): Promise<DbcRead> {
   const b64 = getBase64Encoder();
   const p = await rpc.getAccountInfo(pool, { encoding: "base64", commitment: "confirmed" }).send();
-  if (!p.value || p.value.owner !== DBC_PROGRAM) return null;
+  if (!p.value) return { ok: false, why: "no-pool", account: pool };
+  if (p.value.owner !== DBC_PROGRAM)
+    return { ok: false, why: "not-dbc", account: pool, owner: p.value.owner as Address };
   const poolData = decodeDbcPool(new Uint8Array(b64.encode(p.value.data[0])));
   const c = await rpc.getAccountInfo(poolData.config, { encoding: "base64", commitment: "confirmed" }).send();
-  if (!c.value) return null;
+  if (!c.value) return { ok: false, why: "no-config", account: poolData.config };
   const config = decodeDbcConfig(new Uint8Array(b64.encode(c.value.data[0])));
   const progress =
     config.migrationQuoteThreshold > 0n
       ? Math.min(1, Number(poolData.quoteReserve) / Number(config.migrationQuoteThreshold))
       : 0;
-  return { pool: poolData, config, progress };
+  return { ok: true, pool: poolData, config, progress };
 }

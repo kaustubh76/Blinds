@@ -25,6 +25,12 @@ const state = {
   quoteUsd: 367.5,
   quoteFeed: "Equity.US.TSLA/USD",
   quoteAgeSecs: 9,
+  quoteLive: true,
+  // Read from the mints, not the record: the card multiplies by this supply and scales by these decimals.
+  supply: 1_000_000_000,
+  baseDecimals: 6,
+  quoteDecimals: 8,
+  scaledFromChain: true,
   feesToAgent: true,
 };
 const record = {
@@ -81,11 +87,25 @@ describe("the lender agent card", () => {
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("says when the record is ahead of the chain", () => {
-    query.mockReturnValue({ ...base, data: { kind: "missing" } });
+  it("says which account is missing, not just that the pool is", () => {
+    query.mockReturnValue({ ...base, data: { kind: "missing", why: "no-pool", account: record.pool } });
     const { container } = render(<LenderAgent />);
-    expect(container.textContent).toContain("pool not on chain yet");
+    expect(container.textContent).toContain("pool is not on chain yet");
     expect(container.textContent).toContain(record.pool);
+
+    // A pool whose config account is gone is not a missing pool, and used to be reported as one.
+    query.mockReturnValue({ ...base, data: { kind: "missing", why: "no-config", account: "Cfg111" } });
+    const c2 = render(<LenderAgent />);
+    expect(c2.container.textContent).toContain("config account is gone");
+    expect(c2.container.textContent).toContain("Cfg111");
+    expect(c2.container.textContent).not.toContain("nothing lives there");
+
+    query.mockReturnValue({
+      ...base,
+      data: { kind: "missing", why: "not-dbc", account: record.pool, owner: "Own111" },
+    });
+    const c3 = render(<LenderAgent />);
+    expect(c3.container.textContent).toContain("Own111");
   });
 
   it("renders the numbers, the fee now and the agent check from a real pool", () => {
