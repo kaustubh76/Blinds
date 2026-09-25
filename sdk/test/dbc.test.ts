@@ -74,3 +74,15 @@ describe("Meteora DBC accounts, decoded from raw bytes", () => {
     expect(() => decodeDbcPool(b64("dbc_config_devnet.b64"))).toThrow(/not a DBC pool/);
   });
 });
+
+/**
+ * The creator's fee share decides whether a pool's earnings can reach a wallet nobody here can sign
+ * for. The devnet rehearsal kept 50 % with its creator; the mainnet pool keeps none, so everything
+ * reaches the fee claimer. The offset was found by matching both clusters' live accounts.
+ */
+describe("the creator's fee share", () => {
+  it("reads 50 on the devnet rehearsal's config", () => {
+    const cfg = decodeDbcConfig(b64("dbc_config_devnet.b64"));
+    expect(cfg.creatorTradingFeePercentage).toBe(50);
+  });
+});

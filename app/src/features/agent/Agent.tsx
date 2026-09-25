@@ -189,15 +189,13 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
     ],
     [
       "who earns",
-      `${n.creatorFeePct} % of trading fees and ${n.raiseToAgentPct} % of the raise → the agent's Clawpump wallet`,
+      `all trading fees and ${n.raiseToAgentPct} % of the raise → the agent's Clawpump wallet`,
       s
         ? s.feesToAgent === true
-          ? "creator and fee claimer are the agent wallet (verified on chain)"
+          ? "the agent claims the fees; the creator keeps none (verified on chain)"
           : s.feesToAgent === false
-            ? LAUNCH.cluster === "mainnet"
-              ? "creator or fee claimer differs from the agent wallet"
-              : "the rehearsal was launched by the payer before the identity existed; the mainnet pool's creator is the agent wallet"
-            : `creator ${LAUNCH.creator.slice(0, 4)}…${LAUNCH.creator.slice(-4)} (no agent recorded)`
+            ? `the creator keeps ${s.config.creatorTradingFeePercentage} % — the rehearsal predates the identity`
+            : `claimer ${LAUNCH.feeClaimer.slice(0, 4)}…${LAUNCH.feeClaimer.slice(-4)} (no agent recorded)`
         : "reads from the pool",
     ],
     ["after graduation", "liquidity moves to DAMM v2", "both LP positions permanently locked"],

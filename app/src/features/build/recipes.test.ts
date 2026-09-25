@@ -57,7 +57,15 @@ describe("recipes", () => {
 
   it("have unique ids and lead with the RPC they run against", () => {
     expect(new Set(RECIPES.map((r) => r.id)).size).toBe(RECIPES.length);
-    for (const r of RECIPES) expect(r.code(ctxFor(r)), r.id).toMatch(/rpc\.example/);
+    for (const r of RECIPES) {
+      // The lender agent's pool lives on the launch's own cluster, not the desk's; that recipe names
+      // the endpoint it really reads, which after a mainnet launch is a mainnet one.
+      if (r.id === "launch-status") {
+        expect(r.code(ctxFor(r))).toMatch(/createSolanaRpc\("https?:\/\//);
+        continue;
+      }
+      expect(r.code(ctxFor(r)), r.id).toMatch(/rpc\.example/);
+    }
   });
 
   it("declare parameters with unique keys and a default of the right shape", () => {

@@ -33,6 +33,14 @@
     "symbol": "WLEND",
     "uri": "https://kaustubh76.github.io/Blinds/launch/wlend.json"
   },
+  "config": "7JyhrdUxYZ25tUPbHb3mdzHt8gv9Ht9dYv3k756XB5dx",
+  "pool": "Gk98wZsNHAp6i4FEmJ7SwwbQM3tU2n47NXeBaCtFDQux",
+  "baseMint": "3SpA841y3UGANRnnEosbW8D7q1zirfzCh6ysF3goeBDh",
+  "creator": "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX",
+  "feeClaimer": "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
+  "txs": {
+    "createConfigAndPool": "BGuGw4DNpMyypSVcGaBthvQNH8DzbNJqHRBTn8cov4dEfWKxmDTatogQAbEMmiJpGct2R1dLKzHPMCZQ7tmmbSW"
+  },
   "agent": {
     "id": "0044b672-ec2c-4cdf-b327-7c0e9a449c1b",
     "walletAddress": "39VKQn2Skp67mFYfiFfvRLEKsxaTtHqQWRop5q9cA7sM",
@@ -41,5 +49,16 @@
     "persona": false,
     "avatarUrl": "https://kaustubh76.github.io/Blinds/launch/lender.png",
     "checkedAt": "2026-09-23T04:57:15.112Z"
+  },
+  "clawpump": {
+    "agentId": "0044b672-ec2c-4cdf-b327-7c0e9a449c1b",
+    "symbol": "LENDER",
+    "mint": "D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k",
+    "txHash": "2PHvxZYBqGBWsqheMuDBzZgBuBToMYKsZJX5mf96QaMSTkTeabHYKNqKUR2HgXm7rffKJ7osjnkPh7idQDgrzWcg",
+    "pumpUrl": "https://pump.fun/coin/D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k",
+    "explorerUrl": "https://solscan.io/tx/2PHvxZYBqGBWsqheMuDBzZgBuBToMYKsZJX5mf96QaMSTkTeabHYKNqKUR2HgXm7rffKJ7osjnkPh7idQDgrzWcg",
+    "quoteMint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    "launchedAt": "2026-09-25T14:46:18.739Z",
+    "requestId": "ce3fbcf4-9c97-4d2b-8511-133d6130d388"
   }
 }

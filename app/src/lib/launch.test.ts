@@ -51,11 +51,18 @@ describe("the card's numbers from the pool", () => {
     expect(s?.quoteUsd).toBe(365);
     expect(s?.quoteFeed).toBeNull();
   });
-  it("checks that fees really flow to the recorded agent wallet", () => {
-    const agent = { id: "a", name: "The Window Lender", walletAddress: pool.creator };
-    expect(deriveLaunchState(dbc, null, { ...record, agent })?.feesToAgent).toBe(true);
+  it("checks that the fees really reach the agent: it claims them, and the creator keeps none", () => {
+    const agent = { id: "a", name: "The Window Lender", walletAddress: config.feeClaimer };
+    const claims = { ...dbc, config: { ...config, creatorTradingFeePercentage: 0 } };
+    expect(deriveLaunchState(claims, null, { ...record, agent })?.feesToAgent).toBe(true);
+
+    // A pool that routes half the fee to whoever signed it does not pay the agent everything.
+    const split = { ...dbc, config: { ...config, creatorTradingFeePercentage: 50 } };
+    expect(deriveLaunchState(split, null, { ...record, agent })?.feesToAgent).toBe(false);
+
+    // And a claimer that is not the agent is not the agent, whatever the split.
     const other = { ...agent, walletAddress: "11111111111111111111111111111111" };
-    expect(deriveLaunchState(dbc, null, { ...record, agent: other })?.feesToAgent).toBe(false);
+    expect(deriveLaunchState(claims, null, { ...record, agent: other })?.feesToAgent).toBe(false);
   });
   it("refuses numbers that do not add up instead of rendering NaN", () => {
     expect(deriveLaunchState(dbc, null, { ...record, quote: { ...record.quote, usd: Number.NaN } })).toBeNull();

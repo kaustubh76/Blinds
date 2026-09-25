@@ -100,7 +100,7 @@ What "configured from the desk's numbers" means (`services/launch/src/plan.ts`, 
 | quote token | the desk's collateral | TSLAx `XsDoVfqe…zoB` (8 dp, Meteora-badged) on mainnet; twin `GY41SK2W…qhbn` on devnet |
 | initial / migration market cap (in quote units) | USD targets ÷ Pyth's price of the quote stock — **the same read the desk marks collateral with** (`Crypto.TSLAX/USD` from Pyth's own mainnet account; `Equity.US.TSLA/USD` while the wrapper's account is stale, recorded as `quote.feed`) | $25,000 → $250,000 fully diluted; at $367.50 that is 68.03 → 680.27 quote, threshold 167.46 quote raised |
 | fee schedule | one **tenor** of the desk (a loan lives ~4 h on devnet): 300 bp at the first tick decaying exponentially to 30 bp over 48 periods | `FeeSchedulerExponential`, dynamic fee on, fees collected in the quote stock |
-| creator | the lender agent's wallet (Clawpump's `walletAddress` once `agent` has run; the payer until then) | 50 % of trading fees + 10 % of the graduated raise to the agent |
+| fee claimer | the lender agent's Clawpump `walletAddress` | every trading fee + 10 % of the graduated raise. Meteora makes the pool's *creator* a signer and that wallet's key is Clawpump's, so the creator is the launch key and its own share is set to zero — the claimer is the only earner |
 | graduation | DAMM v2, `Customizable` config, both LP positions permanently locked | `LAUNCH_DAMM_CONFIG` = `7F6dnUcR…NESd` |
 | supply | 1,000,000,000 WLEND, 6 dp, no vesting | — |
 

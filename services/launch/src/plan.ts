@@ -42,9 +42,16 @@ export interface DeskNumbers {
   /** Trading fee at open and at rest, in bp. */
   openFeeBps: number;
   restFeeBps: number;
-  /** Share of the raise paid to the creator (the agent) at graduation, in percent (0–99). */
+  /** Share of the raise paid out at graduation, in percent (0–99). It goes to the fee claimer. */
   raiseToAgentPct: number;
-  /** Share of the trading fee that goes to the creator (the agent), in percent. */
+  /**
+   * Share of the trading fee kept by the pool's *creator*, in percent.
+   *
+   * Zero, deliberately. Meteora makes the creator a signer, and the agent's wallet is Clawpump's —
+   * so the creator can only ever be the key that signs the launch, never the agent. The fee claimer
+   * is a plain config field and *is* the agent, so putting the creator's share at zero is what makes
+   * "everything the agent earns goes to one address" true rather than nearly true.
+   */
   creatorFeePct: number;
   /** Base token supply (whole tokens). */
   supply: number;
@@ -57,7 +64,7 @@ export const DEFAULTS: Omit<DeskNumbers, "quoteUsd" | "quoteDecimals"> = {
   openFeeBps: 300,
   restFeeBps: 30,
   raiseToAgentPct: 10,
-  creatorFeePct: 50,
+  creatorFeePct: 0,
   supply: 1_000_000_000,
 };
 
@@ -113,7 +120,8 @@ export function buildPlan(n: DeskNumbers): LaunchPlan {
     migration: {
       migrationOption: MigrationOption.MET_DAMM_V2,
       migrationFeeOption: MigrationFeeOption.Customizable,
-      migrationFee: { feePercentage: n.raiseToAgentPct, creatorFeePercentage: n.raiseToAgentPct > 0 ? 100 : 0 },
+      // The whole migration fee follows the trading fee to the claimer, for the same reason.
+      migrationFee: { feePercentage: n.raiseToAgentPct, creatorFeePercentage: n.creatorFeePct },
       migratedPoolFee: {
         collectFeeMode: MigratedCollectFeeMode.QuoteToken,
         dynamicFee: DammV2DynamicFeeMode.Enabled,

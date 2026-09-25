@@ -108,7 +108,7 @@ ours, and the depth they provide is not organic demand.
 Bonding Curve quoted in a tokenized stock, configured from the desk's numbers — $25,000 → $250,000
 fully diluted, priced through Pyth `Crypto.TSLAX/USD` at $378.30 per quote
 (the curve raises 162.68 quote before it graduates), fee 300 → 30 bp
-over one tenor, 50 % of fees and 10 % of the raise to the agent. This is a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6).
+over one tenor, and every trading fee plus 10 % of the raise to the agent. This is a **devnet rehearsal** on a twin quote mint — same program, same configuration, same code path; the mainnet launch is one command (`docs/RUNBOOK.md` §6).
 
 | | address |
 |---|---|

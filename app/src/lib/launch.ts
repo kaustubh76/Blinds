@@ -156,7 +156,13 @@ export interface LaunchState {
   quoteUsd: number;
   quoteFeed: QuoteFeed | null;
   quoteAgeSecs: number | null;
-  /** The pool's creator is the recorded agent wallet and the config's fee claimer — fees really go to the agent. */
+  /**
+   * Whether everything this pool earns reaches the agent.
+   *
+   * Not "is the agent the creator": Meteora makes the creator a *signer*, and the agent's wallet is
+   * Clawpump's, so the creator can only ever be the key that signed the launch. What decides where the
+   * money goes is the fee claimer, plus the creator keeping no share of it.
+   */
   feesToAgent: boolean | null;
 }
 
@@ -182,7 +188,7 @@ export function deriveLaunchState(
     quoteFeed: quote?.feed ?? null,
     quoteAgeSecs: quote?.ageSecs ?? null,
     feesToAgent: record.agent
-      ? dbc.pool.creator === record.agent.walletAddress && dbc.config.feeClaimer === record.agent.walletAddress
+      ? dbc.config.feeClaimer === record.agent.walletAddress && dbc.config.creatorTradingFeePercentage === 0
       : null,
   };
   const finite = [out.progress, out.raisedQuote, out.thresholdQuote, out.creatorFeeQuote, out.spotQuote, out.quoteUsd];

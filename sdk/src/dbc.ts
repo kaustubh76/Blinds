@@ -44,6 +44,14 @@ export interface DbcConfig {
   quoteMint: Address;
   /** Who claims the partner's share of trading fees and receives the migration fee. */
   feeClaimer: Address;
+  /**
+   * Percent of the trading fee kept by the pool's *creator* rather than reaching the fee claimer.
+   *
+   * It matters because Meteora makes the creator a signer: a pool whose earnings are meant to reach a
+   * wallet nobody here can sign for has to route them through the claimer, which is only true when this
+   * is zero. Offset confirmed against both clusters' live config accounts (0 on mainnet, 50 on devnet).
+   */
+  creatorTradingFeePercentage: number;
   baseFee: DbcBaseFee;
   migrationQuoteThreshold: bigint;
   sqrtStartPrice: bigint;
@@ -91,6 +99,7 @@ export function decodeDbcConfig(b: Uint8Array): DbcConfig {
       numberOfPeriod: v.getUint16(128, true),
       mode: b[130] ?? 0,
     },
+    creatorTradingFeePercentage: b[245] ?? 0,
     migrationQuoteThreshold: u64(v, 264),
     migrationSqrtPrice: u128(v, 280),
     sqrtStartPrice: u128(v, 392),

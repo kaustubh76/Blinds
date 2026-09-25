@@ -74,6 +74,13 @@ const MAINNET_RPC = process.env.WINDOW_PRICE_RPC_URL ?? "https://api.mainnet-bet
 const TSLAX_MAINNET = new PublicKey("XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB");
 const PLAN_FILE = resolve(ROOT, "deployments", `launch-plan-${CLUSTER}.json`);
 const LAUNCH_FILE = resolve(ROOT, "deployments", `launch-${CLUSTER}.json`);
+/**
+ * The identity coin is always a mainnet coin — pump.fun has no devnet — so it is recorded against the
+ * mainnet launch whenever one exists, whatever `LAUNCH_CLUSTER` happens to say. Recording a mainnet
+ * mint in the devnet file once left the dashboard saying "identity coin pending" about a coin that was
+ * already trading.
+ */
+const COIN_FILE = resolve(ROOT, "deployments", "launch-mainnet.json");
 const TOKEN = {
   name: process.env.LAUNCH_TOKEN_NAME ?? "The Window Lender",
   symbol: process.env.LAUNCH_TOKEN_SYMBOL ?? "WLEND",
@@ -275,17 +282,16 @@ export async function preflight(conn: Connection, payer: Keypair, file: PlanFile
     detail: `${dammConfig.toBase58()} (migration fee option ${feeOption}) — ${dammInfo ? `${dammInfo.data.length} B` : "missing on this cluster"}`,
   });
   const agent = recordedAgent();
-  const creator = process.env.LAUNCH_CREATOR ?? agent?.walletAddress ?? payer.publicKey.toBase58();
+  const signer = process.env.LAUNCH_CREATOR ?? payer.publicKey.toBase58();
+  const beneficiary = agent?.walletAddress ?? signer;
   checks.push({
-    what: "the pool's creator and fee claimer is the agent's wallet",
-    ok: !!agent && creator === agent.walletAddress,
+    what: "the fee claimer is the agent's wallet",
+    ok: !!agent && beneficiary === agent.walletAddress,
     // Whose wallet takes the fees is the operator's call, not a bug: `launch` warns and proceeds.
     needsYou: true,
     detail: agent
-      ? creator === agent.walletAddress
-        ? `${creator} (${agent.name}, Clawpump status ${agent.status ?? "unknown"})`
-        : `creator would be ${creator}, not the agent's ${agent.walletAddress}`
-      : `no Clawpump agent recorded — the payer ${creator} would take the fees; run \`agent\` first`,
+      ? `${beneficiary} (${agent.name}, Clawpump status ${agent.status ?? "unknown"}) claims the fees; ${signer} only signs`
+      : `no Clawpump agent recorded — ${signer} would take the fees; run \`agent\` first`,
   });
   return checks;
 }
@@ -316,7 +322,7 @@ async function launch(conn: Connection, payer: Keypair, dryRun: boolean) {
     if (!clear) process.exitCode = 1;
     return;
   }
-  const blocking = checks.filter((c) => !c.ok && c.what !== "the pool's creator and fee claimer is the agent's wallet");
+  const blocking = checks.filter((c) => !c.ok && c.what !== "the fee claimer is the agent's wallet");
   if (blocking.length) {
     reportPreflight(checks, file, p);
     throw new Error(`preflight refused the launch; nothing was sent (${blocking.map((c) => c.what).join("; ")})`);
@@ -327,26 +333,26 @@ async function launch(conn: Connection, payer: Keypair, dryRun: boolean) {
   const quoteMint = new PublicKey(file.quote.mint);
   const badge = deriveTokenBadgeAddress(quoteMint);
   const badgeInfo = await conn.getAccountInfo(badge);
-  // The creator is the agent: fees and the migration fee go to its wallet. LAUNCH_CREATOR overrides;
-  // the recorded Clawpump wallet is the default; the payer only when there is neither.
+  // Two roles, deliberately separate. `creator` signs the pool into existence and Meteora requires
+  // its signature, so it can only be a key we hold. `beneficiary` is the fee claimer and leftover
+  // receiver — plain config fields — and that is the agent, which is where the money goes. The
+  // creator's own fee share is zero (`plan.ts`), so signing earns nothing.
   const agent = recordedAgent();
-  const creator = process.env.LAUNCH_CREATOR
-    ? new PublicKey(process.env.LAUNCH_CREATOR)
-    : agent
-      ? new PublicKey(agent.walletAddress)
-      : payer.publicKey;
+  const creator = process.env.LAUNCH_CREATOR ? new PublicKey(process.env.LAUNCH_CREATOR) : payer.publicKey;
+  const beneficiary = agent ? new PublicKey(agent.walletAddress) : creator;
   log("creating config + pool", {
     config: config.publicKey.toBase58(),
     baseMint: baseMint.publicKey.toBase58(),
     quoteMint: quoteMint.toBase58(),
     creator: creator.toBase58(),
+    beneficiary: beneficiary.toBase58(),
     tokenBadge: badgeInfo ? badge.toBase58() : "none (permissionless quote)",
   });
   const tx = await client.partner.createConfigAndPool({
     payer: payer.publicKey,
     config: config.publicKey,
-    feeClaimer: creator,
-    leftoverReceiver: creator,
+    feeClaimer: beneficiary,
+    leftoverReceiver: beneficiary,
     quoteMint,
     ...(badgeInfo ? { tokenBadge: badge } : {}),
     ...p.config,
@@ -373,7 +379,7 @@ async function launch(conn: Connection, payer: Keypair, dryRun: boolean) {
     baseMint: baseMint.publicKey.toBase58(),
     payer: payer.publicKey.toBase58(),
     creator: creator.toBase58(),
-    feeClaimer: creator.toBase58(),
+    feeClaimer: beneficiary.toBase58(),
     txs: { createConfigAndPool: sig },
     ...(agent ? { agent } : {}),
     ...(existing?.clawpump ? { clawpump: existing.clawpump } : {}),
@@ -777,7 +783,9 @@ async function clawpumpLaunch(again: boolean, preflightOnly: boolean) {
     launchedAt: new Date().toISOString(),
     ...(r.requestId ? { requestId: r.requestId } : {}),
   };
-  if (l) writeJson(LAUNCH_FILE, { ...l, agent: l.agent ?? a, clawpump: rec });
+  const mainnet = readJson<LaunchFile>(COIN_FILE);
+  if (mainnet) writeJson(COIN_FILE, { ...mainnet, agent: mainnet.agent ?? a, clawpump: rec });
+  else if (l) writeJson(LAUNCH_FILE, { ...l, agent: l.agent ?? a, clawpump: rec });
   else {
     const p = readJson<PlanFile>(PLAN_FILE);
     writeJson(PLAN_FILE, { ...(p ?? {}), agent: a, clawpump: rec });

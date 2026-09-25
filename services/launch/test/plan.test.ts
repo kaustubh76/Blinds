@@ -31,8 +31,17 @@ describe("the lender agent's launch plan", () => {
     ).toBe(100);
     expect(p.config.partnerLiquidityPercentage + p.config.creatorLiquidityPercentage).toBe(0);
     expect(p.config.migrationFee.feePercentage).toBe(10);
-    expect(p.config.migrationFee.creatorFeePercentage).toBe(100);
-    expect(p.config.creatorTradingFeePercentage).toBe(50);
+  });
+
+  /**
+   * Meteora makes the pool's creator a signer, and the agent's wallet belongs to Clawpump — so the
+   * creator can only ever be the key that signs the launch. Everything the agent earns therefore has
+   * to arrive through the fee claimer, which means the creator's own shares must be nothing.
+   */
+  it("gives the creator no share, so the fee claimer is the only earner", () => {
+    const p = buildPlan({ ...DEFAULTS, ...tslax });
+    expect(p.config.creatorTradingFeePercentage).toBe(0);
+    expect(p.config.migrationFee.creatorFeePercentage).toBe(0);
   });
 
   it("refuses nonsense", () => {
