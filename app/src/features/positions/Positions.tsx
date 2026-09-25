@@ -32,10 +32,7 @@ export function Positions() {
         <div>
           <div className="t-eyebrow">positions</div>
           <h1 className="t-h1 mt-2 text-ink-1">Your loans and bids</h1>
-          <p className="t-lead mx-auto mt-3 max-w-[46ch]">
-            Loan sizes and collateral render as ciphertexts for everyone; only your own resolve here, decrypted in this
-            tab.
-          </p>
+          <p className="t-lead mx-auto mt-3 max-w-[40ch]">Sizes are ciphertexts to everyone; yours resolve here.</p>
         </div>
         <div className="flex flex-wrap justify-center gap-3">
           <WalletButton />
@@ -115,8 +112,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         </span>
       ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased ? (
         <Note tone="warn">
-          The seized collateral is a listing this dashboard does not know, so the payout account cannot be set up here.
-          Open the page against the deployment that carries it.
+          A listing this dashboard does not know — open it against the deployment that carries it.
         </Note>
       ) : null;
     return (
@@ -205,8 +201,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
       </div>
       {!p.keysReady && (
         <Callout icon="key" tone="warn" title="Derive your keys to act on loans">
-          Reading them needs nothing; locking and depositing need the key this tab derives from your signature — it
-          never leaves the tab, so it is asked for again after a reload.{" "}
+          Reading needs nothing; locking and depositing need the key this tab derives — asked again after a reload.{" "}
           <Button
             size="sm"
             icon="key"
@@ -244,7 +239,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
       <Card
         eyebrow="lending"
         title={`${lent.length} loan${lent.length === 1 ? "" : "s"}`}
-        footer="As a lender you are told the loan size by the administrator off chain (the disclosed surface); funding and repayment are confirmed by the administrator on chain."
+        footer="A lender is told the size off chain — the disclosed surface."
       >
         {p.loans.data === undefined ? (
           <Skeleton className="h-16 w-full" />

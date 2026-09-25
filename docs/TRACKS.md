@@ -136,7 +136,10 @@ Still open (needs inputs, not code): ~0.05 mainnet SOL to the launch keypair and
 wallet (the key is in place). Then: `agent` → `LAUNCH_CLUSTER=mainnet launch` → `clawpump-launch` → commit
 `deployments/launch-mainnet.json` → re-render DEMO (`docs/RUNBOOK.md` §6).
 
-## Honest limits (also in the UI)
+## Honest limits
+
+Each of these is stated on the relevant page as a single line, with a link back to this file or to
+`PYTH.md` / `LISTINGS.md` for the reasoning. The dashboard states facts; the reasoning lives here.
 
 - The PreStocks mark is a **keeper-attested** copy of a public API, timestamped at fetch. It is not a
   signed feed. The Pyth listing is the only one whose quote carries the publisher's own timestamp (and, after

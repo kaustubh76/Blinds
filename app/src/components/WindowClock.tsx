@@ -141,20 +141,20 @@ export function PhaseDot({ phase }: { phase: Phase }) {
 function phaseCopy(c: Clock): string {
   switch (c.phase) {
     case "open":
-      return "Bids arrive as ciphertexts and are summed on chain as they land. Nothing is decrypted while the window is open.";
+      return "Bids arrive as ciphertexts; nothing is decrypted yet.";
     case "loading":
-      return "Reading the chain — the config, the current epoch and its print.";
+      return "Reading the chain.";
     case "overdue":
-      return "The window ran its length but the keeper has not closed it — the market is paused. Its sealed bids wait; the last print stays verifiable.";
+      return "The keeper has not closed it — the market is paused.";
     case "closed":
-      return "The accumulators are frozen. The administrator is about to decrypt the per-tick sums with the auditor key and prove each one.";
+      return "Frozen · the per-tick sums are about to be proven.";
     case "printing":
-      return "Each nonzero tick's sum is published with a proof of correct decryption, four per transaction.";
+      return "Each sum published with a proof of correct decryption.";
     case "printed":
-      return "The clearing rate is on chain with every sum proven. Matches follow; anyone can re-verify the print from the raw accounts.";
+      return "The rate is on chain, every sum proven.";
     case "notrade":
-      return "Supply and demand did not cross at any tick this window. The regime clock notes it; the next window opens.";
+      return "Supply and demand did not cross at any tick.";
     default:
-      return "The keeper opens the next window shortly. The last print stays verifiable meanwhile.";
+      return "The next window opens shortly.";
   }
 }

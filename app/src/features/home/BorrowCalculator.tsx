@@ -141,7 +141,7 @@ export function BorrowCalculator({
             </div>
             <div className="mt-1 text-sm text-ink-2">
               {q
-                ? `≈ ${q.pledgeUsd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} at the live mark — ${Number(listing?.haircutBps ?? 0n) / 100}% coverage plus the desk's ${PLEDGE_CUSHION_PCT}% cushion`
+                ? `≈ ${q.pledgeUsd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} · ${Number(listing?.haircutBps ?? 0n) / 100}% coverage + ${PLEDGE_CUSHION_PCT}% cushion`
                 : price
                   ? "enter an amount"
                   : "no quote for this listing yet"}

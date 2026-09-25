@@ -1,21 +1,21 @@
 {
   "cluster": "mainnet",
-  "createdAt": "2026-09-23T07:20:46.353Z",
+  "createdAt": "2026-09-25T11:56:35.047Z",
   "payer": "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX",
   "quote": {
     "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
     "decimals": 8,
-    "usd": 378.29961651,
-    "feed": "Crypto.TSLAX/USD",
-    "pythAccount": "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY",
-    "publishTime": 1790077381,
-    "ageSecs": 70665
+    "usd": 382.245,
+    "feed": "Equity.US.TSLA/USD",
+    "pythAccount": "FQB8c4zB8Emrp9W8bmyk6GanCLq4aRytHYPDAnaEpq9z",
+    "publishTime": 1790337387,
+    "ageSecs": 8
   },
   "numbers": {
-    "quoteUsd": 378.29961651,
-    "initialMarketCapQuote": 66.08518462333453,
-    "migrationMarketCapQuote": 660.8518462333452,
-    "migrationQuoteThreshold": 162.68012713,
+    "quoteUsd": 382.245,
+    "initialMarketCapQuote": 65.40307917696765,
+    "migrationMarketCapQuote": 654.0307917696765,
+    "migrationQuoteThreshold": 161.00100645,
     "initialUsd": 25000,
     "migrationUsd": 250000,
     "feeBps": {

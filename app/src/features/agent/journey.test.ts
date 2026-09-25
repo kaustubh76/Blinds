@@ -64,7 +64,7 @@ describe("the lender agent's journey", () => {
     const s = journey(withPast, null, { isMigrated: false, progress: 0.03 });
     const grad = s.find((x) => x.id === "graduation");
     expect(grad?.state).toBe("done");
-    expect(grad?.detail).toContain("migrated");
+    expect(grad?.detail).toContain("rehearsed end to end");
     expect(grad?.detail).toContain("the pool above is the live one");
     expect(grad?.href).toContain("BYmPeXgR");
   });

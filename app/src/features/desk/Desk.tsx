@@ -36,9 +36,8 @@ export function Desk() {
         <div className="text-center">
           <div className="t-eyebrow">the desk</div>
           <h1 className="t-h1 mt-2 text-ink-1">Borrow or lend against tokenized stock</h1>
-          <p className="t-lead mx-auto mt-3 max-w-[48ch]">
-            Five steps, every one of them a transaction you can read in the console. Take a devnet burner and there are
-            no prompts at all.
+          <p className="t-lead mx-auto mt-3 max-w-[40ch]">
+            Five steps, every one a transaction you can read. A burner asks for nothing.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -79,9 +78,8 @@ export function Desk() {
           </div>
         </div>
         {burnerError && <Note tone="bad">{burnerError}</Note>}
-        <Callout icon="eyeOff" title="What the desk never learns from your browser">
-          Your ElGamal keys. They are derived from wallet signatures in this tab and used to encrypt your bid size and
-          collateral before anything is sent.
+        <Callout icon="eyeOff" title="What never leaves your browser">
+          Your ElGamal keys — derived here, and used here to encrypt the size before anything is sent.
         </Callout>
       </div>
     );
@@ -247,9 +245,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 0 && (
           <StepCard n={1} title="Derive your keys" state={states[0] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              Two wallet signatures — one for the member key your bids are encrypted to, one for your confidential
-              account on <b className="text-ink-1">{sel?.symbol.replace(/-mock$/, "")}</b>. They stay in this tab; the
-              keys never leave your browser.
+              Two signatures — the member key, and your{" "}
+              <b className="text-ink-1">{sel?.symbol.replace(/-mock$/, "")}</b> account. Both stay in this tab.
             </p>
             {d.memberKey.data && (
               <div className="mt-3">
@@ -290,9 +287,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               </div>
             ) : (
               <p className="text-sm leading-relaxed text-ink-2">
-                The administrator registers your wallet and member key, mints you a starting balance of every listed
-                collateral and sends the SOL this desk allots for rent and fees. Membership is a public fact; your
-                positions are not.
+                The administrator registers you and funds you with every listed collateral plus fee SOL. Membership is
+                public; positions are not.
               </p>
             )}
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -308,8 +304,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               {!isMember && budget.data && (
                 <Note tone={budget.data.remaining_this_hour === 0 ? "warn" : "mute"}>
                   {budget.data.remaining_this_hour === 0
-                    ? `The desk has funded ${budget.data.max_per_hour} wallets in the last hour, which is its limit. It reopens as those age out — reading the chain and the market is unaffected meanwhile.`
-                    : `${budget.data.remaining_this_hour} of ${budget.data.max_per_hour} joins left in the last hour.`}
+                    ? `Faucet spent — ${budget.data.max_per_hour} wallets this hour. Reading the market is unaffected.`
+                    : `${budget.data.remaining_this_hour} of ${budget.data.max_per_hour} joins left this hour.`}
                 </Note>
               )}
             </div>
@@ -319,8 +315,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 2 && (
           <StepCard n={3} title="Set up your confidential account" state={states[2] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              One account per collateral. Creating it takes two transactions: create, then configure it with a proof
-              that your ElGamal key is well formed. Pick a different collateral on the left at any time.
+              One account per collateral, in two transactions: create, then configure it with a key-validity proof.
             </p>
             {d.accounts.data && (
               <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -361,8 +356,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 3 && (
           <StepCard n={4} title="Wrap shares into confidential collateral" state={states[3] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              Moves public shares into custody and credits your confidential balance 1:1. The wrap leg is a public
-              transfer, so wrap a round amount once, ahead of bidding.
+              Public shares in, confidential balance out, 1:1. The wrap leg is public — wrap a round amount once.
             </p>
             {configured && v && (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -429,8 +423,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
                 {windowOpen
                   ? `Epoch ${d.cfg.data?.currentEpoch.toString()} is open · minimum ${formatUsdc(d.cfg.data?.sMin ?? 0n)} · one bid per side and rate. `
                   : ""}
-                The size is encrypted to your key and the auditor key and proven in range; only the ciphertext goes on
-                chain.
+                The size is encrypted to your key and the auditor&apos;s and proven in range; only the ciphertext is
+                sent.
               </p>
             )}
             <div className="mt-4 grid gap-4">
@@ -533,8 +527,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
           }
         >
           <p className="text-sm leading-relaxed text-ink-2">
-            Derive → join → set up → wrap 1,000 shares → seal a{" "}
-            {prefill?.usdc ? prefill.usdc.toLocaleString("en-US") : "1,000"} USDC borrow bid{" "}
+            All five steps, then a {prefill?.usdc ? prefill.usdc.toLocaleString("en-US") : "1,000"} USDC borrow bid{" "}
             {lastTick !== null ? (
               <>{AUTOPILOT_TICK_MARGIN * TICK_BPS} bp above the last clearing rate, so it clears</>
             ) : (
@@ -547,8 +540,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
               straight here — and this button is disabled by the same cap. Say why, where it is. */}
           {faucetSpent && budget.data && (
             <Note tone="warn">
-              Waiting on the faucet: this desk has funded {budget.data.max_per_hour} wallets in the last hour, which is
-              its limit. It reopens as those age out. Reading the market is unaffected.
+              Faucet spent — {budget.data.max_per_hour} wallets this hour; it reopens as they age out.
             </Note>
           )}
         </Card>
@@ -561,7 +553,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         )}
         {selIndex >= 0 && d.listings.length > 1 && (
           <p className="text-xs text-ink-3">
-            Bids are not tied to a collateral; the listing you pick matters when you lock a matched loan on Positions.
+            A bid is not tied to a collateral — the listing matters when you lock on Positions.
           </p>
         )}
       </div>

@@ -84,12 +84,10 @@ function NeedsAKey() {
     <Card
       eyebrow="run it yourself"
       title="Quote a window with the agents' own strategy"
-      footer="The strategy is the one in services/admin/src/agents.rs, ported to this tab — same anchor, same spread, same size band."
+      footer="The strategy is services/admin/src/agents.rs, ported to this tab."
     >
       <p className="text-sm leading-relaxed text-ink-2">
-        The six agents on this desk quote every window. With a key of your own you can run the same strategy here,
-        change the numbers it is built from, and watch what the print does about it. A throwaway devnet key is enough —
-        the faucet admits it and funds it.
+        Six agents quote every window. With a key of your own you can run their strategy and change its numbers.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Button
@@ -287,7 +285,7 @@ function Agent({ account }: { account: UiWalletAccount }) {
           </Button>
         </div>
       }
-      footer="Every quote is the Desk's own buildBidPlan → sendPlan: the size is encrypted in this tab and the three transactions are in the console. The strategy is services/admin/src/agents.rs, ported in features/agent/strategy.ts."
+      footer="Each quote is the Desk's own buildBidPlan → sendPlan · three transactions."
     >
       <div className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -435,10 +433,8 @@ function Agent({ account }: { account: UiWalletAccount }) {
         </div>
 
         <Note>
-          <b className="text-ink-2">How this differs from the six on the desk.</b> They are funded from the
-          administrator's key and their borrowers go on to lock collateral and fund the loan; this one uses your key and
-          stops at the bid. And it stops when you close the tab — <Icon name="clock" size={11} /> nothing here runs
-          without a page open.
+          <Icon name="clock" size={11} className="mr-1 inline" />
+          Unlike the six: this one stops at the bid, and stops when you close the tab.
         </Note>
       </div>
     </Card>

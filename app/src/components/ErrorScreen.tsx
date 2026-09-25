@@ -47,8 +47,7 @@ export class ErrorScreen extends Component<{ children: ReactNode }, State> {
           <div className="t-eyebrow">the dashboard stopped</div>
           <h1 className="t-h1 mt-2 text-ink-1">Something in this browser broke the page.</h1>
           <p className="t-lead mt-3">
-            The chain is unaffected — every print, loan and proof is still on devnet. This is the browser side: usually
-            a saved setting pointing somewhere unreachable, or a wallet extension that failed to inject.
+            The chain is unaffected. Usually a saved endpoint that is unreachable, or a wallet extension.
           </p>
         </div>
         <pre className="mono overflow-x-auto rounded-[var(--radius-md)] border border-line bg-surface-2 p-4 text-xs text-status-critical">

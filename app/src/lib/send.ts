@@ -125,7 +125,7 @@ export async function simulateOne(plan: Plan, signer: TransactionModifyingSigner
     of: plan.txs.length,
     ...(plan.txs.length > 1
       ? {
-          note: `only 1 of ${plan.txs.length} transactions was simulated: the later ones read a proof-context account that transaction 1 creates, so simulating them against the chain as it is now would fail for a reason that is not yours`,
+          note: `1 of ${plan.txs.length} simulated — the rest read a proof context this one creates`,
         }
       : {}),
   };

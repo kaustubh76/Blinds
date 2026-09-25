@@ -103,10 +103,7 @@ export function Inspector({ calls }: { calls: readonly RpcCall[] }) {
       {calls.length >= 200 && (
         <Note tone="warn">Only the last 200 calls are kept; a longer run made more than this shows.</Note>
       )}
-      <Note>
-        These are the calls the app made, which is not the same as the requests that left the browser: the transport
-        coalesces identical calls in the same tick into one. What you see is what the SDK asked for.
-      </Note>
+      <Note>What the SDK asked for — identical calls coalesce, so fewer requests actually left.</Note>
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function Integrations() {
       name: "Pyth",
       tone: "accent",
       icon: "chart",
-      role: "The mark inside every solvency proof and the gate on every seizure: Crypto.TSLAX/USD, with the underlying equity beside it.",
+      role: "The mark inside every solvency proof, and the gate on every seizure.",
       live: pyth.data
         ? formatPrice(pyth.data.price, pyth.data.expo)
         : equity.data
@@ -79,7 +79,7 @@ export function Integrations() {
       name: "PreStocks",
       tone: "borrow",
       icon: "layers",
-      role: `ANTHROPIC, a pre-IPO token, as collateral at a ${prestocksHaircut} haircut — marked by PreStocks' published price, attested by the keeper.`,
+      role: `A pre-IPO token as collateral, at a ${prestocksHaircut} haircut.`,
       live: prestocks.data ? formatPrice(prestocks.data.price, prestocks.data.expo) : null,
       liveHint: prestocks.data
         ? `ANTHROPIC mark · fetched ${formatAge(prestocks.data.publishTime)}`
@@ -93,7 +93,7 @@ export function Integrations() {
       name: "Meteora DBC",
       tone: "lend",
       icon: "sparkles",
-      role: `The lender agent's capital token ${LAUNCH.token.symbol} on a Dynamic Bonding Curve quoted in a tokenized stock, configured from the desk's numbers.`,
+      role: `${LAUNCH.token.symbol} on a bonding curve quoted in a tokenized stock.`,
       live: pool ? `${(pool.progress * 100).toFixed(1)} %` : null,
       liveHint: pool
         ? `of the way to graduation · ${LAUNCH.cluster === "mainnet" ? "mainnet, quoted in TSLAx" : "devnet rehearsal"}`
@@ -107,7 +107,7 @@ export function Integrations() {
       name: "Clawpump",
       tone: "good",
       icon: "users",
-      role: "The agent's identity and wallet — the pool's creator and fee claimer — and its identity coin, launched by Clawpump on pump.fun and paired with TSLAx.",
+      role: "The agent's identity and wallet — the pool's creator and fee claimer.",
       live: LAUNCH.agent ? LAUNCH.agent.name : null,
       liveHint: LAUNCH.clawpump
         ? `${LAUNCH.clawpump.symbol} live on pump.fun`
@@ -123,7 +123,7 @@ export function Integrations() {
     <Section
       eyebrow="built with"
       title="Four integrations, each doing a job"
-      lead="Every number here is read the way the rest of the dashboard reads it — from the chain, from Pyth's own accounts, or from a record the launch wrote. Nothing is a logo."
+      lead="Every number below is read from the chain, from Pyth, or from a launch record."
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (

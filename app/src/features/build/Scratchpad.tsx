@@ -132,12 +132,9 @@ export function Scratchpad({ seed, desk }: { seed: string; desk: Desk | null }) 
         aria-label="scratchpad"
       />
       <Note>
-        JavaScript, not TypeScript — nothing in the tab strips type annotations, and the recipes' code happens to be
-        valid JS as written. In scope: <span className="mono">sdk</span>, <span className="mono">rpc</span>,{" "}
-        <span className="mono">config</span>, <span className="mono">desk</span> (
-        {desk ? "your connected wallet's flows" : "null until a wallet is connected"}),{" "}
-        <span className="mono">console.log</span> and <span className="mono">signal</span>.{" "}
-        <span className="mono">return</span> a value to see it below.
+        JavaScript, not TypeScript. In scope{" "}
+        <span className="mono">sdk · rpc · config · desk{desk ? "" : " (null)"} · console · signal</span>;{" "}
+        <span className="mono">return</span> a value.
       </Note>
       {lines.length > 0 && (
         <pre className="mono max-h-40 overflow-auto rounded-[var(--radius-md)] border border-line bg-surface-0 p-3 text-[11px] leading-relaxed text-ink-3">

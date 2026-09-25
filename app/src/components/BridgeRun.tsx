@@ -26,10 +26,7 @@ export function BridgeRun({ ids }: { ids: readonly string[] }) {
         <Row key={id} id={id} live={state === "present" ? bridgeCommand(info, id) : null} spendFlag={info?.spendFlag} />
       ))}
       {state === "absent" && (
-        <Note>
-          These run on a machine with the repo checked out. This page is served as static files, so it has no way to
-          start a process — copy the line instead.
-        </Note>
+        <Note>Static files cannot start a process — copy the line and run it where the repo is.</Note>
       )}
     </div>
   );
@@ -158,8 +155,8 @@ function Row({ id, live, spendFlag }: { id: string; live: BridgeCommand | null; 
       </pre>
       {blockedBySpend && (
         <Note tone="warn">
-          Refused before it starts: this spends {spends} funds. Restart the dev server with{" "}
-          <span className="mono">{spendFlag ?? "WINDOW_DEV_BRIDGE_ALLOW_SPEND=1"}</span> if you mean it.
+          Spends {spends} — restart the dev server with{" "}
+          <span className="mono">{spendFlag ?? "WINDOW_DEV_BRIDGE_ALLOW_SPEND=1"}</span>.
         </Note>
       )}
       {live?.needsBuild && (

@@ -43,6 +43,15 @@ instruction prices from them any more.
 The `-mock` mints are devnet twins: Token-2022 `ScaledUiAmount` + `PermanentDelegate`, wrapped 1:1 by
 `window_wrap` into a confidential mint under the desk's auditor key. No mainnet token is touched.
 
+**Why a twin, and not the token itself.** The real ANTHROPIC mint on mainnet is Token-2022 with ten
+extensions, and three of them decide the design. `confidentialTransferMint` is the machinery this desk
+wraps with in the first place. `scaledUiAmountConfig` is a rebasing multiplier, which is why the solvency
+proof carries one (`mult_at_lock`) rather than a bare price. And `transferHook` — a hook, like a transfer
+fee, makes a token unusable as the quote side of a bonding curve, which is why the lender agent's Meteora
+pool is quoted in a tokenized *stock* rather than in the pre-IPO token. The devnet twin reproduces the two
+extensions the desk depends on, and omits the hook. The Market page shows the real mint's extensions read
+live from mainnet, with each one's role on hover.
+
 **Attested marks, honestly.** PreStocks publishes a mark, not a signed feed. The keeper copies
 it and stamps it with the fetch time, and says so three times: `price_source` on chain, `source` in the
 profile, "attested" in the dashboard. The on-chain quote-age rule therefore bounds *how long ago the keeper

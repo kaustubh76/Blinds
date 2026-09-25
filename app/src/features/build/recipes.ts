@@ -195,7 +195,7 @@ export const RECIPES: Recipe[] = [
   {
     id: "config",
     title: "Read the market",
-    blurb: "The three config accounts and the PDAs everything hangs off. No wallet, no service — just the RPC.",
+    blurb: "The three config accounts and the PDAs everything hangs off.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const auction = await sdk.fetchAuctionConfig(rpc);   // epoch length, sMin, current epoch, hasOpenEpoch
@@ -227,8 +227,7 @@ console.log(sdk.PROGRAMS, auction, credit, oracle, pdas, listings.length, "listi
   {
     id: "schedule",
     title: "The collateral schedule, as the chain would judge it now",
-    blurb:
-      "Every Listing account, its PriceCache and the two freshness rules lock_collateral and seize apply — the same call the operator's `pnpm schedule` makes.",
+    blurb: "Every Listing, its PriceCache and the two freshness rules the chain enforces.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const descriptor = await (await fetch("${ctx.config.adminUrl || "https://<admin>"}/deployment")).json(); // = deployments/devnet.json
@@ -295,8 +294,7 @@ for (const [i, { address, data: l }] of listings.entries()) {
   {
     id: "pyth-mainnet",
     title: "Pyth's own accounts on mainnet, read from this browser",
-    blurb:
-      "The push-oracle PriceUpdateV2 accounts for Crypto.TSLAX/USD (the desk's mark) and Equity.US.TSLA/USD (the underlying): owner check, feed id, publish_time, verification level, and the wrapper basis. No key, no service.",
+    blurb: "Pyth's own PriceUpdateV2 accounts for the mark and the underlying, read from mainnet.",
     code: (ctx) => `import { createSolanaRpc, getProgramDerivedAddress, address } from "@solana/kit";
 const mainnet = createSolanaRpc("${ctx.config.rpcUrl.includes("devnet") ? "https://solana-rpc.publicnode.com" : ctx.config.rpcUrl}");
 const RECEIVER = "${PYTH_RECEIVER}";                       // PriceUpdateV2 accounts are owned by Pyth's receiver
@@ -362,8 +360,7 @@ for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
       },
     ],
     title: "The attested mark: PreStocks, as posted on chain",
-    blurb:
-      "A mark listing's feed id is sha256(\"<source>:<symbol>\") — a label, never a Pyth id — and its publish_time is the keeper's fetch time. PreStocks' API sends no CORS headers, so a browser reads the on-chain cache; the curl is what the keeper does.",
+    blurb: 'A mark\'s feed id is sha256("<source>:<symbol>") — a label, never a Pyth id.',
     code: (ctx) => `${PRELUDE(ctx)}
 
 // feed id = sha256("${ctx.p.str("label")}"): a label under which the keeper posts, never a Pyth id
@@ -403,8 +400,7 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
   {
     id: "launch-status",
     title: "The lender agent's DBC pool, decoded from raw bytes",
-    blurb:
-      "Meteora's VirtualPool and PoolConfig read without Meteora's SDK: progress to graduation, the quote raised against the migration threshold, spot from sqrt_price, and the fee split. The pool lives on the launch's own cluster; its USD value is Pyth's read of the quote stock.",
+    blurb: "Meteora's pool and config decoded from raw bytes, without Meteora's SDK.",
     code: (ctx) => `import * as sdk from "@thewindow/solana-sdk";
 import { createSolanaRpc, address } from "@solana/kit";
 const rpc = createSolanaRpc("${
@@ -477,8 +473,7 @@ console.log("fees: creator", Number(pool.creatorQuoteFee) / dec, "partner", Numb
         hint: "USDC — the notional the pledge is computed for",
       },
     ],
-    blurb:
-      "The scalars the program forms E_delta with: k_c from the listing's mark and the mint's multiplier, k_l from its haircut; then the pledge the desk asks for. Pure math over the same accounts.",
+    blurb: "The scalars the program forms E_delta with, and the pledge it asks for.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const LOAN = ${ctx.p.big("loan")}n;${" ".repeat(Math.max(1, 34 - ctx.p.big("loan").toString().length))}// ${ctx.p.int("loan").toLocaleString("en-US")} USDC in micro-USDC
@@ -539,8 +534,7 @@ for (const { address, data: l } of await sdk.fetchListings(rpc)) {
       },
     ],
     title: "The last print and its curve",
-    blurb:
-      "Read the proven per-tick sums, rebuild the depth curve and clear it locally — the same math the administrator ran.",
+    blurb: "Rebuild the depth curve from the proven sums and clear it locally.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const oracle = await sdk.fetchOracle(rpc);
@@ -581,8 +575,7 @@ console.log(sdk.formatRate(clearing.rStar), clearing.matched, sdk.cumulative(cur
       },
     ],
     title: "Re-verify a print in this tab",
-    blurb:
-      "Fetch the epoch, the print and every attest transaction, then check each zero-ciphertext proof with the wasm verifier.",
+    blurb: "Check every zero-ciphertext proof with the wasm verifier, here.",
     code: (ctx) => `${PRELUDE(ctx)}
 
 const oracle = await sdk.fetchOracle(rpc);
@@ -619,7 +612,7 @@ console.log(verdict.ok, verdict.proven, "/", verdict.nonzero, verdict.r_star_rec
       },
     ],
     title: "My membership, bids and loans",
-    blurb: "What the chain holds about one wallet: the member record (public), sealed bids, loans on both sides.",
+    blurb: "One wallet: its member record, sealed bids, loans on both sides.",
     needs: "wallet",
     code: (ctx) => `${PRELUDE(ctx)}
 
@@ -664,8 +657,7 @@ console.log(member, bids.length, loans.borrowed.map((l) => sdk.LOAN_STATUS_NAMES
   {
     id: "bid-dry-run",
     title: "Build a bid plan (dry run)",
-    blurb:
-      "Encrypt a size to your key and the auditor key, prove it in range, and lay out the three transactions — without sending. Needs your derived keys.",
+    blurb: "Real proofs and the three transactions laid out — nothing sent.",
     needs: "keys",
     params: [
       {
@@ -737,8 +729,7 @@ const plan  = await sdk.buildBidPlan({
   {
     id: "subscribe",
     title: "Subscribe to the programs' events",
-    blurb:
-      "Open a WebSocket, follow the auction, oracle and credit programs' logs, and decode the Anchor events (EpochOpened, Printed, PricePosted per listing, MatchPosted…).",
+    blurb: "Follow the three programs' logs and decode the Anchor events.",
     params: [
       {
         key: "seconds",
@@ -807,8 +798,7 @@ for await (const n of logs) {
   {
     id: "derive-keys",
     title: "Derive your confidential keys",
-    blurb:
-      "Two wallet signatures, in this tab: one over the member message, one over your cSTOCK-W account's. Their ElGamal keys never leave the browser and are never logged — this is what unblocks every recipe below.",
+    blurb: "Two wallet signatures; their ElGamal keys never leave this tab.",
     needs: "wallet",
     writes: true,
     code: (ctx) => `${PRELUDE(ctx)}
@@ -832,8 +822,7 @@ const elgamalPubkey = w.elgamal_pubkey_from_signature(memberSignature);
   {
     id: "join",
     title: "Join the desk through the faucet",
-    blurb:
-      "POST /join: the administrator signs add_member and mints 10,000 shares of every listed collateral plus fee SOL. The one off-chain call in the whole flow, and it is rate limited.",
+    blurb: "The one off-chain call in the flow, and it is rate limited.",
     needs: "keys",
     writes: true,
     code: (ctx) => `${PRELUDE(ctx)}
@@ -860,8 +849,7 @@ const res = await fetch("${ctx.config.adminUrl || "https://<admin>"}/join", {
   {
     id: "onboard",
     title: "Create and configure the confidential account",
-    blurb:
-      "Two transactions: create the Token-2022 account for this listing's cSTOCK-W, then configure the Confidential Transfer extension with your derived key. One account per collateral.",
+    blurb: "Create this listing's cSTOCK-W account, then configure it with a proof.",
     needs: "keys",
     writes: true,
     code: (ctx) => `${PRELUDE(ctx)}
@@ -885,8 +873,7 @@ await sdk.sendPlan(rpc, plan, signer);   // create ATA → reallocate + configur
   {
     id: "wrap",
     title: "Wrap shares into cSTOCK-W",
-    blurb:
-      "Deposit public mock shares and receive a confidential balance. The new decryptable balance is encrypted in this tab before the transaction is built — the chain never sees the amount in the clear.",
+    blurb: "Public shares in, confidential balance out — encrypted before it is sent.",
     needs: "keys",
     writes: true,
     params: [
@@ -930,8 +917,7 @@ await sdk.sendPlan(rpc, plan, signer);`,
   {
     id: "apply-pending",
     title: "Fold the pending balance in",
-    blurb:
-      "A confidential credit arrives as `pending` and has to be applied before it can be spent. One instruction, and the new decryptable balance is encrypted here first.",
+    blurb: "A confidential credit arrives pending; this folds it in.",
     needs: "keys",
     writes: true,
     code: (ctx) => `${PRELUDE(ctx)}
@@ -958,8 +944,7 @@ await sdk.sendPlan(rpc, { txs: [{ label: "apply pending balance", instructions: 
   {
     id: "bid",
     title: "Seal a bid and send it",
-    blurb:
-      "The real thing: encrypt the size to your key and the auditor's, prove it in range and above the minimum, and submit. Three transactions. Dry run first if you would rather look than send.",
+    blurb: "The real thing: sealed, proved in range, submitted. Three transactions.",
     needs: "keys",
     writes: true,
     params: [
@@ -1016,8 +1001,7 @@ await sdk.sendPlan(rpc, plan, signer);   // create range ctx → verify range �
   {
     id: "close-bid",
     title: "Reclaim the rent from an old bid",
-    blurb:
-      "close_bid is permissionless and refunds the rent to the bid's own member, so anyone can tidy up after a window — including you, for your own. Nothing else in this app reaches it.",
+    blurb: "Permissionless, and the rent goes back to the bid's own member.",
     needs: "wallet",
     writes: true,
     code: (ctx) => `${PRELUDE(ctx)}
@@ -1066,8 +1050,7 @@ await sdk.sendPlan(rpc, { txs: [{ label: "close bid", instructions: [ix], extraS
   {
     id: "mark-stale",
     title: "Record that a print is overdue",
-    blurb:
-      "mark_stale is permissionless, and the program checks the deadline itself — so it succeeds only when the keeper really is late. That check is what makes it safe to offer: you cannot slander a punctual keeper.",
+    blurb: "Permissionless — and the program refuses it unless the keeper really is late.",
     needs: "wallet",
     writes: true,
     params: [

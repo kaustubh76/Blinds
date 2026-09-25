@@ -169,10 +169,16 @@ export function Shell({ tab, children }: { tab: Tab; children: ReactNode }) {
             The Window for Stocks · {config.cluster}
           </div>
           <p className="max-w-[72ch] text-xs leading-relaxed text-ink-3">
-            Bids, loan sizes and collateral live on chain as ElGamal ciphertexts. The administrator holds the auditor
-            key and reads them to run the market; each print publishes per-tick sums with proofs of correct decryption
-            that this site can re-verify. Membership, side, rate and timing are public by design. The simulated members
-            are labelled as such. Nothing here is investment advice.
+            Sizes are ciphertexts · the administrator decrypts sums and proves each · side, rate and timing are public ·
+            the members are simulated · not investment advice.{" "}
+            <a
+              href="https://github.com/kaustubh76/Blinds/blob/main/docs/THREAT_MODEL.md"
+              target="_blank"
+              rel="noreferrer"
+              className="text-ink-2 hover:text-accent hover:underline"
+            >
+              threat model →
+            </a>
           </p>
         </div>
       </footer>

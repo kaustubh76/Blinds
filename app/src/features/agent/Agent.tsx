@@ -8,7 +8,7 @@ import { BridgeRun } from "../../components/BridgeRun";
 import { Card } from "../../components/Card";
 import { Icon, type IconName } from "../../components/Icon";
 import { Stat } from "../../components/Stat";
-import { Badge, ExplorerLink, Note, Pill, type Tone } from "../../components/ui";
+import { Badge, DocLink, ExplorerLink, Note, Pill, type Tone } from "../../components/ui";
 import { formatRate } from "../../lib/format";
 import { DEVNET_LAUNCH, LAUNCH, launchCluster, MAINNET_LAUNCH, useLaunch } from "../../lib/launch";
 import { useDeployment, useOracle } from "../../lib/queries";
@@ -40,7 +40,7 @@ function Journey({ live }: { live: { isMigrated: boolean; progress: number } | n
           {MAINNET_LAUNCH ? "on mainnet" : "devnet rehearsal · mainnet next"}
         </Badge>
       }
-      footer="Pick a step to see what moves it along. Each command is this repo's own — a button where there is a checkout to run it on, a line to copy otherwise."
+      footer="Pick a step to see the command that moves it along."
     >
       <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {steps.map((s, i) => (
@@ -105,9 +105,8 @@ function OnDesk() {
       title="An autonomous lender that quotes every window"
       footer={
         <>
-          The simulated members are ours and labelled as such in <span className="mono">deployments/devnet.json</span>
-          {" — "}the depth they provide is not organic demand. Bids are sealed and summed on chain as ciphertexts; the
-          administrator decrypts the sums, never a position, and proves each print.
+          Ours, and labelled <span className="mono">simulated</span> in the deployment file — this depth is not organic
+          demand.
         </>
       }
     >
@@ -144,10 +143,7 @@ function OnDesk() {
         />
       </div>
       <p className="mt-3 text-sm text-ink-2">
-        Every overnight window the lender agent seals a lending bid, the desk clears one uniform rate — xONIA — and the
-        agent's USDC goes to borrowers whose tokenized-stock collateral is proven solvent in zero knowledge against
-        Pyth's mark or PreStocks' mark. Its yield is that rate; its capital token and its identity coin are what the
-        rest of this page is about.{" "}
+        It seals a lending bid every window and earns whatever prints.{" "}
         <a href="#/market" className="text-accent hover:underline">
           the market →
         </a>{" "}
@@ -218,10 +214,8 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
       }
       footer={
         <>
-          <span className="mono">services/launch/src/plan.ts</span> turns these desk numbers into Meteora&apos;s{" "}
-          <span className="mono">buildCurveWithMarketCap</span> parameters; the on-chain column is decoded from the
-          config account by <span className="mono">sdk.fetchDbc</span>. Devnet uses a twin quote mint; the mainnet pool
-          is quoted in TSLAx itself.
+          <span className="mono">plan.ts</span> builds the curve; <span className="mono">sdk.fetchDbc</span> decodes the
+          right-hand column from the config account.
         </>
       }
     >
@@ -286,11 +280,8 @@ function Clawpump() {
       }
       footer={
         <>
-          Clawpump gives an agent an identity and a wallet, and launches a coin for it on pump.fun — paired here with
-          TSLAx from Clawpump&apos;s own stock pairs. It does not create Meteora pools, and a Meteora DBC pool mints its
-          own token; so the agent has two coins with two roles. Honest limits: the lending loop the agent earns from is
-          the devnet desk, and this agent carries no persona — Clawpump&apos;s partner API takes a persona only when an
-          agent is created, and this one was made in Clawpump&apos;s own console.
+          Two coins, two roles: the identity coin on pump.fun, the capital token on Meteora · this agent carries no
+          persona. <DocLink to="TRACKS.md">the agent, in full →</DocLink>
         </>
       }
     >
@@ -346,12 +337,7 @@ export function Agent() {
           <div className="t-eyebrow">the lender agent · Meteora DBC · Clawpump</div>
           <h1 className="t-h1 mt-1 text-ink-1">An agent that lends, and owns its own curve</h1>
         </div>
-        <p className="max-w-[52ch] text-sm text-ink-2">
-          The desk&apos;s lender is an autonomous agent. Its capital token{" "}
-          <span className="mono">{LAUNCH.token.symbol}</span> runs on a Meteora bonding curve quoted in a tokenized
-          stock and configured from the desk&apos;s numbers; its identity lives on Clawpump. Everything below is read
-          from records and the chain.
-        </p>
+        <p className="max-w-[44ch] text-sm text-ink-2">Every status below is read from a record or the chain.</p>
       </div>
       <Journey live={live} />
       <OnDesk />
@@ -368,7 +354,7 @@ export function Agent() {
           <LenderTrack here="agent" />
           <p className="text-xs text-ink-3 lg:max-w-[28ch]">
             <Icon name="code" size={11} className="mr-1 inline" />
-            The Build page runs this as the <span className="mono">launch-status</span> recipe in your tab; DevTools has{" "}
+            Also the <span className="mono">launch-status</span> recipe, and{" "}
             <span className="mono">thewindow.launch()</span>.{" "}
             <a href="#/build" className="text-accent hover:underline">
               Build →

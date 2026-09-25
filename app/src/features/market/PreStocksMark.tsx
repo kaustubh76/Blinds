@@ -7,7 +7,7 @@
 import { useEffect, useRef } from "react";
 import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
-import { Badge, ExplorerLink } from "../../components/ui";
+import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, formatBasis } from "../../lib/pyth";
@@ -97,15 +97,8 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
         }
         footer={
           <>
-            PreStocks tokenises pre-IPO companies; the desk lists its <span className="mono">{symbol}</span> next to a
-            listed stock under one rate. The keeper reads PreStocks&apos; public <span className="mono">markPrice</span>{" "}
-            and posts it as this listing&apos;s mark (<span className="mono">price_source = 2</span>) with the fetch
-            time as its timestamp — a copy of a public number, attested by the keeper, not a signed feed. The chain
-            refuses a lock or a seizure once the mark is older than {formatSlotAge(secsToSlots(limit))}; if the API
-            stops, the last good mark is re-posted for six hours, then that rule halts new locks. The implied price is
-            what the token trades at (<span className="mono">tokenPrice</span>), read beside the mark and served by the
-            admin service while the market runs — never posted on chain. Devnet holds a twin of the token; the mainnet
-            mint is not touched.
+            Attested mark, not a signed feed · stale after {formatSlotAge(secsToSlots(limit))} · a devnet twin, not the
+            mainnet mint. <DocLink to="LISTINGS.md">how a mark is posted →</DocLink>
           </>
         }
       >
@@ -144,8 +137,8 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             value={basis === null ? "—" : formatBasis(basis)}
             hint={
               valuationBasis !== null && snap?.mark_valuation_usd
-                ? `how far the token trades from the published mark · the same gap at company scale: ${usdBig(snap.mark_valuation_usd)} marked vs ${usdBig(snap.implied_valuation_usd ?? 0)} implied`
-                : "how far the token trades from the published mark, in basis points"
+                ? `${usdBig(snap.mark_valuation_usd)} marked vs ${usdBig(snap.implied_valuation_usd ?? 0)} implied`
+                : "how far the token trades from the published mark"
             }
             delta={
               basis === null || Math.abs(basis) < 50
@@ -201,17 +194,19 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
         </div>
         {real.data && (
           <p className="mt-3 text-xs leading-relaxed text-ink-3">
-            <span className="text-ink-2">What the real token is:</span> a Token-2022 mint with{" "}
-            {real.data.extensions.length} extensions —{" "}
-            {real.data.extensions
-              .filter((e) => EXT_NOTE[e])
-              .map((e) => (
+            {real.data.extensions.length} Token-2022 extensions, among them{" "}
+            {["confidentialTransferMint", "scaledUiAmountConfig", "transferHook"]
+              .filter((e) => real.data?.extensions.includes(e))
+              .map((e, i, all) => (
                 <span key={e}>
-                  <span className="mono text-ink-2">{e}</span> ({EXT_NOTE[e]}){"; "}
+                  <span className="mono text-ink-2" title={EXT_NOTE[e]}>
+                    {e}
+                  </span>
+                  {i < all.length - 1 ? " · " : ""}
                 </span>
               ))}
-            which is why this desk wraps a twin with the same shape on devnet rather than the token itself, and why a
-            bonding curve cannot quote in it.
+            {" — "}a transfer hook is why a bonding curve cannot quote in it.{" "}
+            <DocLink to="LISTINGS.md">why a twin →</DocLink>
           </p>
         )}
       </Card>

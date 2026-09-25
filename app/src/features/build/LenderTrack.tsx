@@ -40,19 +40,11 @@ export function LenderTrack({ here = "build" }: { here?: "build" | "agent" } = {
         <span className="text-xs text-ink-3">the lender agent&apos;s own token</span>
       </div>
       <p className="text-xs text-ink-2">
-        The desk&apos;s lender owns a token on a Dynamic Bonding Curve quoted in a tokenized stock. Read that pool the
-        way this dashboard does — from raw account bytes, no Meteora SDK in the browser — or run the operator&apos;s
-        CLI.{" "}
-        {elsewhere ? (
-          <>
-            What the curve is and why it is shaped that way lives on{" "}
-            <a href="#/agent" className="text-accent hover:underline">
-              the agent page
-            </a>
-            .
-          </>
-        ) : (
-          "What the curve is and why it is shaped that way is the rest of this page."
+        Read the pool from raw account bytes, with no Meteora SDK in the browser.{" "}
+        {elsewhere && (
+          <a href="#/agent" className="text-accent hover:underline">
+            the agent page →
+          </a>
         )}
       </p>
       <div className="text-xs">
@@ -88,9 +80,7 @@ const spot = sdk.dbcPrice(pool.sqrtPrice, 6, ${LAUNCH.quote.decimals});         
 // the curve's numbers come from services/launch/src/plan.ts (buildCurveWithMarketCap over the desk's targets)`}</Snippet>
       <p className="text-[11px] text-ink-3">
         <Icon name="alert" size={11} className="mr-1 inline text-status-warning" />
-        Honest limit: the pool is real on {LAUNCH.cluster}
-        {LAUNCH.cluster === "mainnet" ? "" : ", where the quote is a twin mint rather than TSLAx"}; the lending loop it
-        earns from is the devnet desk. Record:{" "}
+        Honest limit: real on {LAUNCH.cluster}; the loop it earns from is the devnet desk.{" "}
         <a className="underline" href={`${REPO}/docs/TRACKS.md`} target="_blank" rel="noreferrer">
           docs/TRACKS.md
         </a>{" "}

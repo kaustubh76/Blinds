@@ -5,7 +5,7 @@
  */
 import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
-import { Badge, ExplorerLink } from "../../components/ui";
+import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
 import { useCreditConfig, useDeployment, useMultiplier, useQuote, useSlot } from "../../lib/queries";
@@ -48,14 +48,8 @@ export function CollateralMark() {
       }
       footer={
         <>
-          The keeper posts Pyth&apos;s <span className="mono">Crypto.TSLAX/USD</span> quote — Hermes when it holds an
-          API key, otherwise the freshest of Pyth&apos;s own on-chain accounts — with the feed&apos;s own timestamp
-          stored unmodified. Two rules are enforced on chain per listing at every lock and seize: the keeper must have
-          posted within the listing&apos;s <span className="mono">max_price_age</span>, and the quote&apos;s own
-          timestamp must be within <span className="mono">max_publish_age</span> (
-          {formatSlotAge(secsToSlots(staleAfter))} for this one). The underlying{" "}
-          <span className="mono">Equity.US.TSLA/USD</span> is read from Pyth&apos;s mainnet account in this browser; the
-          overnight window opens when that market closes, which is why the 24/7 wrapper feed marks the collateral.
+          Two limits, both on chain: how long ago the keeper posted, and the quote&apos;s own age (
+          {formatSlotAge(secsToSlots(staleAfter))} here). <DocLink to="PYTH.md">what the chain enforces →</DocLink>
         </>
       }
     >

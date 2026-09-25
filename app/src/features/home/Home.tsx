@@ -77,10 +77,8 @@ export function Home() {
             <br />
             <span className="brand-text">Privately.</span>
           </h1>
-          <p className="t-lead mt-5 max-w-[52ch]">
-            Pledge xStocks or pre-IPO tokens, borrow USDC overnight at a rate the whole market clears — while your loan
-            size and your collateral stay encrypted on chain. The rate is public. The price is public. The position
-            never was.
+          <p className="t-lead mt-5 max-w-[46ch]">
+            Pledge tokenized stock, borrow USDC overnight at one cleared rate. The rate is public; the position is not.
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button variant="hero" size="lg" icon="zap" onClick={tryIt} loading={busy}>
@@ -125,7 +123,7 @@ export function Home() {
       <Section
         eyebrow="what you can bring"
         title={`${capitalize(countWord(listings.length))} collateral${listings.length === 1 ? "" : "s"}, one rate`}
-        lead="Each listing is marked by its own source and carries its own haircut; the chain refuses a lock or a seizure when the quote is not fresh."
+        lead="Each listing has its own mark source and haircut, and its own freshness limit."
         right={
           <a href="#/market" className="text-sm text-accent hover:underline">
             the full schedule →
@@ -148,8 +146,7 @@ export function Home() {
           ))}
         </div>
         <p className="mt-4 text-sm text-ink-3">
-          The lender on the other side of every window is an autonomous agent; its token,{" "}
-          <span className="mono">{LAUNCH.token.symbol}</span>, is on a stock-quoted Meteora bonding curve —{" "}
+          The lender is an autonomous agent with its own token, <span className="mono">{LAUNCH.token.symbol}</span> —{" "}
           <a href="#/agent" className="text-accent hover:underline">
             the agent and its curve →
           </a>
@@ -163,7 +160,7 @@ export function Home() {
       <Section
         eyebrow="try the numbers"
         title="What would a loan cost you?"
-        lead="Live marks, the listing's haircut, the desk's cushion — the same arithmetic your solvency proof will carry."
+        lead="The same arithmetic your solvency proof will carry."
       >
         <BorrowCalculator listings={listings} prices={prices.data} lastRateTick={xonia} onStart={start} />
       </Section>
@@ -175,29 +172,27 @@ export function Home() {
             icon="lock"
             n="1"
             title="Seal a bid"
-            text="Choose a side, a rate and a size. The size is encrypted to your key and the desk's auditor key before it leaves your browser."
+            text="A side, a rate, a size — the size encrypted before it leaves your browser."
           />
           <Step
             icon="clock"
             n="2"
             title="The window clears"
-            text="Every few minutes the sealed bids are summed on chain — as ciphertexts. The administrator proves each per-rate sum and one uniform rate prints: xONIA."
+            text="Sealed bids are summed on chain as ciphertexts; one rate prints — xONIA."
           />
           <Step
             icon="shield"
             n="3"
             title="Prove, lock, borrow"
-            text="Matched? Prove your collateral covers the loan at the live mark without revealing either number, lock it in escrow, and the loan is funded."
+            text="Prove the collateral covers the loan without revealing either number."
           />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <Callout icon="eyeOff" title="What stays private">
-            Your bid size, your loan size, your collateral. They live on chain only as ElGamal ciphertexts; the
-            administrator can read them to run the market and proves every aggregate it publishes.
+          <Callout icon="eyeOff" title="Private">
+            Bid size, loan size, collateral — ciphertexts on chain, and every aggregate proven.
           </Callout>
-          <Callout icon="eye" tone="mute" title="What is public by design">
-            That you are a member, which side you took, the rate ticks, the timing, the clearing rate and the matched
-            volume — and every proof, which this site re-verifies in your browser.
+          <Callout icon="eye" tone="mute" title="Public by design">
+            Membership, side, rate, timing, the clearing rate, the matched volume — and every proof.
           </Callout>
         </div>
       </Section>

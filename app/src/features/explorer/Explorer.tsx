@@ -10,7 +10,7 @@ import { EncryptedValue } from "../../components/EncryptedValue";
 import { Icon } from "../../components/Icon";
 import { Skeleton } from "../../components/Skeleton";
 import { Stat } from "../../components/Stat";
-import { Badge, Button, Callout, inputCls } from "../../components/ui";
+import { Badge, Button, Callout, DocLink, inputCls } from "../../components/ui";
 import { VerifyStepper } from "../../components/VerifyStepper";
 import { config } from "../../config";
 import { formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
@@ -79,10 +79,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
           <div className="t-eyebrow">explorer</div>
           <h1 className="t-h1 mt-1 text-ink-1">One window, as the chain holds it</h1>
         </div>
-        <p className="max-w-[56ch] text-sm text-ink-2">
-          The sealed per-rate sums, the proven sums, the clearing — and a button that re-derives the print in your
-          browser without trusting anyone.
-        </p>
+        <p className="max-w-[40ch] text-sm text-ink-2">The sealed sums, the proven sums, the clearing.</p>
       </div>
       <Card
         eyebrow="epoch"
@@ -199,11 +196,9 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
               </label>
             }
           >
-            <Callout icon="lock" tone="mute" title="What you are looking at">
-              Each row is the homomorphic sum of every bid at that rate, exactly as stored in the Epoch account —
-              individual bids stay separate ciphertexts under their owner's key and the auditor key. The print discloses
-              only these per-rate sums, each bound by a zero-ciphertext proof. A member alone at a rate is revealed by
-              that rate's sum; that is the disclosed cost of publishing a depth curve.
+            <Callout icon="lock" tone="mute" title="The disclosed cost of a depth curve">
+              A member alone at a rate is revealed by that rate&apos;s sum.{" "}
+              <DocLink to="METHODOLOGY.md">the leak budget →</DocLink>
             </Callout>
             <div className="mt-3">
               <AccumulatorWall
@@ -229,7 +224,7 @@ export function Explorer({ epochParam }: { epochParam?: string | undefined }) {
                   Re-verify in this browser
                 </Button>
               }
-              footer="Nothing here trusts the administrator: the accounts and the attest transactions come from the RPC you configured, and the proofs are checked by the same verifier the chain ran, compiled to wasm."
+              footer="From the RPC you configured, checked by the same verifier the chain ran."
             >
               <VerifyStepper
                 stages={verify.stages}

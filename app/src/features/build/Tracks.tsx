@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { Card } from "../../components/Card";
 import { CopyButton } from "../../components/DevConsole";
 import { Icon } from "../../components/Icon";
-import { Badge, ExplorerLink, type Tone } from "../../components/ui";
+import { Badge, DocLink, ExplorerLink, type Tone } from "../../components/ui";
 import { config } from "../../config";
 import { rpc } from "../../lib/chain";
 import { basisBps, FEEDS, fetchFreshest, formatBasis, mainnetRpc, nyseSession } from "../../lib/pyth";
@@ -114,8 +114,7 @@ export function Tracks() {
           <a className="underline" href={`${REPO}/docs/project.excalidraw`} target="_blank" rel="noreferrer">
             project.excalidraw
           </a>{" "}
-          (the whole product on one canvas). The administrator can decrypt individual amounts (accountable privacy); the
-          tokens on devnet are mock twins.
+          (the whole product on one canvas).
         </span>
       }
     >
@@ -123,13 +122,14 @@ export function Tracks() {
         <Column title="Pyth" tone="accent" sub="the mark is a coefficient in the proof">
           <p className="text-xs text-ink-2">
             Every lock proves <span className="mono">collateral × price × multiplier ≥ haircut × loan</span> over
-            ciphertexts; <span className="mono">k_c</span> is Pyth's quote. Two paths: under{" "}
-            <span className="mono">price_source = 0</span> the keeper copies Hermes (with a key, else Pyth's on-chain
-            push account) into the listing's cache with the quote's own <span className="mono">publish_time</span>
-            {"; "}under <span className="mono">price_source = 4</span> the program reads the receiver-owned{" "}
-            <span className="mono">PriceUpdateV2</span> account our poster carries onto devnet — no keeper copy in the
-            path. Either way the quote's age is enforced at lock and seize.
+            ciphertexts, with Pyth&apos;s quote as <span className="mono">k_c</span>.
           </p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px] text-ink-3">
+            <dt className="mono text-ink-2">source 0</dt>
+            <dd>the keeper copies Hermes into the listing&apos;s cache</dd>
+            <dt className="mono text-ink-2">source 4</dt>
+            <dd>the program reads Pyth&apos;s own account — no copy</dd>
+          </dl>
           <div className="text-xs">
             <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">
               read from mainnet in this browser
@@ -185,19 +185,15 @@ const q = await sdk.fetchQuote(rpc, {                            // { price, exp
 // browser-side, Pyth's own mainnet account (see the "pyth-mainnet" recipe): fetchFreshest(mainnetRpc, FEEDS["Crypto.TSLAX/USD"])`}</Snippet>
           <p className="text-[11px] text-ink-3">
             <Icon name="alert" size={11} className="mr-1 inline text-status-warning" />
-            Honest limit: every Pyth HTTP endpoint needs a key and this feed's only push account stopped on 12 Sep;
-            without a key the keeper reposts the old quote and the chain refuses TSLAx locks (QuoteStale) — inaction,
-            never a stale mark.
+            Honest limit: with no Pyth key the chain refuses TSLAx locks — inaction, never a stale mark.{" "}
+            <DocLink to="PYTH.md">why →</DocLink>
           </p>
         </Column>
 
         <Column title="PreStocks" tone="borrow" sub="ANTHROPIC · pre-IPO, an attested mark">
           <p className="text-xs text-ink-2">
-            The same desk lists ANTHROPIC, a pre-IPO token, next to a listed stock under one rate — a collateral
-            schedule. PreStocks publishes a <span className="mono">markPrice</span> and a{" "}
-            <span className="mono">tokenPrice</span>; the keeper posts the mark (
-            <span className="mono">price_source = 2</span>); the Market&apos;s PreStocks card shows the implied-vs-mark
-            basis from the admin&apos;s <span className="mono">/marks</span> while the market runs.
+            A pre-IPO token beside a listed stock, under one rate · the keeper posts its{" "}
+            <span className="mono">markPrice</span>.
           </p>
           <div className="text-xs">
             <div className="mono text-[10px] uppercase tracking-[0.14em] text-ink-3">on-chain cache now</div>
@@ -224,9 +220,8 @@ const q = await sdk.fetchPrice(rpc, feedId);
 // sdk.lockCollateral(rpc, { ..., listing: "${lps?.listing ?? "<listing>"}", quote: { feedId, priceSource: l.priceSource }, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? lps.haircutBps.toString() : "20000"}n, rent })
 // curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`}</Snippet>
           <p className="text-[11px] text-ink-3">
-            Honest limit: a copy of a public mark, not a signed feed — attested by the keeper, stamped at fetch, bounded
-            by the on-chain 48 h rule. If the API stops, the last good mark is re-posted for 6 h, then the rule halts
-            new locks on this listing.
+            Honest limit: attested by the keeper, not a signed feed; stamped at fetch and bounded at 48 h.{" "}
+            <DocLink to="LISTINGS.md">why →</DocLink>
           </p>
         </Column>
         <LenderTrack />

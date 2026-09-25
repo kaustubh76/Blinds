@@ -69,7 +69,7 @@ function RecipeSections({ desk }: { desk: Desk | null }) {
       <Card
         eyebrow="live recipes · reads"
         title="Run it here, copy it as code"
-        footer="Each run lands in the console (`) with the exact snippet. Secrets — the wallet signatures, bid openings — are never rendered. Change a parameter and both the snippet and the run follow it."
+        footer="Change a parameter and both the snippet and the run follow it. Secrets are never rendered."
       >
         <ul className="grid gap-3">
           {reads.map((r) => (
@@ -81,12 +81,11 @@ function RecipeSections({ desk }: { desk: Desk | null }) {
       <Card
         eyebrow="live recipes · writes"
         title="Drive the desk from here"
-        footer="Every one of these goes through the Desk's own flows, so a bid sealed here is the same on chain as one sealed there. Nothing is retried automatically: re-running half a sent plan is how a bid gets sent twice."
+        footer="The Desk's own flows, so a bid sealed here is the same on chain. Never auto-retried."
       >
         <Note tone="warn">
-          These send transactions and cost fees. Each asks once before it goes, and offers a dry run that builds the
-          whole plan — real proofs, real rent lookups — and sends none of it. On{" "}
-          <span className="mono">{config.cluster}</span> with a burner, none of it is worth anything.
+          These cost fees on <span className="mono">{config.cluster}</span>. Each asks once; each has a dry run that
+          builds the plan and sends nothing.
         </Note>
         <ul className="mt-3 grid gap-3">
           {writes.map((r) => (
@@ -98,7 +97,7 @@ function RecipeSections({ desk }: { desk: Desk | null }) {
       <Card
         eyebrow="scratchpad"
         title="Edit it and run it"
-        footer="It runs in this tab with the real SDK against the configured RPC. Nothing leaves the browser, and what you type is kept in this browser only."
+        footer="The real SDK against your configured RPC. Nothing leaves the browser."
       >
         <Scratchpad seed={seed ? seed.code(scratchCtx(seed, desk)) : ""} desk={desk} />
       </Card>
@@ -342,16 +341,10 @@ const HOOKS: Array<[string, string]> = [
   ["useEpoch(index) / usePrint(index) / useSeries(latest, n)", "one epoch's accumulators, its print, the print series"],
   [
     "useQuote(listing) / usePrices(listings) / useMultiplier(mint)",
-    "a listing's quote read where the program reads it — the cache PDA, or its Pyth account under source 4 — and the mint's ScaledUiAmount multiplier",
+    "a quote read where the program reads it, and the mint's multiplier",
   ],
-  [
-    "useOnChainListings() / useSelectedListing()",
-    "the schedule as the chain has it · the listing the Desk is working (persisted per browser; the token signature follows it)",
-  ],
-  [
-    "useUnderlying(feedId)",
-    "Pyth's mainnet push-oracle account read in the browser (the equity beside the wrapper) — lib/pyth.ts",
-  ],
+  ["useOnChainListings() / useSelectedListing()", "the schedule as the chain has it · the listing the Desk is working"],
+  ["useUnderlying(feedId)", "Pyth's mainnet push-oracle account, read in the browser"],
   ["useMember(owner) / useBids(wallet) / useLoans(wallet)", "membership (public), sealed bids, loans on both sides"],
   ["useTokenAccounts(wallet, mock, cstock)", "the two ATAs and the confidential-extension view"],
   ["useWindowClock()", "phase, progress, seconds left — the ring's single source of truth"],
@@ -359,10 +352,7 @@ const HOOKS: Array<[string, string]> = [
   ["usePositions(account)", "lock (priced solvency proof) · deposit (confidential transfer to escrow)"],
   ["useVerify(print)", "verifyPrint with per-stage timing → a verdict"],
   ["useConsole() / useLiveEvents()", "the developer console store · the WebSocket layer's state and last events"],
-  [
-    "useBackdrop() / backdrop.pulse(kind)",
-    "what the field behind the page is being told (phase, progress, sealed bids) · one impulse on top of it — the Desk pulses a landed bid, the Explorer a print it re-verified",
-  ],
+  ["useBackdrop() / backdrop.pulse(kind)", "what the field behind the page is told · one impulse on top of it"],
 ];
 
 export function Build() {
@@ -384,10 +374,8 @@ export function Build() {
         <div className="grid gap-3 text-sm text-ink-2 md:grid-cols-[1.2fr_1fr]">
           <div>
             <p>
-              The SDK is <span className="mono">@thewindow/solana-sdk</span> in the repo's{" "}
-              <span className="mono">sdk/</span> — generated clients for the five programs (Codama), transaction plans,
-              the rates math, and the proof engine compiled to wasm. It is built on{" "}
-              <span className="mono">@solana/kit</span>. Not on npm yet: use it from the repo.
+              <span className="mono">@thewindow/solana-sdk</span> — generated clients, plans, rates and the wasm proof
+              engine. Not on npm: use it from the repo.
             </p>
             <div className="mt-3">
               <Code>{`git clone https://github.com/kaustubh76/Blinds && cd Blinds
@@ -436,7 +424,6 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
       <Card
         eyebrow="the collateral schedule · live"
         title="The listings, one rate — what the chain would accept right now"
-        footer="Two rules per listing at lock_collateral and seize: the keeper must have posted within max_price_age slots, and the quote's own publish_time must be within max_publish_age. Attested marks carry the keeper's fetch time; the Pyth quote carries the publisher's."
       >
         <Schedule />
       </Card>
@@ -471,7 +458,7 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
         <Card
           eyebrow="hooks"
           title="The hooks this app is built from"
-          footer="Components are presentational; every chain read lives in app/src/lib/queries.ts, every write in useDesk / usePositions."
+          footer="Reads live in lib/queries.ts; writes in useDesk and usePositions."
         >
           <dl className="grid gap-1.5 text-xs">
             {HOOKS.map(([h, d]) => (
@@ -487,8 +474,7 @@ pnpm add file:../Blinds/sdk @solana/kit`}</Code>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card eyebrow="admin service" title="The one off-chain API (demo faucet + descriptor)">
           <Note>
-            The administrator runs it; the app only needs it for <span className="mono">POST /join</span>. The faucet is
-            rate-limited (a wallet is funded once; a global cap per hour; refused below a balance floor).
+            The app needs it only for <span className="mono">POST /join</span>, which is rate limited.
           </Note>
           <div className="mt-3">
             <Code>{`GET  ${adminShown}/healthz      → ok

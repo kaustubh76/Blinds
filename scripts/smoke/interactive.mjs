@@ -280,6 +280,38 @@ async function page(width, height, hash = "") {
   await p.close();
 }
 
+// 7. Density. Every fact on a page is meant to be a line you can scan; the long form lives in docs/ and
+//    is linked with `DocLink`. This is the only check that measures what a reader actually gets, rather
+//    than what the source says — `app/src/lib/copyBudget.ts` guards the source side.
+{
+  const MAX = 180;
+  const rendered = {};
+  for (const r of ["", "market", "agent", "explorer", "build", "positions"]) {
+    const p = await page(1440, 1200, r ? `#/${r}` : "");
+    rendered[r || "home"] = await p.evaluate((max) => {
+      const main = document.querySelector("main") ?? document.body;
+      // Leaf text blocks only: a card that contains several of them is not itself a paragraph.
+      const leaves = [
+        ...new Set(
+          [...main.querySelectorAll("p, li, dd")]
+            .filter((e) => ![...e.children].some((c) => /^(P|LI|DD|DIV|UL|OL|SECTION|PRE|TABLE|DL)$/.test(c.tagName)))
+            .map((e) => (e.innerText || "").replace(/\s+/g, " ").trim()),
+        ),
+      ];
+      return {
+        words: main.innerText.split(/\s+/).filter(Boolean).length,
+        over: leaves.filter((t) => t.length > max).map((t) => `${t.length}c ${t.slice(0, 70)}`),
+      };
+    }, MAX);
+    await p.close();
+  }
+  const offenders = Object.entries(rendered).flatMap(([r, v]) => v.over.map((t) => `${r}: ${t}`));
+  check("no route renders a paragraph", offenders.length === 0, JSON.stringify(offenders));
+  out.words = Object.fromEntries(Object.entries(rendered).map(([r, v]) => [r, v.words]));
+}
+
 console.log(JSON.stringify({ out, errors }, bigintSafe, 1));
 await b.close();
-process.exit(Object.values(out).every((v) => v === "ok") && errors.length === 0 ? 0 : 1);
+// `out.words` is a report, not a named check: skip it when deciding the exit code.
+const verdicts = Object.entries(out).filter(([k]) => k !== "words");
+process.exit(verdicts.every(([, v]) => v === "ok") && errors.length === 0 ? 0 : 1);

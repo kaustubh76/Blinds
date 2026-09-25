@@ -109,8 +109,8 @@ function OnChain({ wallet }: { wallet: Address }) {
   if (bids.isError || loans.isError)
     return (
       <p className="mt-2 text-xs text-status-warning">
-        the RPC did not answer for this wallet — <Icon name="alert" size={11} /> it is a scan of every bid and loan
-        account, which a public endpoint may refuse under load
+        <Icon name="alert" size={11} className="mr-1 inline" />
+        the RPC refused the scan — a public endpoint often does
       </p>
     );
   const sealed = bids.data ?? [];

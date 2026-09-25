@@ -50,10 +50,7 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
           <div className="t-eyebrow">market</div>
           <h1 className="t-h1 mt-1 text-ink-1">The window, the print, the schedule</h1>
         </div>
-        <p className="max-w-[52ch] text-sm text-ink-2">
-          Everything on this page is read from the chain in your browser; every print can be re-verified in the
-          Explorer.
-        </p>
+        <p className="max-w-[40ch] text-sm text-ink-2">Read from the chain in your browser.</p>
       </div>
       {/* Hero row: the number, and the window it comes from. */}
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -97,10 +94,6 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
               }
             />
           )}
-          <p className="mt-4 max-w-[60ch] text-sm leading-relaxed text-ink-2">
-            The overnight rate on tokenized stock, cleared every window from bids that arrive encrypted and are summed
-            on chain. The rate is public. The price is public. The position never was.
-          </p>
         </Card>
         <Card
           eyebrow="the window"
@@ -181,8 +174,7 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">
-          Reading the chain directly — the admin service is not reachable from this browser, which only matters for the
-          faucet on the Desk.
+          No admin service — reading the chain directly; only the Desk&apos;s faucet needs it.
         </p>
       )}
     </div>

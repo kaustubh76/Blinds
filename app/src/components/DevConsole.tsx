@@ -184,8 +184,7 @@ export function DevConsole() {
       </div>
       {shown.length === 0 ? (
         <p className="px-3 py-3 text-xs text-ink-3">
-          Nothing yet. Every SDK call, transaction, window phase and program event lands here as it happens — each with
-          the code that reproduces it. Try the Desk, or a recipe on the Build page.
+          Nothing yet — every call, transaction and event lands here with the code that reproduces it.
         </p>
       ) : (
         <ul className="min-h-0 flex-1 overflow-y-auto">

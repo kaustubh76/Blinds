@@ -103,8 +103,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               checked={motion}
               onChange={(e) => backdrop.setEnabled(e.target.checked)}
             />
-            Background motion: the field behind the page follows the window — sealed bids drift, a print converges and
-            stamps. Applies at once (close this sheet to see it). Always off when your system asks for reduced motion.
+            Background motion — the field follows the window. Off when your system asks for reduced motion.
           </label>
           <div className="flex gap-2">
             <Button onClick={save} icon="check">
@@ -127,8 +126,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               {s.wallet?.name === BURNER_WALLET_NAME && <Badge tone="accent">connected</Badge>}
             </div>
             <div className="text-xs text-ink-2">
-              {sol.data !== undefined ? `${(Number(sol.data) / 1e9).toFixed(4)} SOL` : "balance …"} · a throwaway key
-              kept in this browser's storage; anyone using this browser profile can spend it. Devnet only.
+              {sol.data !== undefined ? `${(Number(sol.data) / 1e9).toFixed(4)} SOL` : "balance …"} · devnet only ·
+              anyone using this browser profile can spend it.
             </div>
             <div className="flex flex-wrap gap-2">
               <Button

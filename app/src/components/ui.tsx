@@ -141,6 +141,29 @@ export function ExplorerLink({
   );
 }
 
+/**
+ * A link to the reasoning, which lives in the repo's docs rather than on the page.
+ *
+ * The UI states a fact in one line; anything that needs a paragraph to be fair — how a mark is
+ * attested, what the chain enforces, what the administrator can read — is written once in `docs/` and
+ * pointed at from here. One component so the base URL is in one place, and so a doc that moves breaks
+ * a single import rather than a dozen anchors.
+ */
+export function DocLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <a
+      href={`${DOCS_BASE}/${to}`}
+      target="_blank"
+      rel="noreferrer"
+      className="whitespace-nowrap text-ink-2 hover:text-accent hover:underline"
+    >
+      {children}
+    </a>
+  );
+}
+
+const DOCS_BASE = "https://github.com/kaustubh76/Blinds/blob/main/docs";
+
 /** A rounded chip for a state or a source. */
 export function Pill({ tone = "mute", icon, children }: { tone?: Tone; icon?: IconName; children: ReactNode }) {
   const c: Record<Tone, string> = {

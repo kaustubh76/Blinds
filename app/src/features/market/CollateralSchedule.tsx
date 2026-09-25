@@ -10,7 +10,7 @@ type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "
 
 import { Card } from "../../components/Card";
 import { ListingCard } from "../../components/ListingCard";
-import { Badge, ExplorerLink } from "../../components/ui";
+import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import type { ListingView } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
@@ -36,13 +36,8 @@ export function CollateralSchedule() {
       title={`${listings.length} eligible collaterals · one rate`}
       footer={
         <>
-          Every listing is a <span className="mono">Listing</span> account with its own price cache, haircut and two
-          freshness limits, both enforced at <span className="mono">lock_collateral</span> and{" "}
-          <span className="mono">seize</span>: the keeper must have posted within{" "}
-          <span className="mono">max_price_age</span> slots, and the quote&apos;s own timestamp must be within{" "}
-          <span className="mono">max_publish_age</span>. The PreStocks mark is a copy of a public API, timestamped when
-          the keeper fetched it — attested, not signed; the Pyth quote carries the publisher&apos;s own timestamp.
-          Devnet twins of the tokens; nothing on mainnet is touched.
+          One <span className="mono">Listing</span> account each, with the haircut and both freshness limits in the
+          table · devnet twins, not the mainnet mints. <DocLink to="LISTINGS.md">the schedule, in full →</DocLink>
         </>
       }
     >

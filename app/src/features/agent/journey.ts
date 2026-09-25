@@ -44,7 +44,7 @@ export function journey(
           id: "identity",
           title: "A Clawpump identity",
           state: "done",
-          detail: `${agent.name} · ${agent.status === "running" ? "running on Clawpump" : `status ${agent.status ?? "unknown"}`} · wallet ${short(agent.walletAddress)} — the pool's creator and fee wallet`,
+          detail: `${agent.name} · ${agent.status === "running" ? "running on Clawpump" : `status ${agent.status ?? "unknown"}`} · ${short(agent.walletAddress)}, the fee wallet`,
           href: `https://explorer.solana.com/address/${agent.walletAddress}`,
           commands: ["agent-status", "agent-upsert"],
         }
@@ -60,7 +60,7 @@ export function journey(
           id: "rehearsal",
           title: "Devnet rehearsal on Meteora DBC",
           state: "done",
-          detail: `pool ${short(devnet.pool)} on a twin quote mint — same program, same configuration`,
+          detail: `pool ${short(devnet.pool)} · a twin quote mint, same program`,
           href: `https://explorer.solana.com/address/${devnet.pool}?cluster=devnet`,
           commands: ["launch-status", "launch-buy"],
         }
@@ -84,7 +84,7 @@ export function journey(
           id: "mainnet",
           title: "The mainnet pool, quoted in TSLAx",
           state: "blocked",
-          detail: `waits on ~0.05 SOL at the launch key ${short(launchKey)} — the pool cost 0.027 on devnet; nothing is sent below 0.04`,
+          detail: `waits on ~0.05 SOL at ${short(launchKey)} · nothing is sent below 0.04`,
           href: `https://explorer.solana.com/address/${launchKey}`,
           commands: ["launch-plan", "launch-preflight", "launch-create"],
         },
@@ -102,7 +102,7 @@ export function journey(
           title: "The identity coin, launched by Clawpump",
           state: agent ? "blocked" : "pending",
           detail: agent
-            ? `waits on ~0.02 SOL at the agent's wallet ${short(agent.walletAddress)} — the agent pays its own launch (0.0092 SOL for a TSLAx pair)`
+            ? `waits on ~0.02 SOL at ${short(agent.walletAddress)} · the agent pays its own launch`
             : "needs the identity first",
           href: agent ? `https://explorer.solana.com/address/${agent.walletAddress}` : undefined,
           commands: agent ? ["clawpump-preflight", "clawpump-launch"] : ["agent-upsert"],
@@ -112,14 +112,14 @@ export function journey(
           id: "graduation",
           title: "Graduation to DAMM v2",
           state: "done",
-          detail: "this pool reached its threshold; its liquidity is locked on DAMM v2",
+          detail: "threshold reached · liquidity locked on DAMM v2",
         }
       : past
         ? {
             id: "graduation",
             title: "Graduation to DAMM v2",
             state: "done",
-            detail: `rehearsed end to end: pool ${short(past.pool)} filled its curve and migrated${past.dammPool ? ` into DAMM v2 pool ${short(past.dammPool)}` : ""} — the pool above is the live one${live ? `, ${(live.progress * 100).toFixed(1)} % of the way` : ""}`,
+            detail: `rehearsed end to end${past.dammPool ? ` into DAMM v2 ${short(past.dammPool)}` : ""} · the pool above is the live one${live ? `, ${(live.progress * 100).toFixed(1)} % of the way` : ""}`,
             href: past.dammPool
               ? `https://explorer.solana.com/address/${past.dammPool}?cluster=devnet`
               : `https://explorer.solana.com/tx/${past.tx}?cluster=devnet`,
