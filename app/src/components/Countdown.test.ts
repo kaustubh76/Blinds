@@ -6,7 +6,9 @@ import { slotsToClock } from "./Countdown";
 const clock = (slots: number) => {
   const secs = Math.max(0, Math.round(slots * SLOT_SECONDS_DEFAULT));
   const [h, m, s] = [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60];
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
 };
 
 describe("slotsToClock", () => {
