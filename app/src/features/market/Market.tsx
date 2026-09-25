@@ -174,7 +174,8 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (
         <p className="text-xs text-ink-3">
-          No admin service — reading the chain directly; only the Desk&apos;s faucet needs it.
+          No admin service — reading the chain directly. It runs the keeper that posts marks, so the ones on chain are
+          as old as the last window; the traded price beside them is read live.
         </p>
       )}
     </div>

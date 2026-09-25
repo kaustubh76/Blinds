@@ -1,9 +1,10 @@
 /**
  * The PreStocks collateral mark: ANTHROPIC, a pre-IPO token, marked by PreStocks' published price and
- * held to the same two freshness rules as every listing. The mark on chain is a keeper-attested copy;
+ * held to the same two freshness rules as every listing, both judged here with the chain's own helper;
  * the implied (traded) price beside it comes from the keeper's last read (`/marks`) while the market
  * runs — the basis is informational and never on chain. Honest about both.
  */
+import { quoteFreshness } from "@thewindow/solana-sdk";
 import { useEffect, useRef } from "react";
 import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
@@ -44,8 +45,22 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
   }, [focus, listing]);
 
   const limit = listing?.maxPublishAgeSecs ?? 172_800;
-  const age = price.data ? Math.max(0, Math.round(Date.now() / 1000 - Number(price.data.publishTime))) : null;
-  const stale = age !== null && age > limit;
+  // Both of the chain's rules, from the SDK helper `lock_collateral` mirrors: a mark young enough
+  // (`max_publish_age_secs`) AND posted recently enough (`max_price_age_slots`). Judging only the first
+  // let this card show the all-good badge while a lock was certain to fail PriceStale.
+  const fresh =
+    listing && price.data && slot.data !== undefined
+      ? quoteFreshness({
+          listing: { maxPriceAge: BigInt(listing.maxPriceAgeSlots), maxPublishAgeSecs: BigInt(limit) },
+          price: price.data,
+          slot: slot.data,
+          nowSecs: Math.floor(Date.now() / 1000),
+        })
+      : null;
+  const stale = fresh ? !fresh.quoteFresh : null;
+  // Where the traded price came from: the keeper's last read (matching what it posted on chain) or
+  // PreStocks live through this site's own function. Never conflated — the mark above is the chain's.
+  const live = snap?.source === "prestocks-live";
   const implied = snap?.implied_e8 != null ? { price: BigInt(snap.implied_e8), expo: -8 } : null;
   const mark = snap ? { price: BigInt(snap.mark_e8), expo: -8 } : null;
   const basis = implied && mark ? basisBps(implied, mark) : null;
@@ -86,9 +101,11 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
         right={
           <span className="flex flex-wrap items-center gap-2">
             <Badge tone="borrow">PreStocks mark</Badge>
-            {stale ? (
-              <Badge tone="warn" icon="alert">
-                mark older than {formatSlotAge(secsToSlots(limit))} · locks refused
+            {fresh ? (
+              <Badge tone={fresh.usable ? "good" : "warn"} icon={fresh.usable ? "check" : "alert"}>
+                {fresh.usable
+                  ? "attested · the chain would accept a lock"
+                  : `${stale ? `mark older than ${formatSlotAge(secsToSlots(limit))}` : "posted too long ago"} · locks refused`}
               </Badge>
             ) : (
               <Badge tone="mute">attested · a keeper copy, stamped at fetch</Badge>
@@ -118,19 +135,19 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
           />
           <Stat
             label="posted on devnet"
-            value={
-              price.data && slot.data !== undefined
-                ? `${formatSlotAge(slot.data - Number(price.data.postedSlot))} ago`
-                : "—"
+            value={fresh ? `${fresh.postedAgeSlots.toLocaleString()} slots ago` : "—"}
+            hint={
+              listing
+                ? `the chain's own unit · limit ${Number(listing.maxPriceAgeSlots).toLocaleString()} slots${fresh && !fresh.postedFresh ? " — exceeded" : ""}`
+                : "read from the keeper's cache PDA"
             }
-            hint="read from the keeper's cache PDA"
           />
           <Stat
             label="implied price"
             value={implied ? formatPrice(implied.price, implied.expo) : "—"}
             hint={
               snap
-                ? `PreStocks tokenPrice, read ${formatAge(snap.fetched_at)}`
+                ? `PreStocks tokenPrice · ${live ? "live from PreStocks" : "the keeper's last read"} ${formatAge(snap.fetched_at)}`
                 : dep.data?.adminUrl || config.adminUrl
                   ? marks.isFetching
                     ? "asking the keeper…"
@@ -139,12 +156,14 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
             }
           />
           <Stat
-            label="basis · implied vs mark"
+            label={live ? "basis · traded vs PreStocks' mark" : "basis · implied vs mark"}
             value={basis === null ? "—" : formatBasis(basis)}
             hint={
               valuationBasis !== null && snap?.mark_valuation_usd
-                ? `${usdBig(snap.mark_valuation_usd)} marked vs ${usdBig(snap.implied_valuation_usd ?? 0)} implied`
-                : "how far the token trades from the published mark"
+                ? `${usdBig(snap.mark_valuation_usd)} marked vs ${usdBig(snap.implied_valuation_usd ?? 0)} implied${live ? " · both live" : ""}`
+                : live
+                  ? "how far the token trades from PreStocks' own mark right now"
+                  : "how far the token trades from the published mark"
             }
             delta={
               basis === null || Math.abs(basis) < 50

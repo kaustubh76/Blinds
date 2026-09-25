@@ -132,6 +132,8 @@ interface LaunchFile extends PlanFile {
     /** Whether the persona and avatar actually took (read back, never assumed). */
     persona?: boolean;
     avatarUrl?: string | null;
+    /** The coin Clawpump ties to this agent on their side — their confirmation of ours. */
+    tokenAddress?: string | null;
     checkedAt?: string;
   };
   clawpump?: {
@@ -442,14 +444,37 @@ async function status(conn: Connection) {
     at: new Date().toISOString(),
   };
   // The agent: its wallet's SOL (it pays its own Clawpump launch) and the identity coin, when there is one.
+  // The wallet is Clawpump's and lives on mainnet, so its balance is read there — reading it on the
+  // launch cluster reported the mainnet wallet's devnet balance (0) as if it were the agent's.
   const a = l.agent;
-  const agentSol = a ? (await conn.getBalance(new PublicKey(a.walletAddress))) / LAMPORTS : null;
+  const agentSol = a
+    ? (await new Connection(MAINNET_RPC, "confirmed").getBalance(new PublicKey(a.walletAddress))) / LAMPORTS
+    : null;
+  // Read-only, and only if a key is around: the record's "running" is otherwise as old as the last
+  // `agent` run, and the dashboard shows it with that date.
+  let checked: ClawpumpAgent | null = null;
+  if (a && process.env.CLAWPUMP_API_KEY) {
+    try {
+      checked = await refreshAgentRecord(process.env.CLAWPUMP_API_KEY, a.id);
+    } catch (e) {
+      console.error(`clawpump status unavailable: ${e instanceof Error ? e.message : e}`);
+    }
+  }
   console.log(
     JSON.stringify(
       {
         ...out,
         feeClaimer: l.feeClaimer,
-        agent: a ? { ...a, sol: agentSol, isCreator: l.creator === a.walletAddress } : null,
+        agent: a
+          ? {
+              ...a,
+              ...(checked
+                ? { status: checked.status ?? null, tokenAddress: checked.tokenAddress ?? null, checkedAt: out.at }
+                : {}),
+              sol: agentSol,
+              isCreator: l.creator === a.walletAddress,
+            }
+          : null,
         clawpump: l.clawpump ?? null,
       },
       null,
@@ -679,12 +704,39 @@ async function agent(forceNew: boolean, start: boolean) {
 }
 
 /** Read-only: what Clawpump says about the recorded agent right now. */
+/**
+ * Reads the agent from Clawpump and writes what it said into the launch record: one GET, no mutation —
+ * `start` belongs to `agent`, never here. The dashboard renders `status` and `checkedAt` from the
+ * record, so without this the page can show "running" from a check days old; `tokenAddress` is
+ * Clawpump's own link from the agent to its identity coin, which is worth keeping beside ours.
+ */
+async function refreshAgentRecord(key: string, id: string): Promise<ClawpumpAgent | null> {
+  const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "GET", `/agents/${id}`);
+  const back = "agent" in r.data ? r.data.agent : r.data;
+  const file = readJson<LaunchFile>(LAUNCH_FILE);
+  if (file?.agent && file.agent.id === back.id) {
+    writeJson(LAUNCH_FILE, {
+      ...file,
+      agent: {
+        ...file.agent,
+        name: back.name,
+        status: back.status ?? null,
+        persona: !!back.persona,
+        avatarUrl: back.avatarUrl ?? null,
+        ...(back.tokenAddress ? { tokenAddress: back.tokenAddress } : {}),
+        checkedAt: new Date().toISOString(),
+      },
+    });
+  }
+  return back;
+}
+
 async function agentStatus() {
   const key = clawpumpKey();
   const a = recordedAgent();
   if (!a) throw new Error("no Clawpump agent recorded — run `agent` first");
-  const r = await clawpump<ClawpumpAgent | { agent: ClawpumpAgent }>(key, "GET", `/agents/${a.id}`);
-  const back = "agent" in r.data ? r.data.agent : r.data;
+  const back = await refreshAgentRecord(key, a.id);
+  if (!back) throw new Error("Clawpump returned no agent");
   console.log(
     JSON.stringify(
       {

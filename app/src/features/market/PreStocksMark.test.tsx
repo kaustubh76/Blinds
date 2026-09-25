@@ -12,14 +12,19 @@ const listing = {
   feedId,
   haircutBps: 20000n,
   maxPublishAgeSecs: 172800,
+  maxPriceAgeSlots: 1200,
 };
 const marks = vi.fn();
 const mint = vi.fn();
+const quote = vi.fn(() => ({
+  data: { price: 105143999341n, expo: -8, publishTime: BigInt(now - 600), postedSlot: 100n },
+}));
+const slot = vi.fn(() => ({ data: 1000 }));
 vi.mock("../../config", () => ({ config: { cluster: "devnet", adminUrl: "https://admin.example" } }));
 vi.mock("../../lib/queries", () => ({
   useDeployment: () => ({ data: { listings: [{ source: "pyth" }, listing] } }),
-  useQuote: () => ({ data: { price: 105143999341n, expo: -8, publishTime: now - 600, postedSlot: 100n } }),
-  useSlot: () => ({ data: 1000 }),
+  useQuote: () => quote(),
+  useSlot: () => slot(),
   useMarks: () => marks(),
   useMainnetMint: () => mint(),
 }));
@@ -104,5 +109,47 @@ describe("the PreStocks mark card", () => {
     expect(t).toContain("$1,051.44");
     expect(t).toContain("the keeper did not answer");
     expect(container.querySelector("#prestocks")).not.toBeNull();
+  });
+
+  // The card used to judge the publish rule alone, so a mark nobody had posted in days carried the
+  // all-good badge while `lock_collateral` was certain to answer PriceStale.
+  it("refuses to look acceptable when the post is older than the chain allows", () => {
+    marks.mockReturnValue({ data: null, isFetching: false });
+    mint.mockReturnValue({ data: null, isError: false });
+    slot.mockReturnValue({ data: 1_000_000 }); // 999,900 slots since the post; the limit is 1,200
+    const { container } = render(<PreStocksMark />);
+    const t = container.textContent ?? "";
+    expect(t).toContain("posted too long ago · locks refused");
+    expect(t).not.toContain("the chain would accept a lock");
+    expect(t).toContain("999,900 slots ago");
+    expect(t).toContain("exceeded");
+    slot.mockReturnValue({ data: 1000 });
+  });
+
+  // With no market running the traded price and basis come from this site's own PreStocks read, and
+  // the card has to say which — the mark above it is still the chain's 40-hour-old copy.
+  it("shows a live traded price when the keeper is down, and says it is live", () => {
+    marks.mockReturnValue({
+      data: {
+        prestocks_anthropic: { ...snap, source: "prestocks-live", fetched_at: now - 5, implied_e8: 105_121_876_682 },
+      },
+      isFetching: false,
+    });
+    mint.mockReturnValue({ data: null, isError: false });
+    const { container } = render(<PreStocksMark />);
+    const t = container.textContent ?? "";
+    expect(t).toContain("$1,051.22"); // the traded price, live
+    expect(t).toContain("live from PreStocks");
+    expect(t).toContain("traded vs PreStocks' mark");
+    expect(t).not.toContain("the keeper's last read");
+  });
+
+  it("says the chain would accept a lock when both rules pass", () => {
+    marks.mockReturnValue({ data: null, isFetching: false });
+    mint.mockReturnValue({ data: null, isError: false });
+    const { container } = render(<PreStocksMark />);
+    const t = container.textContent ?? "";
+    expect(t).toContain("the chain would accept a lock");
+    expect(t).toContain("900 slots ago");
   });
 });

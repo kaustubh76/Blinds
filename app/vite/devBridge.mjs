@@ -39,9 +39,13 @@ export const COMMANDS = [
   {
     id: "launch-plan",
     label: "Price the curve",
-    blurb: "Reads Pyth for the quote stock and writes the launch plan — the numbers the pool is configured from.",
+    blurb:
+      "Reads Pyth for the quote stock and writes the launch plan. On devnet it also creates the twin quote mint it needs.",
     argv: () => launch("plan"),
     needs: [],
+    // `plan` is read-only on mainnet but mints a twin quote on devnet (services/launch/src/main.ts),
+    // so it is not the "nothing is sent" command it used to be labelled as.
+    spends: "devnet",
   },
   {
     id: "launch-status",
@@ -92,7 +96,8 @@ export const COMMANDS = [
   {
     id: "agent-upsert",
     label: "Give the agent its identity",
-    blurb: "Reuses and renames the key's agent, sets the avatar, makes it public, and starts it.",
+    blurb:
+      "Renames the key's live Clawpump agent, sets its avatar, makes it public and starts it — changes on their side.",
     argv: () => launch("agent"),
     needs: ["CLAWPUMP_API_KEY"],
   },

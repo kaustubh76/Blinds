@@ -3,6 +3,7 @@
  * equity feed read straight from Pyth's mainnet account. The quote's own timestamp is what tells
  * you whether the mark is fresh — not how recently the keeper posted it.
  */
+import { quoteFreshness } from "@thewindow/solana-sdk";
 import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
 import { Badge, DocLink, ExplorerLink } from "../../components/ui";
@@ -25,9 +26,20 @@ export function CollateralMark() {
   const underlying = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
   const session = nyseSession();
 
-  const staleAfter = dep.data?.listings[0]?.maxPublishAgeSecs ?? QUOTE_STALE_AFTER_SECS;
-  const quoteAge = price.data ? Math.max(0, Math.round(Date.now() / 1000 - Number(price.data.publishTime))) : null;
-  const quoteStale = quoteAge !== null && quoteAge > staleAfter;
+  const listing = dep.data?.listings[0];
+  const staleAfter = listing?.maxPublishAgeSecs ?? QUOTE_STALE_AFTER_SECS;
+  // Both rules the chain applies, not just the quote's own age: a quote can be young and still refused
+  // because nobody posted it lately, and this card used to warn only by luck when both were breached.
+  const fresh =
+    listing && price.data && slot.data !== undefined
+      ? quoteFreshness({
+          listing: { maxPriceAge: BigInt(listing.maxPriceAgeSlots), maxPublishAgeSecs: BigInt(staleAfter) },
+          price: price.data,
+          slot: slot.data,
+          nowSecs: Math.floor(Date.now() / 1000),
+        })
+      : null;
+  const quoteStale = fresh ? !fresh.quoteFresh : false;
   const basis = price.data && underlying.data ? basisBps(price.data, underlying.data) : null;
 
   return (
@@ -36,9 +48,10 @@ export function CollateralMark() {
       title={price.data ? formatPrice(price.data.price, price.data.expo) : "—"}
       right={
         <span className="flex flex-wrap items-center gap-2">
-          {quoteStale && (
+          {fresh && !fresh.usable && (
             <Badge tone="warn" icon="alert">
-              quote older than {formatSlotAge(secsToSlots(staleAfter))}
+              {quoteStale ? `quote older than ${formatSlotAge(secsToSlots(staleAfter))}` : "posted too long ago"} ·
+              locks refused
             </Badge>
           )}
           <ExplorerLink address={PYTH_SHARD0_TSLAX} cluster="mainnet-beta">
@@ -61,16 +74,10 @@ export function CollateralMark() {
         />
         <Stat
           label="posted on devnet"
-          value={
-            price.data && slot.data !== undefined
-              ? `${formatSlotAge(slot.data - Number(price.data.postedSlot))} ago`
-              : "—"
-          }
+          value={fresh ? `${fresh.postedAgeSlots.toLocaleString()} slots ago` : "—"}
           hint={
-            price.data
-              ? price.data.from === "pyth"
-                ? "read from Pyth's receiver-owned account"
-                : "read from the keeper's cache"
+            listing
+              ? `limit ${Number(listing.maxPriceAgeSlots).toLocaleString()} slots${fresh && !fresh.postedFresh ? " — exceeded" : ""} · ${price.data?.from === "pyth" ? "Pyth's own account" : "the keeper's cache"}`
               : undefined
           }
         />

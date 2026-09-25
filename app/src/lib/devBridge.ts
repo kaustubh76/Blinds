@@ -51,8 +51,10 @@ export interface BridgeInfo {
 export const COMMAND_TEXT: Record<string, { label: string; blurb: string; command: string; spends?: string }> = {
   "launch-plan": {
     label: "Price the curve",
-    blurb: "Reads Pyth for the quote stock and writes the launch plan — the numbers the pool is configured from.",
+    blurb:
+      "Reads Pyth for the quote stock and writes the launch plan. On devnet it also creates the twin quote mint it needs.",
     command: "pnpm --filter @thewindow/launch plan",
+    spends: "devnet",
   },
   "launch-status": {
     label: "Read the pool",
@@ -89,7 +91,8 @@ export const COMMAND_TEXT: Record<string, { label: string; blurb: string; comman
   },
   "agent-upsert": {
     label: "Give the agent its identity",
-    blurb: "Reuses and renames the key's agent, sets the avatar, makes it public, and starts it.",
+    blurb:
+      "Renames the key's live Clawpump agent, sets its avatar, makes it public and starts it — changes on their side.",
     command: "pnpm --filter @thewindow/launch agent",
   },
   "clawpump-preflight": {

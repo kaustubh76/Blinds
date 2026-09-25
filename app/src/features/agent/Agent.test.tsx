@@ -61,6 +61,9 @@ vi.mock("../../lib/queries", () => ({
   // The roster reads the chain per agent, but only for a row you open; none is open on first render.
   useBids: () => ({ data: [] }),
   useLoans: () => ({ data: { borrowed: [], lent: [] } }),
+  // The identity coin is read from mainnet, so "identity coin on mainnet" is a fact about the chain
+  // rather than the presence of a mint in the record. Unanswered here, as on a first paint.
+  useMainnetMint: () => ({ data: null, isError: false }),
 }));
 // No key connected, which is what a first visit looks like: the browser agent offers one instead of
 // running. `useDesk` is never reached, so nothing here touches wasm or an RPC.

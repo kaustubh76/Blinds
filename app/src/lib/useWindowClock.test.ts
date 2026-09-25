@@ -35,7 +35,7 @@ describe("window clock", () => {
     const c = derivePhase({ ...base, epoch: epoch({}), print: null, slot: 1_450 });
     expect(c.phase).toBe("open");
     expect(c.progress).toBeCloseTo(0.5);
-    expect(c.secondsLeft).toBe(Math.round(450 * 0.45));
+    expect(c.secondsLeft).toBe(Math.round(450 * SLOT_SECONDS_DEFAULT));
     expect(c.bids).toBe(3);
   });
 

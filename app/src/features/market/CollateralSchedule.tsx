@@ -30,6 +30,14 @@ export function CollateralSchedule() {
   const listings = dep.data?.listings ?? [];
   const prices = usePrices(dep.data?.listings);
   if (listings.length <= 1 && (onChain.data?.length ?? 0) <= 1) return null;
+  // Descriptor tag vs the chain's own, per listing — both are in hand already.
+  const mismatched = (onChain.data ?? [])
+    .map((c) => {
+      const d = listings.find((l) => l.listing === c.address);
+      return d && Number(c.data.priceSource) !== Number(d.priceSource) ? symbolOf(c.data) : null;
+    })
+    .filter((x): x is string => x !== null);
+
   return (
     <Card
       eyebrow="collateral schedule"
@@ -84,6 +92,17 @@ export function CollateralSchedule() {
           </table>
         </div>
       </details>
+      {/*
+        The app judges freshness from the descriptor's price source; `lock_collateral` reads the account
+        the chain's own `Listing.price_source` names. If those ever disagree, every verdict above is
+        about the wrong account, so say it rather than show a confident number.
+      */}
+      {mismatched.length > 0 && (
+        <p className="mt-3 text-xs text-status-warning">
+          {mismatched.join(", ")}: the chain prices this listing from a different source than this build expects — the
+          verdicts above may not be what it would answer. <DocLink to="LISTINGS.md">how a source is set →</DocLink>
+        </p>
+      )}
       {onChain.data && onChain.data.length !== listings.length && (
         <p className="mt-3 text-xs text-ink-3">
           The chain lists {onChain.data.length} collateral{onChain.data.length === 1 ? "" : "s"}

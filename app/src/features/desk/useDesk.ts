@@ -403,12 +403,13 @@ export function useDesk(account: UiWalletAccount) {
    * and without a Pyth key the keeper's own attempt is refused indefinitely.
    */
   const seize = useMutation({
-    mutationFn: async (args: { loan: Address; listing: Address; feedId: Uint8Array }) => {
+    mutationFn: async (args: { loan: Address; listing: Address; feedId: Uint8Array; priceAccount?: Address }) => {
       const ix = await credit.getSeizeInstructionAsync({
         anyone: txSigner,
         loan: args.loan,
         listing: args.listing,
-        priceCache: await pda.priceCache(args.feedId),
+        // Pyth's own account for a source-4 listing, else our cache PDA — as the lock path does.
+        priceCache: args.priceAccount ?? (await pda.priceCache(args.feedId)),
       });
       return sendPlan({ txs: [{ label: "seize", instructions: [ix], extraSigners: [] }] }, txSigner, steps.onStep, {
         title: "credit.getSeizeInstructionAsync → sendPlan",

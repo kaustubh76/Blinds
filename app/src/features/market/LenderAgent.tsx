@@ -84,9 +84,11 @@ function Stats({ s }: { s: LaunchState }) {
     fee.periodsLeft === 0
       ? `resting fee · the schedule ran ${schedule}`
       : `period ${fee.period} of ${s.config.baseFee.numberOfPeriod} · next step in ${formatCountdown(fee.secsToNext)} · ${schedule}`;
-  const quoteHint = s.quoteFeed
-    ? `Pyth ${s.quoteFeed}, ${formatAge(now - (s.quoteAgeSecs ?? 0), now * 1000)}`
-    : "the launch-time price";
+  const quoteHint = !s.quoteFeed
+    ? "the launch-time price"
+    : s.quoteLive
+      ? `Pyth ${s.quoteFeed}, ${formatAge(now - (s.quoteAgeSecs ?? 0), now * 1000)}`
+      : `Pyth ${s.quoteFeed}, ${formatAge(now - (s.quoteAgeSecs ?? 0), now * 1000)} — past its own limit`;
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -114,7 +116,7 @@ function Stats({ s }: { s: LaunchState }) {
         <Stat
           label={`${LAUNCH.token.symbol} fully diluted`}
           value={usd(s.spotQuote * s.quoteUsd * LAUNCH.numbers.supply)}
-          hint={`spot ${s.spotQuote.toExponential(3)} quote · $${(s.spotQuote * s.quoteUsd).toPrecision(3)} per token`}
+          hint={`spot ${s.spotQuote.toExponential(3)} quote · $${(s.spotQuote * s.quoteUsd).toPrecision(3)} per token · supply from the launch record`}
         />
         <Stat
           label="fees to the agent"
@@ -311,8 +313,8 @@ export function LenderAgent({ focus = false, variant = "card" }: { focus?: boole
           </div>
         ) : l.isError ? (
           <EmptyState icon="alert" title="the RPC did not answer">
-            The pool is read from {launchCluster} in this browser; the endpoint is rate-limited or down. Refresh, or set
-            another RPC in Settings.
+            The pool is read from {launchCluster} in this browser, through the endpoint this build was given — not the
+            one in Settings, which is the desk&apos;s devnet RPC. Refresh; a rate limit clears on its own.
           </EmptyState>
         ) : l.data?.kind === "missing" ? (
           <EmptyState icon="clock" title="the pool is not on chain yet">

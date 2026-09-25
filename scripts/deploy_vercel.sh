@@ -22,6 +22,9 @@ VITE_BASE=/ VITE_CLUSTER=devnet \
 cp deployments/admin-url.txt app/dist/admin-url.txt
 # Zero-config Vercel turns files under api/ at the deployment root into serverless functions.
 mkdir -p app/dist/api && cp scripts/vercel/api/rpc.mjs app/dist/api/rpc.mjs
+# `api/marks.mjs` reads PreStocks server-side (their API sends no CORS) and answers with CORS open, so
+# the PreStocks card shows a live traded price and basis on both hosts with no keeper running.
+cp scripts/vercel/api/marks.mjs app/dist/api/marks.mjs
 # Hashed assets cache forever; the shell that names them never does (a stale shell asks for files
 # this deploy deleted, which is a blank page).
 cp scripts/vercel/vercel.json app/dist/vercel.json

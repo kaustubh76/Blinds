@@ -11,7 +11,7 @@ import { Stat } from "../../components/Stat";
 import { Badge, DocLink, ExplorerLink, Note, Pill, type Tone } from "../../components/ui";
 import { formatRate } from "../../lib/format";
 import { DEVNET_LAUNCH, LAUNCH, launchCluster, MAINNET_LAUNCH, useLaunch } from "../../lib/launch";
-import { useDeployment, useOracle } from "../../lib/queries";
+import { useDeployment, useMainnetMint, useOracle } from "../../lib/queries";
 import { LenderTrack } from "../build/LenderTrack";
 import { LenderAgent } from "../market/LenderAgent";
 import { AgentRoster } from "./AgentRoster";
@@ -162,6 +162,11 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
   const q = LAUNCH.quote;
   const fmtQ = (v: number) =>
     `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${LAUNCH.cluster === "mainnet" ? "TSLAx" : "quote"}`;
+  // The record's own quote timestamp, so the launch-time price is dated instead of reading as live.
+  const launchDay = new Date((Number(q.publishTime) || 0) * 1000).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
   const rows: Array<[string, string, string]> = [
     [
       "quote token",
@@ -171,7 +176,7 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
     [
       "opening value",
       `${usd(n.initialUsd)} fully diluted ÷ the quote stock's price`,
-      `${fmtQ(n.initialMarketCapQuote)} at ${usd(q.usd)} (Pyth ${q.feed ?? "Crypto.TSLAX/USD"})`,
+      `${fmtQ(n.initialMarketCapQuote)} at ${usd(q.usd)} — the launch-time quote (Pyth ${q.feed ?? "Crypto.TSLAX/USD"}, ${launchDay})`,
     ],
     [
       "raise target",
@@ -200,7 +205,7 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
             : `claimer ${LAUNCH.feeClaimer.slice(0, 4)}…${LAUNCH.feeClaimer.slice(-4)} (no agent recorded)`
         : "reads from the pool",
     ],
-    ["after graduation", "liquidity moves to DAMM v2", "both LP positions permanently locked"],
+    ["after graduation", "liquidity moves to DAMM v2", "both LP positions permanently locked (what graduate sends)"],
     ["supply", "fixed, no vesting", `${n.supply.toLocaleString("en-US")} ${LAUNCH.token.symbol}, 6 decimals`],
   ];
   return (
@@ -215,7 +220,8 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
       footer={
         <>
           <span className="mono">plan.ts</span> builds the curve; <span className="mono">sdk.fetchDbc</span> decodes the
-          right-hand column from the config account.
+          raise, the fee schedule and who earns from the config account. The rest of the right-hand column is the launch
+          record.
         </>
       }
     >
@@ -246,6 +252,12 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
 function Clawpump() {
   const a = LAUNCH.agent;
   const c = LAUNCH.clawpump;
+  // "identity coin live" used to mean "the record has a mint". Read the mint from mainnet in this
+  // browser instead, so the badge is a fact about the chain and a judge can watch it answer.
+  const coin = useMainnetMint(c?.mint);
+  const checked = a?.checkedAt
+    ? new Date(a.checkedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+    : null;
   return (
     <Card
       eyebrow="Clawpump · identity and wallet"
@@ -254,16 +266,20 @@ function Clawpump() {
         <span className="flex flex-wrap items-center gap-2">
           {a?.status === "running" ? (
             <Badge tone="good" icon="check">
-              agent running
+              agent running{checked ? ` · checked ${checked}` : ""}
             </Badge>
           ) : a ? (
             <Badge tone="warn" icon="alert">
               agent {a.status ?? "status unknown"}
             </Badge>
           ) : null}
-          {c ? (
+          {c && coin.data ? (
             <Badge tone="good" icon="check">
-              identity coin live
+              identity coin on mainnet · {coin.data.supply.toLocaleString("en-US")} minted
+            </Badge>
+          ) : c ? (
+            <Badge tone="mute">
+              identity coin {coin.isError ? "— mainnet RPC did not answer" : "— reading mainnet…"}
             </Badge>
           ) : (
             <Badge tone="mute">identity coin pending</Badge>
@@ -291,7 +307,7 @@ function Clawpump() {
           value={a ? a.name : "—"}
           hint={
             a
-              ? `Clawpump id ${a.id.slice(0, 8)}… · ${a.status === "running" ? "running — what Clawpump counts as deployed" : `status ${a.status ?? "unknown"}`}`
+              ? `Clawpump id ${a.id.slice(0, 8)}… · ${a.status === "running" ? "running — what Clawpump counts as deployed" : `status ${a.status ?? "unknown"}`}${checked ? `, as their API answered ${checked}` : ""}`
               : "run services/launch agent"
           }
         />
@@ -306,6 +322,7 @@ function Clawpump() {
           hint={
             c ? (
               <span className="flex flex-wrap gap-2">
+                {a?.tokenAddress === c.mint && <span className="text-status-good">Clawpump points at this mint</span>}
                 <a href={c.pumpUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
                   pump.fun
                 </a>

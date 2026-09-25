@@ -372,6 +372,14 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
 // what the keeper reads (server side — the API answers no CORS preflight); markPrice is the mark, tokenPrice the implied price:
 //   curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`,
     run: async (ctx) => {
+      /** This listing's own `max_publish_age_secs` — 48 h for the attested mark, 1 h for the Pyth one. */
+      const limitFor = (label: string): string => {
+        const [src, sym] = label.split(":");
+        const l = ctx.deployment?.listings.find((d) => d.source === src && d.symbol.replace(/-mock$/, "") === sym);
+        const secs = l?.maxPublishAgeSecs;
+        if (!secs) return "the limit in its Listing account";
+        return secs >= 3600 ? `${Math.round(secs / 3600)} h` : `${Math.round(secs / 60)} min`;
+      };
       const one = async (label: string, api: string) => {
         const feedId = await ctx.sdk.feedIdForLabel(label);
         const price = await ctx.sdk.fetchPrice(ctx.rpc, feedId);
@@ -391,9 +399,13 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
       const label = ctx.p.str("label");
       return {
         mark: await one(label, label.startsWith("prestocks:") ? "https://prestocks.com/api/prestocks" : "—"),
+        // The limit is per listing (48 h for the attested PreStocks mark, 1 h for the Pyth one), so it is
+        // read from the listing rather than asserted — this note used to claim 48 h for every label.
         note: label.startsWith("mock:")
           ? "a mock listing is priced by the keeper's deterministic walk, not by a posted mark, so there is no cache under this label"
-          : "an attested mark: publish_time is the keeper's fetch time; the on-chain limit for this listing is 48 h",
+          : label.startsWith("prestocks:")
+            ? `an attested mark: publish_time is the keeper's fetch time; this listing's on-chain limit is ${limitFor(label)}`
+            : `a signed feed: publish_time is the publisher's own; this listing's on-chain limit is ${limitFor(label)}`,
       };
     },
   },
@@ -1163,10 +1175,13 @@ await sdk.sendPlan(rpc, { txs: [{ label: "seize", instructions: [ix], extraSigne
         };
       const listing = await ctx.sdk.fetchListing(ctx.rpc, first.data.listing);
       if (!listing) throw new Error(`the loan's listing ${first.data.listing} is not on this cluster`);
+      // The descriptor's `price_account` when the listing reads Pyth's own account (source 4).
+      const priceAccount = ctx.deployment?.listings.find((d) => d.listing === first.data.listing)?.priceAccount;
       const sigs = await ctx.desk.seize.mutateAsync({
         loan: first.address,
         listing: first.data.listing,
         feedId: new Uint8Array(listing.feedId),
+        ...(priceAccount ? { priceAccount } : {}),
       });
       return {
         seized: { loan: first.address, epoch: first.data.epoch, deadlineSlot: first.data.deadlineSlot },

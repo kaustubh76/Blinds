@@ -74,9 +74,14 @@ export function journey(
     mainnet?.pool
       ? {
           id: "mainnet",
+          // `live` is the pool decoded from the chain. Without it this step used to go green on the
+          // presence of a JSON key, so a record ahead of the chain showed "done" over a card saying
+          // the pool was not there.
           title: "The mainnet pool, quoted in TSLAx",
-          state: "done",
-          detail: `pool ${short(mainnet.pool)} · WLEND ${short(mainnet.baseMint)}`,
+          state: live ? "done" : "pending",
+          detail: live
+            ? `pool ${short(mainnet.pool)} · WLEND ${short(mainnet.baseMint)}`
+            : `pool ${short(mainnet.pool)} recorded · reading it from mainnet`,
           href: `https://explorer.solana.com/address/${mainnet.pool}`,
           commands: ["launch-status"],
         }

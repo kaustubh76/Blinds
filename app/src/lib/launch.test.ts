@@ -30,19 +30,27 @@ describe("which Pyth read prices the quote stock", () => {
     const now = 1000 + QUOTE_MAX_AGE_SECS + 1;
     expect(chooseQuote(at(1000), at(now - 5), now)).toMatchObject({ feed: "Equity.US.TSLA/USD", ageSecs: 5 });
     expect(chooseQuote(at(1000), null, now)?.feed).toBe("Crypto.TSLAX/USD");
+    // The wrapper is the only feed and it is ancient: it is still returned, and it says it is not fresh.
+    expect(chooseQuote(at(1000), null, now)?.fresh).toBe(false);
+    expect(chooseQuote(at(now - 60), null, now)?.fresh).toBe(true);
     expect(chooseQuote(null, null, now)).toBeNull();
   });
 });
 
 describe("the card's numbers from the pool", () => {
   it("derives the raise, the threshold, the fees and the spot from the devnet fixture", () => {
-    const s = deriveLaunchState(dbc, { price: 36750n, expo: -2, feed: "Equity.US.TSLA/USD", ageSecs: 9 }, record);
+    const s = deriveLaunchState(
+      dbc,
+      { price: 36750n, expo: -2, feed: "Equity.US.TSLA/USD", ageSecs: 9, fresh: true },
+      record,
+    );
     expect(s).not.toBeNull();
     expect(s?.raisedQuote).toBeCloseTo(4.85, 8);
     expect(s?.thresholdQuote).toBeCloseTo(168.50157355, 6);
     expect(s?.creatorFeeQuote).toBeCloseTo(0.06, 8);
     expect(s?.quoteUsd).toBeCloseTo(367.5, 6);
     expect(s?.quoteFeed).toBe("Equity.US.TSLA/USD");
+    expect(s?.quoteLive).toBe(true);
     expect(s?.spotQuote).toBeGreaterThan(0);
     expect(s?.feesToAgent).toBeNull(); // no agent recorded
   });

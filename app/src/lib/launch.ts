@@ -57,6 +57,8 @@ export interface LaunchRecord {
     /** Whether a persona is set — the partner API refuses to add one to an existing agent. */
     persona?: boolean;
     avatarUrl?: string | null;
+    /** The coin Clawpump's own record ties to this agent — their confirmation of our mint. */
+    tokenAddress?: string | null;
     checkedAt?: string;
   };
   /** The identity coin Clawpump launched for the agent (`services/launch clawpump-launch`). */
@@ -131,13 +133,15 @@ export function chooseQuote<Q extends { publishTime: number }>(
   wrapper: Q | null,
   equity: Q | null,
   nowSecs: number,
-): (Q & { feed: QuoteFeed; ageSecs: number }) | null {
+): (Q & { feed: QuoteFeed; ageSecs: number; fresh: boolean }) | null {
+  // `fresh` is the age rule applied to whatever was chosen, because the last branch returns a quote the
+  // first branch already judged too old: with both feeds past the limit the caller has to know that the
+  // number it is about to display is stale rather than infer it from `ageSecs`.
   const age = (q: Q) => Math.max(0, nowSecs - q.publishTime);
-  if (wrapper && age(wrapper) <= QUOTE_MAX_AGE_SECS)
-    return { ...wrapper, feed: "Crypto.TSLAX/USD", ageSecs: age(wrapper) };
-  if (equity && (!wrapper || equity.publishTime > wrapper.publishTime))
-    return { ...equity, feed: "Equity.US.TSLA/USD", ageSecs: age(equity) };
-  return wrapper ? { ...wrapper, feed: "Crypto.TSLAX/USD", ageSecs: age(wrapper) } : null;
+  const out = (q: Q, feed: QuoteFeed) => ({ ...q, feed, ageSecs: age(q), fresh: age(q) <= QUOTE_MAX_AGE_SECS });
+  if (wrapper && age(wrapper) <= QUOTE_MAX_AGE_SECS) return out(wrapper, "Crypto.TSLAX/USD");
+  if (equity && (!wrapper || equity.publishTime > wrapper.publishTime)) return out(equity, "Equity.US.TSLA/USD");
+  return wrapper ? out(wrapper, "Crypto.TSLAX/USD") : null;
 }
 
 export interface LaunchState {
@@ -162,6 +166,8 @@ export interface LaunchState {
   quoteUsd: number;
   quoteFeed: QuoteFeed | null;
   quoteAgeSecs: number | null;
+  /** True when `quoteUsd` came from a Pyth read inside its age limit, false when it is the record's. */
+  quoteLive: boolean;
   /**
    * Whether everything this pool earns reaches the agent.
    *
@@ -175,7 +181,7 @@ export interface LaunchState {
 /** Numbers the pool gives us, or `null` when they cannot be trusted (a malformed record, a zero threshold). */
 export function deriveLaunchState(
   dbc: { pool: DbcPool; config: DbcConfig; progress: number },
-  quote: { price: bigint; expo: number; feed: QuoteFeed; ageSecs: number } | null,
+  quote: { price: bigint; expo: number; feed: QuoteFeed; ageSecs: number; fresh: boolean } | null,
   record: Pick<LaunchRecord, "quote" | "agent" | "creator">,
 ): LaunchState | null {
   const dec = 10 ** record.quote.decimals;
@@ -197,6 +203,7 @@ export function deriveLaunchState(
     quoteUsd,
     quoteFeed: quote?.feed ?? null,
     quoteAgeSecs: quote?.ageSecs ?? null,
+    quoteLive: quote?.fresh === true,
     feesToAgent: record.agent
       ? dbc.config.feeClaimer === record.agent.walletAddress && dbc.config.creatorTradingFeePercentage === 0
       : null,

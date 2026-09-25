@@ -48,7 +48,8 @@
     "status": "running",
     "persona": false,
     "avatarUrl": "https://kaustubh76.github.io/Blinds/launch/lender.png",
-    "checkedAt": "2026-09-23T04:57:15.112Z"
+    "checkedAt": "2026-09-25T18:45:33.033Z",
+    "tokenAddress": "D9K6pbsDYR7bcj4ugucabzF9rtfVb9AAhNPJgTEzh92k"
   },
   "clawpump": {
     "agentId": "0044b672-ec2c-4cdf-b327-7c0e9a449c1b",

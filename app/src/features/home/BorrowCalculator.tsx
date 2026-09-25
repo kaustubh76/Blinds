@@ -1,7 +1,10 @@
 /**
  * Play before you connect: pick a collateral, type a USDC amount, see what the desk would ask you
- * to pledge at the live mark and haircut, and what of it stays private. Pure arithmetic from the
- * SDK's solvency helpers — the same numbers the lock proof will carry.
+ * to pledge at the mark the chain holds and that listing's haircut, and what of it stays private.
+ * Pure arithmetic from the SDK's solvency helpers — the same numbers the lock proof will carry.
+ *
+ * The mark is whatever is on chain, which is not always usable: it says so when the chain would refuse
+ * this listing right now, because a confident pledge from a mark nobody has posted in days is a lie.
  */
 import type { credit as creditNs } from "@thewindow/solana-sdk";
 import {
@@ -10,6 +13,7 @@ import {
   multiplierScaled,
   PLEDGE_CUSHION_PCT,
   priceCents,
+  quoteFreshness,
   solvencyScalars,
 } from "@thewindow/solana-sdk";
 import { useState } from "react";
@@ -18,7 +22,7 @@ import { Button, Pill } from "../../components/ui";
 import type { ListingView } from "../../lib/chain";
 import { formatPrice, formatRate, formatShares } from "../../lib/format";
 import { sourceLabel } from "../../lib/listings";
-import { useMultiplier } from "../../lib/queries";
+import { useMultiplier, useSlot } from "../../lib/queries";
 
 type PriceCache = Pick<creditNs.PriceCache, "price" | "expo" | "publishTime" | "postedSlot">;
 
@@ -71,6 +75,21 @@ export function BorrowCalculator({
   const price = prices?.[i] ?? null;
   // The mock mint's ScaledUiAmount multiplier — the same k_c the program forms at lock (1 until a corporate action).
   const mult = useMultiplier(listing?.mockMint);
+  const slot = useSlot();
+  // The two rules `lock_collateral` applies, so the pledge below is never presented as acceptable when
+  // the chain would refuse it. Same helper the listing cards and the schedule use.
+  const fresh =
+    listing && price && slot.data !== undefined
+      ? quoteFreshness({
+          listing: {
+            maxPriceAge: BigInt(listing.maxPriceAgeSlots),
+            maxPublishAgeSecs: BigInt(listing.maxPublishAgeSecs),
+          },
+          price,
+          slot: slot.data,
+          nowSecs: Math.floor(Date.now() / 1000),
+        })
+      : null;
   const usdc = Number(amount.replace(/[^0-9.]/g, ""));
   const q = listing && price ? quoteCollateral(usdc, listing, price, mult.data?.multiplier ?? 1) : null;
   const shares = q ? formatShares(q.pledge, listing?.decimals ?? 3) : "—";
@@ -124,6 +143,7 @@ export function BorrowCalculator({
                   <span className="flex items-center gap-2 text-xs text-ink-3">
                     {p ? formatPrice(p.price, p.expo) : "—"}
                     <Pill tone="mute">{Number(l.haircutBps) / 100}%</Pill>
+                    {on && fresh && !fresh.usable && <Pill tone="warn">stale</Pill>}
                     <span className="hidden sm:inline">{sourceLabel(l)}</span>
                   </span>
                 </button>
@@ -146,6 +166,14 @@ export function BorrowCalculator({
                   ? "enter an amount"
                   : "no quote for this listing yet"}
             </div>
+            {fresh && !fresh.usable && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-status-warning">
+                <Icon name="clock" size={13} />
+                {fresh.quoteFresh
+                  ? "this mark has not been posted lately — the chain would refuse it right now"
+                  : "this mark is past its age limit — the chain would refuse it right now"}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-[var(--radius-md)] bg-surface-1 p-3">

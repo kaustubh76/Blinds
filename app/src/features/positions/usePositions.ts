@@ -296,7 +296,10 @@ export function usePositions(account: UiWalletAccount) {
         anyone: txSigner,
         loan: address,
         listing: loan.listing,
-        priceCache: await pda.priceCache(l.feedId),
+        // The account the program prices from, which for a `price_source = 4` listing is Pyth's own
+        // receiver-owned account, not our cache PDA — the same choice the lock path makes above. Passing
+        // the cache unconditionally would answer BadPriceAccount and read as a chain refusal.
+        priceCache: l.priceAccount ?? (await pda.priceCache(l.feedId)),
       });
       return sendPlan({ txs: [{ label: "seize", instructions: [ix], extraSigners: [] }] }, txSigner, steps.onStep, {
         title: "credit.getSeizeInstructionAsync → sendPlan",

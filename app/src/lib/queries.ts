@@ -152,8 +152,17 @@ export interface MarkSnapshot {
 }
 
 /**
- * `GET <admin>/marks` — the implied price beside the mark (the PreStocks basis). Only while the admin
- * service is reachable (the market runs); `null` without an admin URL or when it does not answer.
+ * This site's own serverless read of PreStocks (`scripts/vercel/api/marks.mjs`), used when no admin
+ * service answers. PreStocks' API sends no CORS header, so a browser cannot read it directly; the
+ * function does it server-side and answers with CORS open, which is why GitHub Pages can use it too.
+ */
+export const MARKS_FALLBACK_URL = "https://the-window-for-stocks.vercel.app/api/marks";
+
+/**
+ * The implied (traded) price beside the mark, and the basis between them. Preferred source is the
+ * keeper's `GET <admin>/marks`, because that is the view matching what it posted on chain; with no
+ * market running it falls back to PreStocks read live through this site's own function, and the
+ * snapshot's `source` says which answered. `null` only when neither does.
  */
 export const useMarks = () => {
   // The admin URL in force: the `?admin=` link, or the hosted pointer file discovered by fetchDeployment.
@@ -162,14 +171,20 @@ export const useMarks = () => {
   return useQuery<Record<string, MarkSnapshot> | null>({
     queryKey: ["marks", base],
     queryFn: async () => {
-      if (!base) return null;
-      try {
-        const res = await fetch(`${base}/marks`, { signal: AbortSignal.timeout(6000) });
-        if (!res.ok) return null;
-        return (await res.json()) as Record<string, MarkSnapshot>;
-      } catch {
-        return null;
+      const read = async (url: string): Promise<Record<string, MarkSnapshot> | null> => {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+          if (!res.ok) return null;
+          return (await res.json()) as Record<string, MarkSnapshot>;
+        } catch {
+          return null;
+        }
+      };
+      if (base) {
+        const keeper = await read(`${base}/marks`);
+        if (keeper) return keeper;
       }
+      return read(MARKS_FALLBACK_URL);
     },
     enabled: dep.isFetched,
     refetchInterval: 60_000,

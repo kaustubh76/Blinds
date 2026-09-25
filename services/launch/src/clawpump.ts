@@ -17,6 +17,8 @@ export interface ClawpumpAgent {
   persona?: string | null;
   avatarUrl?: string | null;
   skills?: string[];
+  /** The coin Clawpump itself ties to this agent — their side of the identity-coin link. */
+  tokenAddress?: string | null;
 }
 
 /**
