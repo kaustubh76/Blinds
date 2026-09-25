@@ -93,7 +93,7 @@ Roughly 400 words. If you are running long, cut the 1:05 beat to its first sente
 
 - **Pyth** — "Pyth is the coefficient `k_c` inside the solvency proof and the gate on `seize`. Two limits are enforced on chain per listing: how long ago the keeper posted, and how old the publisher's own timestamp is. That's why one of my listings is refusing loans right now."
 - **PreStocks** — "ANTHROPIC is listed beside a listed stock under one rate, at a 200 % haircut, marked by the published price. We also show the basis between the mark and the implied token price — and we label it an attested mark, not a signed feed, because the keeper copies it."
-- **Meteora** — "The curve isn't a token launch bolted on. It's quoted in a tokenized stock, the raise target is the desk's own $250k fully-diluted figure converted through Pyth, and the fee decays over exactly one loan tenor. Devnet rehearsal today, same program and configuration as the mainnet launch."
+- **Meteora** — "The curve isn't a token launch bolted on. It's quoted in a tokenized stock — TSLAx — the raise target is the desk's own $250k fully-diluted figure converted through Pyth, and the fee decays over exactly one loan tenor. **This one is on mainnet**, launched today; the devnet rehearsal ran the whole lifecycle first, including graduation into DAMM v2 with the liquidity locked."
 - **Clawpump** — "The agent needed an identity that isn't me: a coin and a wallet, which is the pool's creator and fee claimer. The Agent page computes each step from the launch record or the chain — nothing is a claim — and each step names the command that moves it along, so you can see exactly what is left to do and what it costs."
 
 ---
@@ -104,7 +104,8 @@ Roughly 400 words. If you are running long, cut the 1:05 beat to its first sente
 |---|---|
 | *Can the administrator see my position?* | "Yes — it holds the auditor key and reads amounts to run the market. It proves every per-tick sum it publishes, and anyone can re-verify that in their browser. We call it accountable privacy, never anonymity." |
 | *Is that real trading volume?* | "No. Six simulated members provide the depth, and they're labelled `simulated` in the deployment file. The mechanism is real; the demand is ours." |
-| *Why devnet?* | "The programs are deployed and the upgrade authority is still ours. The mints are devnet twins — no mainnet token is touched. The mainnet piece is the agent's token launch, which is one command." |
+| *Why devnet?* | "The desk's programs are on devnet with the upgrade authority still ours, and the mints are devnet twins — no mainnet token is touched by the lending. The agent's own token *is* on mainnet: a Meteora curve quoted in TSLAx, and its identity coin on pump.fun." |
+| *Who gets the agent's fees?* | "Its Clawpump wallet, and only it. Meteora makes a pool's creator sign, and that wallet's key belongs to Clawpump — so our launch key signs and takes a zero share, and every fee claims to the agent. The Agent page checks that against the chain rather than asserting it." |
 | *What if the price feed dies?* | "It did — the Pyth push account we read stopped on 12 September. The chain refuses to lend on a stale quote, which is exactly what you can see on screen. Inaction, never a wrong action." |
 | *What's actually on chain vs in your app?* | "The proofs, the sums, the rate, the loans, the freshness rules. The dashboard only reads — Market, Explorer and Positions work with none of my services running." |
 | *Why one uniform rate?* | "It's a benchmark — xONIA, an overnight index average. Everyone who clears, clears at the same rate, which is what makes it quotable." |
