@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchListings, PRICE_SOURCE_NAMES, PriceSource } from "@thewindow/solana-sdk";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { type ListingView, rpc } from "./chain";
-import { useDeployment } from "./queries";
+import { useDeployment, usePrices } from "./queries";
 import { useSession } from "./wallet";
 
 export const LISTING_KEY = "thewindow:listing";
@@ -21,16 +21,34 @@ function readSelected(): string | null {
 }
 
 /**
- * The listing the desk works: the saved key, else listing #0. Keeps the session's mint in step.
- * The choice is React state (seeded from storage): the descriptor's `listings` array never changes
- * identity, so a memo over it alone would never see a new pick.
+ * The listing the desk works: the saved key, else the first one the chain would accept, else listing
+ * #0. Keeps the session's mint in step. The choice is React state (seeded from storage): the
+ * descriptor's `listings` array never changes identity, so a memo over it alone would never see a
+ * new pick.
+ *
+ * The fallback follows the chain rather than the schedule's order. Listing #0 is the Pyth-marked
+ * TSLAx, and Pyth's own accounts for that feed went stale — so a first-time visitor pressing the
+ * hero's one button landed on the Desk holding a collateral no lock could use, and the demo script
+ * had to tell a presenter to pick another by hand. A saved pick always wins, and nothing here is
+ * persisted: the preference is re-read from the chain on every load.
  */
 export function useSelectedListing() {
   const dep = useDeployment();
   const session = useSession();
   const listings = dep.data?.listings ?? [];
+  const prices = usePrices(dep.data?.listings);
   const [key, setKey] = useState<string | null>(readSelected);
-  const selected = useMemo(() => listings.find((l) => l.key === key) ?? listings[0], [listings, key]);
+  const quotes = prices.data;
+  const selected = useMemo(() => {
+    const saved = listings.find((l) => l.key === key);
+    if (saved) return saved;
+    const now = Math.floor(Date.now() / 1000);
+    const usable = listings.find((l, i) => {
+      const q = quotes?.[i];
+      return q ? now - Number(q.publishTime) <= l.maxPublishAgeSecs : false;
+    });
+    return usable ?? listings[0];
+  }, [listings, key, quotes]);
   const mint = selected?.cstockMint ?? null;
   const { listing: sessionMint, setListing } = session;
   useEffect(() => {

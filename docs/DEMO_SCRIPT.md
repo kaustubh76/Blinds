@@ -40,9 +40,10 @@ It prints the `?admin=…` share link, which listing the chain would accept righ
    the `#`) or switch Settings → Background motion off: a field animates behind every page.
 4. Open the site from the `?admin=…` link — that is what makes the Desk's *Join* and the autopilot's
    *Run it* work. The burner key itself is made in the browser and needs nothing of ours.
-5. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). On
-   23 Sep it was **ANTHROPIC** (TSLAx is refused while Pyth's wrapper account is stale — that refusal
-   is part of the story, see 0:35). Pick the accepting one on the Desk.
+5. Know which listing is accepting today (`judging_day.sh up` prints it, or `pnpm schedule`). You no
+   longer have to pick it: the Desk opens on a listing the chain would accept, because the fallback
+   follows the chain rather than the schedule's order. The Pyth-marked TSLAx stays refused while
+   Pyth's own accounts for that feed are stale — that refusal is part of the story, see 0:35.
 6. The Autopilot bids **four ticks past the last print — the Desk says 100 bp**, because the auction is uniform price —
    everyone matched clears at r\*, never at their own tick, so a wider bid costs the borrower nothing and
    only buys fill probability. Two ticks was not enough on 23 Sep: the last print was 3.25 %, the bid went
