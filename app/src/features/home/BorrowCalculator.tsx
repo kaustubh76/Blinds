@@ -65,7 +65,18 @@ export function BorrowCalculator({
   lastRateTick: number | null;
   onStart: (key: string, usdc: number) => void;
 }) {
-  const [key, setKey] = useState(listings[0]?.key ?? "");
+  // Open on a collateral the chain would actually accept. Starting at listings[0] meant a first-time
+  // visitor's first quote was against a refused mark, under a warning saying the loan could not be
+  // made — a calculator that computes a loan nobody can take. The refused listings are still here,
+  // and the schedule above states every one of their verdicts.
+  const [key, setKey] = useState(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const usable = listings.findIndex((l, n) => {
+      const p = prices?.[n];
+      return p ? Number(now) - Number(p.publishTime) <= l.maxPublishAgeSecs : false;
+    });
+    return listings[usable >= 0 ? usable : 0]?.key ?? "";
+  });
   const [amount, setAmount] = useState("1000");
   const i = Math.max(
     0,
