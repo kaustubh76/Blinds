@@ -370,6 +370,20 @@ configured endpoint now states why that one differs rather than failing.
 
 The Agent page reads **5 of 5**, on mainnet, with a live Jupiter link.
 
+## 30 Sep: the TSLAx mark comes back keylessly, and a bad endpoint stops costing a window
+
+| step | evidence |
+|---|---|
+| Pyth's keyless routes for this feed all closed | measured against mainnet with this repo's own `push_oracle_pda`: `Crypto.TSLAX/USD` shard 0 (`GpoWLTd6…`) **7.0 days** stale, shard 1 does not exist; `Equity.US.TSLA/USD` shard 0 18.5 days, shard 1 (`FQB8c4zB…`) **2.0 days** — that last one was **12 seconds** old when `launch-mainnet.json` was written on 25 Sep and stopped on the 28th. `hermes.pyth.network` and `hermes-beta` both answer **401**. So `price_source = 0` is permanently stale and `price_source = 4` genuinely needs `PYTH_API_KEY`: the listing is REFUSED on chain, which is the designed answer to a dead oracle |
+| a third collateral, marked at what the token actually trades for | tag 2 was never PreStocks-specific — the validator's own words are "an attested mark needs source_url, source_mint and source_symbol" — so it took a second provider. `xstocks_tslax` / `TSLAx-xs` reads Jupiter's keyless `/price/v3` for the **real mainnet mint** `XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB`, which aggregates that mint's own pools. Listing `DsN3jR56gZNofjhyJ1kFegxJd7rNbLG73Y5qmchfCS6x`, created by `listings-sync` for **0.0115 SOL**, no program redeploy |
+| the basis is now a tokenized stock against the stock | `stockData.price` one level down in the same response is the underlying equity, so `/marks` carries both: at first post, mark 351.27 USD against 350.76, **+26 bp**. The parser learned one shape (an object keyed by the mint) and dotted field paths; PreStocks' array path is byte-for-byte unchanged |
+| the label names the provider, not the mechanism | feed id `sha256("jupiter:TSLAx")` via the new `source_name`, so it can be mistaken neither for Pyth's feed nor for PreStocks' mark — A11's argument, one provider further. `source_name` is validated lowercase ASCII because it seeds a `PriceCache` PDA. The descriptor gained `provider` (two listings now share `source` and read different places) and stopped omitting `price_source`, which had left the dashboard judging freshness from a JSON string rather than the chain's byte |
+| a listing can be made usable for a thousandth of a market | new `window-admin price-post`: every listing's price once, then exit — no epoch, no market. All three for **0.001057 SOL**, against ~0.03 for the shortest window that would have done it. `pnpm schedule`: `TSLAx-xs … lock / seize now: ACCEPTED`, mark 351.27 USD, quote 19 s old — **2 of 4 listings usable** where none were |
+| the Rust services had no backoff at all | `RpcChain` was a bare client and the four clocks (6 s / 20 s / 10 s / 10 s) each answered a rate limit by asking again on the next tick, which is why 24 Sep's `error sending request` storm blocked a cycle. Every call now backs off exponentially with jitter, five attempts from 400 ms; only transport failures retry, and the submit re-sends the **same signed transaction** so the cluster de-duplicates it rather than risking a second execution |
+| two places threw away a dedicated endpoint | `judging_day.sh` hardcoded the public URL for the `pnpm schedule` probe, so `WINDOW_RPC_URL` reached every service except the one check read before going live; `watch_epoch` chose its cadence from `rpcUrl.includes("devnet")` and dropped a provider endpoint to the 2 s localnet poll |
+| six numbers a page stated were typed in, not read | the hero's "two collaterals" (now counted, and wrong today anyway); a Pyth account link pointing at the account this repo records as dead (now whichever account the keeper would read, with its measured age); "one loan in four" copied from a clap default (the service publishes `default_every` on `/deployment`); `legacyListing`'s invented haircut and both freshness limits — the three numbers that decide whether a lock is accepted — deleted; `priceSourceTag` answering an unknown label with `Mock`, which rendered as "mock walk" beside a real price, now throws; and the `-mock` suffix stripped silently in eight places, now one helper with a visible `twin` marker beside the price |
+| still open | a full bid → match → loan cycle is **still unverified** since 24 Sep: it needs a market window, a browser and more devnet SOL than the 0.51 on hand (`docs/RUNBOOK.md` §1 wants ≥ 2). The backoff removes the cause of that night's failure; it does not substitute for running it |
+
 ## Submission blurbs (final)
 
 **Pyth.** THE WINDOW is a private margin desk for tokenized stocks. Pyth is not a widget on it — it is a
@@ -382,7 +396,12 @@ all: the program reads Pyth's receiver-owned `PriceUpdateV2` directly (owner, fe
 posted onto devnet from Hermes by our own poster (`price_source = 4`, deployed; the devnet listing flips to it
 the moment a Pyth key is present). When the wrapper feed's only push account goes quiet — it did, on 12 Sep —
 we say so and price from the underlying `Equity.US.TSLA/USD` instead, recording which feed did it, rather than
-letting a stale number pass as fresh.
+letting a stale number pass as fresh. **As of 30 Sep both have gone**: measured from mainnet, the wrapper's
+shard 0 is 7.0 days old, the equity feed's freshest shard 2.0 days, and Hermes answers 401 without a key. So
+the desk does the thing it was built to do — it refuses. That listing shows REFUSED on the live site and no
+lock against it can succeed, which is a better outcome than any number we could have substituted. It is also
+why a second TSLAx listing now marks the same stock from its own market, under a feed id that names that
+source and could never be read as Pyth's.
 
 **Meteora DBC.** THE WINDOW's lender is an autonomous agent that lends against tokenized stocks every
 overnight window and earns the xONIA rate. Its token, WLEND, **is live** on a Dynamic Bonding Curve **quoted in
