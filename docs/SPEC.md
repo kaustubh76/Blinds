@@ -4,6 +4,14 @@
 
 > The rate is public. The price is public. The position never was.
 
+> **This document is frozen at 15 Sep 2026 and is kept as written.** It specifies the build for
+> Stocklana, whose deadline of 26 Sep 2026 was met; the event table and §4 below are that event's.
+> Everything that changed since is in [`SPEC_AMENDMENTS.md`](SPEC_AMENDMENTS.md) (A1–A16), and the
+> current framing — the same product, entered in Colosseum's Crypto World's Fair — is in
+> [`SUBMISSION.md`](SUBMISSION.md) and [`GTM.md`](GTM.md). Where this text defers work "to the
+> Colosseum phase" (§§3, 15, 20, 23), read it as what it was: a later phase than the one it was
+> written for. That phase is now, and `GTM.md` says which parts of it are still unproven.
+
 | | |
 |---|---|
 | Event | **Stocklana** · $100K · Solana Foundation · deadline **Fri 18 Sep 2026 20:00 UTC** · target submit 16:00 UTC |
@@ -553,7 +561,7 @@ Order (base spec's solo prescription, adapted): Phase 1 gate → auction → ora
 
 ## 20. Likely Judge Questions
 
-**"Would real people actually use this?"** The demand shape already exists at scale: securities-based lending is a giant TradFi business *because* it is private, and on Solana 95% of tokenized-stock value sits undeployed while transparent lenders throttle LTVs and caps. This build is the missing shape — brokerage-grade privacy with proofs a brokerage can't offer. The demo's borrowers are disclosed simulations plus a judge-usable real flow; organic demand is the Colosseum phase, not a hackathon claim.
+**"Would real people actually use this?"** The demand shape already exists at scale: securities-based lending is a giant TradFi business *because* it is private, and on Solana the tokenized-stock float is overwhelmingly idle — measured 2026-09-30, $1.05 B across twenty tickers against $26.5 M of pool liquidity — while transparent lenders throttle LTVs and caps. This build is the missing shape — brokerage-grade privacy with proofs a brokerage can't offer. The demo's borrowers are disclosed simulations plus a judge-usable real flow; organic demand is the Colosseum phase, not a hackathon claim.
 
 **"Why not just use Kamino?"** On Kamino your collateral, loan, health factor, and liquidation level are public — that's the product surface this replaces. Kamino's own throttling (LTV caps, per-asset debt ceilings) is the incumbent's admission that transparent stock collateral is hard to underwrite at size.
 

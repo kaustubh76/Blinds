@@ -91,6 +91,40 @@ refused by the program (`tests/attacks/attack_07_stale_price.rs::stale_quote_is_
 Earlier documentation called `Crypto.TSLAX/USD` "an equity feed that stops overnight"; that was wrong — the
 account died, not the feed.
 
+### Where this stands, measured 2026-09-30
+
+The fallback has since gone too. Read from mainnet with the push-oracle PDAs this repo derives
+(`push_oracle_pda(shard, feed_id)`):
+
+| feed | shard | account | age |
+|---|---|---|---|
+| `Crypto.TSLAX/USD` | 0 | `GpoWLTd6…` | **7.0 days** |
+| `Crypto.TSLAX/USD` | 1 | `Exzs9zru…` | does not exist |
+| `Equity.US.TSLA/USD` | 0 | `E8WFH8br…` | 18.5 days |
+| `Equity.US.TSLA/USD` | 1 | `FQB8c4zB…` | **2.0 days** |
+
+That last account was **12 seconds** old when `deployments/launch-mainnet.json` was written on 25 Sep; it
+stopped on the 28th. And `hermes.pyth.network` — along with `hermes-beta` — now answers **401**, so there is
+no keyless route to a signed update either.
+
+Consequences, all of them honest rather than worked around:
+
+- The Pyth-marked TSLAx listing is **refused** on the live site, and will be until `PYTH_API_KEY` exists.
+  A lock against it fails `QuoteStale` on chain. That is the designed answer to a dead oracle: inaction,
+  never a stale mark.
+- `price_source = 4` — the program reading Pyth's receiver-owned account directly, with no keeper in the
+  path — needs the poster, and the poster needs the key. Both are built and neither is reachable without one.
+- It is why the desk lists a **second TSLAx mark** (`xstocks_tslax`): the price the real mainnet mint
+  actually trades at, aggregated from its own pools, attested by the keeper under the feed-id label
+  `sha256("jupiter:TSLAx")` so it can never be mistaken for Pyth's. That listing is accepted by the chain.
+
+With a key, one command puts Pyth back in the path:
+
+```bash
+PYTH_API_KEY=… pnpm --filter @thewindow/pyth-poster once   # posts a signed update to devnet shard 7001
+window-admin listing-set-source mock_tsla 4                # the program reads it directly from then on
+```
+
 ## Honest limits
 
 - Under source 0 the keeper is a trusted copier: the program checks the quote's age and feed id, not Pyth's

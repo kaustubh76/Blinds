@@ -422,7 +422,7 @@ spec itself names its lineage.
 | 5.3 | 5 | `app/` | `pnpm --filter @thewindow/app typecheck && test && build` |
 | 5.4 | 5 | `docs/DEMO.md` judge walkthrough from a clean devnet wallet | manual checklist passes |
 | 6.1 | 6 | `scripts/leak_audit.ts`, `measurements_to_md.mjs` → README; `METHODOLOGY.md`, `THREAT_MODEL.md` (§13 table with test cross-refs) | `pnpm run docs:measurements` no diff in CI |
-| 6.2 | 6 | `solana program set-upgrade-authority <id> --final` ×5; tag `v1.0.0-stocklana` | `solana program show` → `Authority: none`; clean clone `make demo` green |
+| 6.2 | 6 | `solana program set-upgrade-authority <id> --final` ×5; tag `v1.0.0` | `solana program show` → `Authority: none`; clean clone `make demo` green |
 
 Cut order under pressure (spec §22, unchanged): receiver-read stretch → unwrap → positions page → lender UI → auditor-rotation demo.
 `deposit_collateral` introspection (A5) is the first *plan-level* extra to drop if Phase 3 slips.

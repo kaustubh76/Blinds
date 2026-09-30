@@ -44,7 +44,11 @@ bsgs_max_bits = 44           # sum <= n_t * 2^40 with n_t <= 16 per tick in prac
 # the desk itself runs on devnet), and copies price/expo/publish_time into `PriceCache` unmodified,
 # so the quote's own age is public. Recorded honestly: `price_account` (shard 0) stopped being
 # updated on 2026-09-12, which is why the keeper no longer trusts a single account
-# (docs/METHODOLOGY.md §5a). This is listing #0 — the collateral `Config` was initialised with.
+# (docs/METHODOLOGY.md §5a). Measured 2026-09-30, every keyless route is now gone: shard 0 is 7.0 days
+# old, shard 1 does not exist, the Equity.US.TSLA/USD fallback's freshest shard is 2.0 days old, and
+# Hermes answers 401 without a key. So this listing is REFUSED on chain until `PYTH_API_KEY` exists —
+# inaction, never a stale mark — and `xstocks_tslax` below marks the same stock from its own market.
+# This is listing #0 — the collateral `Config` was initialised with.
 [[listings]]
 key = "mock_tsla"
 symbol = "TSLAx-mock"

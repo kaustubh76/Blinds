@@ -535,7 +535,7 @@ frame("f1", "START HERE — read this strip first; every other frame is the same
     "t.badges.note",
     bx + 10,
     101,
-    "← every box carries one of these: LIVE = running now (devnet desk, mainnet agent pool) · BUILT · gated = deployed, waiting on an external key · IN PROGRESS = being written today · PLANNED · RETIRED / DROPPED (removed 21 Sep) · ROADMAP (after the hackathon) · CORE = the mechanism itself",
+    "← every box carries one of these: LIVE = running now (devnet desk, mainnet agent pool) · BUILT · gated = deployed, waiting on an external key · IN PROGRESS = being written today · PLANNED · RETIRED / DROPPED (removed 21 Sep) · ROADMAP (after this submission) · CORE = the mechanism itself",
     { fontSize: 11 },
   );
   const r = row(20, 132);
@@ -581,7 +581,7 @@ proof of every round in the browser (Explorer). Rows: actors → lifecycles → 
     `HOW TO READ THIS MAP
 Colours: green = on chain · slate = other people's programs we call · indigo = the maths ·
 grey = the bots and ops · teal = SDK, dashboard, members · violet = Pyth · orange = PreStocks ·
-amber = Meteora + Clawpump (LIVE on mainnet, 25 Sep) · sky = xStocks · blue = roadmap · rose = what
+amber = Meteora + Clawpump (LIVE on mainnet since 25 Sep) · sky = xStocks · blue = roadmap · rose = what
 is private vs public · dashed grey = RETIRED / DROPPED (Tessera, 21 Sep).
 Arrows: 2 px = an instruction that carries a proof · 1 px = a call · dotted = one program only
 READS another's account · dashed violet = the Pyth path still waiting on a key · dashed amber =
@@ -1490,7 +1490,7 @@ frame(
     const [b, py] = colsAt(0, 660, 2, R2); // Pyth on the right: its arrows leave into the V1 gutter
     py.box(
       "tr.py.h",
-      `PYTH — the price feed (hackathon track: best use of market data)
+      `PYTH — the price feed (a Stocklana track: best use of market data)
 Pyth is not decoration here: its price is a coefficient INSIDE every solvency proof and the
 gate on every seizure. No fresh Pyth price → no loan can start, no loan can be seized.
 The desk's collateral is marked by Pyth's 24/7 feed for the TSLAx wrapper, and shown next to
@@ -1546,7 +1546,7 @@ The program side is deployed; flipping the devnet listing waits for a Pyth key.`
 
     b.box(
       "tr.ps.h",
-      `PRESTOCKS — a pre-IPO token as collateral (hackathon track)
+      `PRESTOCKS — a pre-IPO token as collateral (a Stocklana track)
 PreStocks' ANTHROPIC token (a claim on private Anthropic shares) is listed next to the tokenized
 stock under the SAME rate: wrap the mock twin, prove collateral ≥ 200 % × loan against
 PreStocks' published mark, borrow at the print. It is the only pre-IPO token on the desk,
@@ -1573,7 +1573,7 @@ turns them into confidential twins. No real xStock, pre-IPO token or PreStocks t
     );
     b.box(
       "tr.xs.wrap",
-      `Real xStocks wrapping — the first thing after the hackathon (SPEC §23)
+      `Real xStocks wrapping — the first thing after this submission (SPEC §23)
 Point window_wrap at the real mainnet xStocks mints; the program logic does not change, but
 real custody and an external audit come first. Later, real USDC's confidential extension
 replaces the wrapped USDC leg.`,
@@ -2169,15 +2169,20 @@ that needs a real circuit and a trusted setup.`,
     );
     c1.box(
       "rm.status",
-      `WHERE THE BUILD STANDS — 25 Sep 2026 (deadline Fri 26 Sep)
+      `WHERE THE BUILD STANDS — 30 Sep 2026
 Every phase of the build plan is done: the primitives and the
 gate, the print, priced credit, the bots and devnet, the
 dashboard (hosted on Pages and Vercel, both verified).
-Every track stage is done; flipping TSLAx to Pyth's own account
-waits for a Pyth key; freezing the programs waits for the user.
+Stocklana's deadline (26 Sep) was met; the same product is now
+entered in Colosseum's Crypto World's Fair, to 12 Oct.
+Pyth's own accounts for this feed went stale (7.0 and 2.0 days,
+measured 30 Sep) and Hermes is keyed, so TSLAx-mock is REFUSED
+by design; a third collateral marks the same stock at what the
+real mainnet mint trades at, and the chain accepts it.
 Tessera retired (DROPPED / RETIRED). Part B — Meteora + Clawpump
 (${STATUS[partB.status].label}): the pool and the identity coin
-are on mainnet, and the agent's wallet claims every fee.`,
+are on mainnet, and the agent's wallet claims every fee.
+Freezing the programs still waits for the user.`,
       C.desk,
     );
 

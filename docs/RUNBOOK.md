@@ -234,4 +234,4 @@ otherwise.
 ## 7. The last action: freeze
 
 `./scripts/freeze.sh` sets every program's upgrade authority to none — **irreversible**. Only after the
-final program change is on devnet and verified; then `git tag -a v1.0.0-stocklana`.
+final program change is on devnet and verified; then `git tag -a v1.0.0`.

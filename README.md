@@ -25,7 +25,7 @@ Average: the first on-chain borrow rate for tokenized equities.
 | | |
 |---|---|
 | [![Home](docs/screens/home.png)](docs/screens/home.png) | [![Desk](docs/screens/desk.png)](docs/screens/desk.png) |
-| **Home** — the live window, the two collaterals with their marks and whether the chain would accept them right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
+| **Home** — the live window, the collateral schedule with each mark and whether the chain would accept it right now, a borrow calculator you can play with before connecting, how it works. | **Desk** — take a devnet burner (no wallet, no prompts) or connect one; five guided steps with a progress rail, or the autopilot that runs them all. |
 | [![Market](docs/screens/market.png)](docs/screens/market.png) | [![Explorer](docs/screens/explorer.png)](docs/screens/explorer.png) |
 | **Market** — xONIA by epoch, the last proven curve, the collateral schedule, the Pyth mark beside the underlying equity, and the PreStocks mark beside the price the token trades at, read live from PreStocks through this site's own function. | **Explorer** — one window as the chain holds it, and the button that re-derives the print in your browser. |
 | [![Agent](docs/screens/agent.png)](docs/screens/agent.png) | [![On a phone](docs/screens/home-phone.png)](docs/screens/home-phone.png) |
