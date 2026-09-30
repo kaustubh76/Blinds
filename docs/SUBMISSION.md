@@ -9,7 +9,10 @@ devnet; the lender agent's pool and identity coin are on **mainnet**.
 
 ## The problem
 
-In TradFi, securities lending works *because* it is private: nobody sees your size. On a transparent chain every position is public — front-run, copied, liquidated by spectators. So tokenized stocks have no borrow market and no benchmark rate.
+Measured 2026-09-30 from Jupiter's public API: **$1.05 B** of tokenized-stock float sits on Solana across twenty
+tickers, behind **$26.5 M** of pool liquidity, held in ~681,000 positions. Almost none of it is financeable.
+
+In TradFi, securities lending works *because* it is private: nobody sees your size. On a transparent chain every position is public — front-run, copied, liquidated by spectators. So tokenized stocks have no borrow market and no benchmark rate. The people with the most to lend against are exactly the ones who cannot afford to show it. The market case, the first users and what we have not proven are in [`GTM.md`](GTM.md).
 
 ## What we built
 
@@ -33,7 +36,10 @@ proven against the public Pyth price with the **corporate-action multiplier insi
   The market runs in windows and costs SOL while it does — `docs/RUNBOOK.md` §1. When no keeper is running the
   dashboard says the market is paused; every print already made stays on chain and re-verifiable.
 - **A dashboard** on GitHub Pages: a burner wallet (no extension), a guided path plus an autopilot that borrows in ~20 seconds, an explorer that re-proves any print locally, and developer pages that run real SDK calls in the tab.
-- **Two collaterals under one rate**: TSLAx (Pyth, 150 % haircut) and ANTHROPIC (PreStocks, 200 %).
+- **Three collaterals under one rate**: TSLAx marked by Pyth (150 % haircut), TSLAx marked at the price the
+  token itself trades at (150 %, from the real mainnet mint's own pools), and ANTHROPIC, a pre-IPO token
+  (PreStocks, 200 %). Each carries its own mark source, haircut and freshness limits, and the chain — not the
+  keeper — decides whether each is usable right now.
 - **A mainnet Meteora DBC pool** for the lender agent, quoted in real TSLAx — pool `Gk98wZ…DQux`, WLEND
   `3SpA84…eBDh` — plus its `LENDER` identity coin on pump.fun `D9K6pb…h92k`. Every fee claims to
   the agent's own wallet `39VKQn…A7sM`; the key that signed keeps nothing.
@@ -41,7 +47,7 @@ proven against the public Pyth price with the **corporate-action multiplier insi
 
 ## Track integrations
 
-**Pyth** — not a widget: its price is a *coefficient inside the proof* and the gate on every seizure. The keeper stores the quote's own `publish_time`, so the chain — not the keeper — decides whether it is usable; a listing can cut the keeper out entirely and read Pyth's receiver-owned `PriceUpdateV2` directly. When the wrapper feed's only push account went quiet on 12 Sep we said so and priced from the underlying equity feed, rather than letting a stale number pass as fresh.
+**Pyth** — not a widget: its price is a *coefficient inside the proof* and the gate on every seizure. The keeper stores the quote's own `publish_time`, so the chain — not the keeper — decides whether it is usable; a listing can cut the keeper out entirely and read Pyth's receiver-owned `PriceUpdateV2` directly. Pyth's own push accounts for both `Crypto.TSLAX/USD` and `Equity.US.TSLA/USD` have since stopped updating — measured 2026-09-30 at 7.0 and 2.0 days stale — and Hermes is behind an API key. So that listing shows **refused** on the live site and no lock against it can succeed: the desk's answer to a dead oracle is inaction, never a stale number. It is also why a second TSLAx listing exists, marked at what the token actually trades for, which the chain does accept.
 
 **PreStocks** — ANTHROPIC, the only pre-IPO token on the desk, listed beside a tokenized stock under one rate: wrap, prove `collateral ≥ 200 % × loan` against PreStocks' mark without revealing the position, borrow at the print. One card shows the mark as the chain holds it, the price the token trades at (PreStocks' own API, read server-side because it sends no CORS header — never on chain), the basis between them, both freshness rules with the verdict the chain would give right now, and the real mainnet token read in your own browser.
 
@@ -53,4 +59,4 @@ proven against the public Pyth price with the **corporate-action multiplier insi
 
 Devnet twins, not mainnet tokens. One disclosed key plays administrator, keeper, operator and price poster. Escrow sits in the operator's confidential account, because a program address cannot produce confidential-transfer proofs. Funding and repayment magnitudes are attested, not proven. Auction depth comes from labelled simulated agents. xONIA is a devnet reference rate, not a regulated benchmark. Unaudited — never custody real value.
 
-More: `docs/SPEC.md` · `docs/TRACKS.md` · `docs/THREAT_MODEL.md` · `docs/project.excalidraw` (the whole product on one canvas).
+More: [`GTM.md`](GTM.md) (the market, the first users, what is unproven) · [`VIDEO_PITCH.md`](VIDEO_PITCH.md) · [`VIDEO_DEMO.md`](VIDEO_DEMO.md) · `docs/SPEC.md` · `docs/TRACKS.md` · `docs/THREAT_MODEL.md` · `docs/project.excalidraw` (the whole product on one canvas).

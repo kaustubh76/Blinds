@@ -152,7 +152,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
                 : dep.data?.adminUrl || config.adminUrl
                   ? marks.isFetching
                     ? "asking the keeper…"
-                    : "the keeper did not answer — needs a market started after 22 Sep"
+                    : "the keeper did not answer — the market is not running"
                   : "needs the admin service — open the dashboard from the market's ?admin= link"
             }
           />
