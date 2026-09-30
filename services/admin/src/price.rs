@@ -47,14 +47,15 @@ pub enum Source {
     /// Pyth `PriceUpdateV2` accounts, read over RPC from `rpc_url` (may be a different cluster);
     /// the freshest of `candidates` wins.
     OnChainPyth { rpc_url: String, candidates: Vec<String>, feed_id: [u8; 32] },
-    /// A public API's USD mark (PreStocks `/api/prestocks`): the element
-    /// whose `match_field` equals `match_value`, read at `price_field`. An attested copy — the keeper
-    /// stamps it with the fetch time — never a signed feed. The last good value is kept for the
-    /// `keep_last` window so a transient 5xx does not halt the desk.
+    /// A public API's USD mark. `match_field` names the field that identifies our element in an
+    /// array (PreStocks' `contract_address`); empty means the response is an object keyed by
+    /// `match_value` itself (Jupiter's `/price/v3?ids=…`). `price_field` may be a dotted path.
+    /// An attested copy — the keeper stamps it with the fetch time — never a signed feed. The last
+    /// good value is kept for the `keep_last` window so a transient 5xx does not halt the desk.
     Mark {
-        name: &'static str,
+        name: String,
         url: String,
-        match_field: &'static str,
+        match_field: String,
         match_value: String,
         price_field: String,
         /// The implied (traded) price field, when the API publishes one beside the mark.
@@ -152,20 +153,24 @@ impl PriceSource {
         }
     }
 
-    /// PreStocks' public `/api/prestocks`: the element with `contract_address == source_mint`.
-    pub fn prestocks(
+    /// An attested mark from a public API. `match_field` is the field that identifies our element
+    /// in an array response (PreStocks: `contract_address`); pass an empty string when the response
+    /// is an object keyed by `match_value` (Jupiter). `price_field` may be a dotted path.
+    pub fn mark(
+        name: String,
         url: String,
-        contract_address: String,
+        match_field: String,
+        match_value: String,
         price_field: String,
         implied_field: Option<String>,
         extra_fields: MarkExtraFields,
     ) -> Self {
         Self {
             source: Source::Mark {
-                name: "prestocks",
+                name,
                 url,
-                match_field: "contract_address",
-                match_value: contract_address,
+                match_field,
+                match_value,
                 price_field,
                 implied_field: implied_field.filter(|f| !f.is_empty()),
                 extra_fields: Box::new(extra_fields),
@@ -226,8 +231,15 @@ fn describe(source: &Source) -> String {
                 candidates.join(", ")
             )
         }
-        Source::Mark { name, url, match_value, price_field, .. } => {
-            format!("{name} mark {price_field} for {match_value} via {url} (attested, publish_time = fetch time)")
+        Source::Mark { name, url, match_field, match_value, price_field, .. } => {
+            let how = if match_field.is_empty() {
+                format!("keyed by {match_value}")
+            } else {
+                format!("{match_field} == {match_value}")
+            };
+            format!(
+                "{name} mark {price_field} ({how}) via {url} (attested, publish_time = fetch time)"
+            )
         }
         Source::Mock { .. } => "deterministic mock walk (no Pyth; localnet/CI only)".into(),
     }
@@ -414,6 +426,12 @@ pub fn parse_mark(
     parse_mark_number(body, match_field, match_value, price_field, 1e8, 1e9)
 }
 
+/// One field of the matched element, descending through `a.b.c` so a provider that nests its
+/// figures (Jupiter's `stockData.price`) needs no special case.
+fn field_at<'a>(el: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
+    path.split('.').try_fold(el, |cur, key| cur.get(key))
+}
+
 /// One number out of the matched element: `scale` turns it into an integer (1e8 for a price or a
 /// token supply, 1 for a whole-dollar valuation), `max` is the sanity bound before scaling.
 pub fn parse_mark_number(
@@ -425,13 +443,17 @@ pub fn parse_mark_number(
     max: f64,
 ) -> Result<u64> {
     let v: serde_json::Value = serde_json::from_str(body).context("mark json")?;
-    let arr = v.as_array().ok_or_else(|| anyhow!("mark response is not an array"))?;
-    let el = arr
-        .iter()
-        .find(|e| e.get(match_field).and_then(|m| m.as_str()) == Some(match_value))
-        .ok_or_else(|| anyhow!("no element with {match_field} == {match_value}"))?;
-    let n = el
-        .get(field)
+    // Two shapes, told apart by whether the profile named a field to match on: an array to search
+    // (PreStocks) or an object already keyed by the mint (Jupiter).
+    let el = if match_field.is_empty() {
+        v.get(match_value).ok_or_else(|| anyhow!("mark response has no key {match_value}"))?
+    } else {
+        let arr = v.as_array().ok_or_else(|| anyhow!("mark response is not an array"))?;
+        arr.iter()
+            .find(|e| e.get(match_field).and_then(|m| m.as_str()) == Some(match_value))
+            .ok_or_else(|| anyhow!("no element with {match_field} == {match_value}"))?
+    };
+    let n = field_at(el, field)
         .and_then(|p| p.as_f64().or_else(|| p.as_str().and_then(|s| s.parse().ok())))
         .ok_or_else(|| anyhow!("{field} missing or not a number"))?;
     if !(n.is_finite() && n > 0.0 && n < max) {
@@ -635,6 +657,52 @@ mod tests {
     }
 
     const PRESTOCKS: &str = include_str!("../tests/fixtures/prestocks.json");
+    /// Jupiter's `/price/v3` for the real mainnet TSLAx mint, captured 2026-09-30.
+    const JUPITER: &str = include_str!("../tests/fixtures/jupiter_tslax.json");
+    const TSLAX_MINT: &str = "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB";
+
+    #[test]
+    fn a_keyed_response_is_read_by_its_key_and_through_nested_fields() {
+        let extra = MarkExtraFields::new(Some("stockData.mcap".into()), None, None);
+        let r =
+            parse_mark_read(JUPITER, "", TSLAX_MINT, "usdPrice", Some("stockData.price"), &extra)
+                .unwrap();
+        // A tokenized stock trades near the stock, never exactly at it: that gap is the basis the
+        // dashboard shows, so the two numbers must be read separately and must differ.
+        assert!(r.mark > 0, "the token's own traded price");
+        let implied = r.implied.expect("the underlying stock's price, one level down");
+        assert_ne!(r.mark, implied);
+        assert!(r.mark.abs_diff(implied) * 100 < r.mark, "within a percent of the stock");
+        // Tesla's market cap, in whole dollars.
+        assert!(r.mark_valuation_usd.is_some_and(|v| v > 100_000_000_000));
+        assert!(r.supply_e8.is_none(), "Jupiter publishes no supply");
+    }
+
+    #[test]
+    fn a_keyed_response_names_what_is_missing() {
+        // The wrong mint is a missing key, not a silently wrong price.
+        let e = parse_mark(JUPITER, "", "SoLNotAMint111111111111111111111111111111111", "usdPrice")
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("no key"), "{e}");
+        // A nested path that runs off the end is absent, not zero.
+        assert!(parse_mark(JUPITER, "", TSLAX_MINT, "stockData.nope.deeper").is_err());
+        // And the array shape still refuses a keyed body rather than inventing an element.
+        assert!(parse_mark(JUPITER, "contract_address", TSLAX_MINT, "usdPrice").is_err());
+    }
+
+    #[test]
+    fn an_array_response_is_unaffected_by_the_keyed_path() {
+        // PreStocks' shape keeps working with a dotted-capable reader: its fields are flat.
+        assert!(parse_mark(PRESTOCKS, "", TSLAX_MINT, "markPrice").is_err());
+        assert!(parse_mark(
+            PRESTOCKS,
+            "contract_address",
+            "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+            "markPrice"
+        )
+        .is_ok());
+    }
 
     #[test]
     fn a_mark_read_carries_the_company_figures_and_survives_their_absence() {
@@ -698,8 +766,10 @@ mod tests {
             "nope"
         )
         .is_err());
-        let s = PriceSource::prestocks(
+        let s = PriceSource::mark(
+            "prestocks".into(),
             "https://p/x".into(),
+            "contract_address".into(),
             "c".into(),
             "markPrice".into(),
             Some(String::new()),
@@ -749,15 +819,28 @@ mod tests {
 
     #[test]
     fn a_mark_source_is_described_as_attested() {
-        let s = PriceSource::prestocks(
+        let s = PriceSource::mark(
+            "prestocks".into(),
             "https://p/x".into(),
+            "contract_address".into(),
             "c".into(),
             "markPrice".into(),
             Some("tokenPrice".into()),
             MarkExtraFields::default(),
         );
         assert!(s.describe().contains("attested"));
-        assert!(s.describe().starts_with("prestocks mark markPrice for c"));
+        assert!(s.describe().starts_with("prestocks mark markPrice (contract_address == c)"));
+        // The keyed shape says so, so a startup log distinguishes the two providers.
+        let j = PriceSource::mark(
+            "jupiter".into(),
+            "https://lite-api.jup.ag/price/v3?ids=M".into(),
+            String::new(),
+            "M".into(),
+            "usdPrice".into(),
+            Some("stockData.price".into()),
+            MarkExtraFields::default(),
+        );
+        assert!(j.describe().starts_with("jupiter mark usdPrice (keyed by M)"));
     }
 
     #[test]

@@ -28,12 +28,14 @@
       "haircut_bps": 15000,
       "max_price_age_slots": 1200,
       "max_publish_age_secs": 3600,
+      "price_source": 0,
       "price_account": "JBDgVnqW7p4Zm8r23AJHTgYUEu4evCt2VppGj3brVuCS"
     },
     {
       "key": "prestocks_anthropic",
       "symbol": "ANTHROPIC-mock",
       "source": "prestocks",
+      "provider": "prestocks",
       "listing": "4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp",
       "mock_mint": "BA1wPNWjGfNam7ViKiM6C6tAGsQRjtQfRBjZGEYdie7C",
       "cstock_mint": "DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo",
@@ -42,7 +44,24 @@
       "decimals": 3,
       "haircut_bps": 20000,
       "max_price_age_slots": 1200,
-      "max_publish_age_secs": 172800
+      "max_publish_age_secs": 172800,
+      "price_source": 2
+    },
+    {
+      "key": "xstocks_tslax",
+      "symbol": "TSLAx-xs",
+      "source": "prestocks",
+      "provider": "jupiter",
+      "listing": "DsN3jR56gZNofjhyJ1kFegxJd7rNbLG73Y5qmchfCS6x",
+      "mock_mint": "EFQMoZdD7Et5qFu6ApvHjps73rbzmw4KQj5B7Y4FTfCc",
+      "cstock_mint": "CTTQv5A7TjLrBSTFcF8jh5SkDtM6Zxuyx6o6hpGuADBS",
+      "escrow_account": "Hk5xEV3MEfTWNiLtgPAGdU4cC8ALJSEwKx7aFFhWSHGi",
+      "feed_id_hex": "3f2097ca8b3054d932f23e69f24908d6e5715411c0d77bdf4cc4ab56de1627d6",
+      "decimals": 3,
+      "haircut_bps": 15000,
+      "max_price_age_slots": 1200,
+      "max_publish_age_secs": 3600,
+      "price_source": 2
     }
   ],
   "agents": [
@@ -73,10 +92,10 @@
     {
       "index": 3,
       "wallet": "4PikNwJKiWLW1UbCxknMZaBTvEH6zuAF6AcJC2wusaMV",
-      "mock_account": "9hrRqvPDDTF82DYBEALfs5u7ZkXvSh1tqxPD5pEHLdAX",
-      "cstock_account": "838jPCAGUQhsjYRfwSKPuf5MSat2AqpGWv6QwpRwRhAz",
+      "mock_account": "DzTq36Z25H3MDPrYUdSNjrNNui77oXrAazc3pmRJN5Z8",
+      "cstock_account": "2gFbjoHxFAEdjAoD9FGKRQKff7JoWN4bMiq2WZnZ9YX2",
       "role": "borrower",
-      "listing": 0
+      "listing": 1
     },
     {
       "index": 4,
@@ -89,10 +108,10 @@
     {
       "index": 5,
       "wallet": "4UgLaC3GS1uxrPpZ4g6FhLk2qiYg3vXZfrDeWP3ZzzA5",
-      "mock_account": "4p1JTU5YbZEntpv6o4b1MSa7bByNjUiQ2MTQ6R2J6wb6",
-      "cstock_account": "6Ff94VJid6YdHvv5EjRY37iDWYH4cfZCJu3aAdLVedmY",
+      "mock_account": "9cxzTNdWPP63Bs8v2WPiAYfrB5UU4gg5RzHXw9t3UdjA",
+      "cstock_account": "AM7Wx7ESrQNq356vprHxQp9frFTTvEsGmrHfKnY2BjGU",
       "role": "borrower",
-      "listing": 1
+      "listing": 2
     }
   ]
 }

@@ -32,8 +32,14 @@ pub struct ListingRecord {
     /// The profile key (`mock_tsla`, `prestocks_anthropic`, …).
     pub key: String,
     pub symbol: String,
-    /// `pyth` | `prestocks` | `mock` (`reserved` = a retired source).
+    /// `pyth` | `prestocks` | `mock` (`reserved` = a retired source). The wire name of the
+    /// mechanism, which for an attested mark is shared by every provider — `provider` below says
+    /// which one this listing actually reads.
     pub source: String,
+    /// An attested mark's provider (`prestocks`, `jupiter`), as its feed-id label names it. `None`
+    /// for a Pyth or mock listing, and for a mark recorded before providers were distinguished.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
     /// The `Listing` PDA.
     pub listing: String,
     pub mock_mint: String,
@@ -44,9 +50,10 @@ pub struct ListingRecord {
     pub haircut_bps: u64,
     pub max_price_age_slots: u64,
     pub max_publish_age_secs: i64,
-    /// `Listing.price_source` on chain (0 Pyth · 1 reserved · 2 PreStocks · 3 mock · 4 Pyth
-    /// receiver account). Absent in older descriptors: derived from `source`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// `Listing.price_source` on chain (0 Pyth · 1 reserved · 2 attested mark · 3 mock · 4 Pyth
+    /// receiver account). Always written; only a descriptor older than A16 omits it, and those are
+    /// derived from `source` instead.
+    #[serde(default)]
     pub price_source: Option<u8>,
     /// The Pyth receiver-owned push-oracle account on this cluster (`[pyth_shard, feed_id]`),
     /// when the profile names a shard. What `lock_collateral`/`seize` read once `price_source` is 4.

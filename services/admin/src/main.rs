@@ -111,16 +111,25 @@ fn join_funding_lamports() -> u64 {
 }
 
 /// The price source one listing asks for. Pyth: Hermes when `PYTH_API_KEY` is set, with Pyth's
-/// on-chain price-update accounts as the fallback (and as the only source without a key).
-/// PreStocks: the sponsor's public mark, attested by the keeper. Mock: the documented
-/// walk (localnet/CI). `Profile::validate` guarantees a mock never borrows a real feed id (A11).
+/// on-chain price-update accounts as the fallback (and as the only source without a key). An
+/// attested mark: the provider's public price, copied by the keeper — `source_shape` says whether
+/// that provider answers with an array to search or an object keyed by the mint. Mock: the
+/// documented walk (localnet/CI). `Profile::validate` guarantees a mock never borrows a real feed
+/// id (A11), and the feed id of a mark names its provider, so the two can never be confused.
 fn price_source(l: &window_config::ListingCfg) -> Result<PriceSource> {
     use window_config::PriceSourceKind as K;
     match l.source {
         K::Mock => Ok(PriceSource::mock(40_012)),
         K::Reserved1 => Err(anyhow::anyhow!("{}: price source 1 is reserved (retired)", l.key)),
-        K::Prestocks => Ok(PriceSource::prestocks(
+        K::Prestocks => Ok(PriceSource::mark(
+            l.source_label().to_string(),
             l.source_url.clone(),
+            // An array response is searched on the field PreStocks identifies its tokens by; a
+            // keyed response is indexed by the mint, so there is no field to match on.
+            match l.source_shape {
+                window_config::MarkShape::Array => "contract_address".to_string(),
+                window_config::MarkShape::Keyed => String::new(),
+            },
             l.source_mint.clone(),
             l.price_field.clone(),
             Some(l.implied_field.clone()),

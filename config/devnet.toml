@@ -80,3 +80,26 @@ implied_field = "tokenPrice"   # the traded price beside the mark: served by the
 mark_valuation_field = "markValuation"       # the company's valuation at the mark, whole USD — /marks only
 implied_valuation_field = "impliedValuation" # and at the price the token trades at
 supply_field = "supply"                      # tokens outstanding, as PreStocks publishes it
+
+# xStocks TSLAx, marked at what it actually trades for. Jupiter's public /price/v3 aggregates the
+# real mainnet mint's own pools, so this is the price a desk would liquidate into — an attested
+# mark, stamped at fetch, never a signed feed; label sha256("jupiter:TSLAx") =
+# 3f2097ca…27d6, so it can never be mistaken for the Pyth feed above. `stockData.price` is the
+# underlying stock beside it, which makes the basis on /marks the gap between the tokenized stock
+# and the stock. The mint XsDoVfqe… is mainnet's and is never touched; the wrap is a devnet twin.
+[[listings]]
+key = "xstocks_tslax"
+symbol = "TSLAx-xs"
+decimals = 3                 # milli-shares, as listing #0
+source = "mark"
+source_name = "jupiter"
+source_shape = "keyed"       # the response is one object keyed by the mint, not an array to search
+haircut_bps = 15000          # a listed stock at a traded price: the same 150% as the Pyth TSLAx
+max_publish_age_secs = 3600  # a 24/7 venue: an hour-old quote is a broken feed, not a closed market
+initial_multiplier = 1.0
+source_url = "https://lite-api.jup.ag/price/v3?ids=XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB"
+source_mint = "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB"
+source_symbol = "TSLAx"
+price_field = "usdPrice"
+implied_field = "stockData.price"      # the underlying equity beside the token — /marks only, never on chain
+mark_valuation_field = "stockData.mcap"  # the company's market cap, whole USD — /marks only

@@ -56,7 +56,10 @@ pub enum PriceSourceKind {
     /// Tag 1 is reserved: it was a second attested-mark source, retired from the desk on
     /// 2026-09-21 (its devnet listing stays on chain, refusing every lock). No profile may use it.
     Reserved1 = 1,
-    /// PreStocks' public `/api/prestocks` mark price, copied by the keeper and timestamped at fetch.
+    /// An attested HTTP mark: a public API's USD price, copied by the keeper and timestamped at
+    /// fetch. PreStocks was its first user, which is why the wire spelling is `prestocks`; a profile
+    /// may also say `mark`, and `source_name` records which provider a listing actually reads.
+    #[serde(alias = "mark")]
     Prestocks = 2,
     /// The documented deterministic walk; localnet/CI only.
     Mock = 3,
@@ -75,6 +78,18 @@ impl PriceSourceKind {
             Self::Mock => "mock",
         }
     }
+}
+
+/// How an attested-mark API shapes the response the keeper reads.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MarkShape {
+    /// A JSON array of objects; ours is the element whose `contract_address` is `source_mint`
+    /// (PreStocks' `/api/prestocks`).
+    #[default]
+    Array,
+    /// A JSON object keyed by the mint itself (Jupiter's `/price/v3?ids=…`).
+    Keyed,
 }
 
 /// One collateral listing (`[[listings]]`).
@@ -112,9 +127,16 @@ pub struct ListingCfg {
     /// identifies the element to read.
     #[serde(default)]
     pub source_mint: String,
-    /// PreStocks: the sponsor's symbol, part of the feed-id label.
+    /// Attested mark: the sponsor's symbol, part of the feed-id label.
     #[serde(default)]
     pub source_symbol: String,
+    /// Attested mark: the provider's own label, used in the feed id and the logs (`jupiter`). Empty
+    /// falls back to the source kind's name, so a listing seeded before this field keeps its feed id.
+    #[serde(default)]
+    pub source_name: String,
+    /// Attested mark: how the provider shapes its response. Defaults to `array`, PreStocks' shape.
+    #[serde(default)]
+    pub source_shape: MarkShape,
     /// PreStocks: the JSON field carrying the USD mark (`markPrice`).
     #[serde(default)]
     pub price_field: String,
@@ -153,9 +175,19 @@ impl ListingCfg {
             PriceSourceKind::Reserved1 => None,
             PriceSourceKind::Prestocks => {
                 use sha2::Digest as _;
-                let label = format!("{}:{}", self.source.label(), self.source_symbol);
+                let label = format!("{}:{}", self.source_label(), self.source_symbol);
                 Some(sha2::Sha256::digest(label.as_bytes()).into())
             }
+        }
+    }
+
+    /// The provider half of an attested mark's feed-id label: `source_name` when the profile names
+    /// one, else the source kind's own name (`prestocks`) — so PreStocks keeps its seeded id.
+    pub fn source_label(&self) -> &str {
+        if self.source_name.is_empty() {
+            self.source.label()
+        } else {
+            &self.source_name
         }
     }
 
@@ -295,6 +327,17 @@ impl Profile {
                     if l.price_field.is_empty() {
                         return bad(&format!("{name}: an attested mark needs price_field"));
                     }
+                    // The label is half of a PriceCache seed: a colon or a stray case would move
+                    // the feed id of a listing that is already on chain.
+                    if !l
+                        .source_name
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+                    {
+                        return bad(&format!(
+                            "{name}: source_name must be lowercase ascii, digits or '-'"
+                        ));
+                    }
                 }
                 PriceSourceKind::Mock => {
                     // The mock walk never borrows a real feed id or account (A11).
@@ -378,6 +421,47 @@ mod tests {
         assert!(a.haircut_bps >= 20_000, "pre-IPO marks carry a bigger haircut");
         assert_eq!(a.symbol_bytes()[..14], *b"ANTHROPIC-mock");
         assert_eq!(a.symbol_bytes()[14..], [0u8; 2]);
+    }
+
+    #[test]
+    fn the_traded_tslax_mark_is_labelled_by_its_own_provider() {
+        for profile in ["devnet", "prod"] {
+            let p = Profile::load(profile).unwrap();
+            let x = p.listing("xstocks_tslax").expect(profile);
+            // The same tag as PreStocks — an attested mark is a mechanism, not a provider.
+            assert_eq!(x.source, PriceSourceKind::Prestocks, "{profile}");
+            assert_eq!(x.source.tag(), 2);
+            assert_eq!(x.source_shape, MarkShape::Keyed, "Jupiter keys its response by mint");
+            assert_eq!(x.source_label(), "jupiter", "not the kind's name");
+            assert_eq!(x.price_field, "usdPrice");
+            assert_eq!(x.implied_field, "stockData.price", "the stock beside the token");
+            // The feed id names Jupiter, so no reader can take this for the Pyth TSLAX feed or for
+            // PreStocks' mark — the A11 argument, one provider further.
+            use sha2::Digest as _;
+            let id = x.feed_id().unwrap();
+            assert_eq!(hex::encode(id), hex::encode(sha2::Sha256::digest(b"jupiter:TSLAx")));
+            let pyth = p.listing("mock_tsla").unwrap();
+            assert_ne!(id, pyth.feed_id().unwrap(), "{profile}: never the Pyth id");
+            assert_ne!(id, p.listing("prestocks_anthropic").unwrap().feed_id().unwrap());
+            // Two TSLAx listings must stay distinguishable on chain, where symbol is all a
+            // reader has: the app renders these bytes rather than a name of its own.
+            assert_ne!(x.symbol, pyth.symbol, "{profile}");
+            assert_eq!(x.symbol_bytes()[..8], *b"TSLAx-xs");
+        }
+    }
+
+    #[test]
+    fn a_mark_provider_label_may_not_carry_a_separator() {
+        // The label is half a PriceCache seed; a colon would silently move an existing feed id.
+        let mut p = Profile::load("devnet").unwrap();
+        for bad in ["jupiter:x", "Jupiter", "jup iter"] {
+            p.listings.iter_mut().for_each(|l| {
+                if l.key == "xstocks_tslax" {
+                    l.source_name = bad.to_string();
+                }
+            });
+            assert!(p.validate().is_err(), "{bad} should be refused");
+        }
     }
 
     #[test]

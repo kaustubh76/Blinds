@@ -283,6 +283,10 @@ fn listing_record(
         key: l.key.clone(),
         symbol: l.symbol.clone(),
         source: l.source.label().to_string(),
+        // Two listings can share source `prestocks` and read different providers; the label that
+        // seeds the feed id is the one that must reach the dashboard.
+        provider: (l.source == window_config::PriceSourceKind::Prestocks)
+            .then(|| l.source_label().to_string()),
         listing: pda::listing(cstock).to_string(),
         mock_mint: mock.to_string(),
         cstock_mint: cstock.to_string(),
@@ -420,9 +424,18 @@ pub fn sync_listings(
             let account = l
                 .pyth_shard
                 .map(|shard| crate::price::push_oracle_pda(shard, &rec.feed_id()).to_string());
-            if rec.price_account != account {
+            let provider = (l.source == window_config::PriceSourceKind::Prestocks)
+                .then(|| l.source_label().to_string());
+            // The tag is only *filled*, never rewritten: on chain it may already have been flipped
+            // to 4 by `listings set-source`, and the profile still says 0.
+            let tag = rec.price_source.or_else(|| Some(l.source.tag()));
+            if rec.price_account != account || rec.provider != provider || rec.price_source != tag {
                 rec.price_account = account;
+                rec.provider = provider;
+                rec.price_source = tag;
                 dep.save(root)?;
+                info!(key = %l.key, "listing already recorded; descriptor refreshed");
+                continue;
             }
             info!(key = %l.key, "listing already recorded");
             continue;
