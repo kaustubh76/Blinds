@@ -164,5 +164,10 @@ export function isTransientRpcError(e: unknown): boolean {
   const message = e instanceof Error ? e.message.toLowerCase() : "";
   if (/8100002/.test(message)) return true;
   if ((e as { cause?: unknown }).cause && isTransientRpcError((e as { cause?: unknown }).cause)) return true;
-  return /too many requests|timed out|timeout|connection|socket|fetch failed|econnreset|429/.test(message);
+  // `error sending request` is reqwest's own wording, which the Rust services log and the smoke
+  // drivers surface; the DNS and gateway cases are what a provider endpoint fails with while it is
+  // coming up. Each one was reaching a caller as a hard failure.
+  return /too many requests|rate limit|timed out|timeout|connection|socket|fetch failed|econnreset|enotfound|eai_again|error sending request|service unavailable|bad gateway|gateway timeout|429|502|503|504/.test(
+    message,
+  );
 }

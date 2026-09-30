@@ -13,8 +13,11 @@ const flag = (name: string, fallback: number) => {
 const rpcUrl = process.env.WINDOW_RPC_URL ?? "http://127.0.0.1:8899";
 const rpc = createSolanaRpc(rpcUrl);
 const want = flag("epochs", 1);
-// A devnet epoch lasts minutes and the public RPC rate-limits, so poll slowly there.
-const pollMs = flag("poll-ms", rpcUrl.includes("devnet") ? 20_000 : 2_000);
+// A devnet epoch lasts minutes and a shared endpoint rate-limits, so poll slowly there. The
+// cluster decides this, not the URL: keying off `rpcUrl.includes("devnet")` dropped a dedicated
+// provider endpoint — the very case that needs the slow poll — back to the localnet cadence.
+const local = (process.env.WINDOW_CLUSTER ?? (rpcUrl.includes("127.0.0.1") ? "localnet" : "devnet")) === "localnet";
+const pollMs = flag("poll-ms", local ? 2_000 : 20_000);
 const timeoutMs = flag("timeout-s", 3_600) * 1_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

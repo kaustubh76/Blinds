@@ -53,7 +53,11 @@ case "${1:-status}" in
     echo "window: $(window_phase)"
     echo
     echo "what the chain would accept right now:"
-    WINDOW_RPC_URL="https://api.$CLUSTER.solana.com" pnpm -s schedule 2>/dev/null | grep -E "ACCEPTED|REFUSED|usable" || true
+    # The probe must read the endpoint the services are actually on. This used to hardcode the
+    # public URL, so a dedicated endpoint in .env reached every service except the one check
+    # anybody looks at before going live.
+    WINDOW_RPC_URL="${WINDOW_RPC_URL:-https://api.$CLUSTER.solana.com}" pnpm -s schedule 2>/dev/null |
+      grep -E "ACCEPTED|REFUSED|usable" || true
     if [ -n "$url" ]; then
       echo
       echo "checking the hosted dashboard from the outside…"

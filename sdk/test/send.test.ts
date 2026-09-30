@@ -17,3 +17,24 @@ describe("which RPC failures are worth retrying", () => {
     expect(isTransientRpcError(null)).toBe(false);
   });
 });
+
+describe("wordings that used to reach a caller as a hard failure", () => {
+  // Each of these was observed rather than imagined: reqwest's phrasing from the Rust services'
+  // 2026-09-24 storm, and the shapes a provider endpoint fails with while it is coming up.
+  it.each([
+    "error sending request for url (https://api.devnet.solana.com/)",
+    "getaddrinfo ENOTFOUND rpc.example.com",
+    "getaddrinfo EAI_AGAIN rpc.example.com",
+    "503 Service Unavailable",
+    "502 Bad Gateway",
+    "504 Gateway Timeout",
+    "rate limit exceeded",
+  ])("treats %s as transient", (message) => {
+    expect(isTransientRpcError(new Error(message))).toBe(true);
+  });
+
+  it("still refuses to retry something the cluster decided", () => {
+    expect(isTransientRpcError(new Error("custom program error: 0x1791"))).toBe(false);
+    expect(isTransientRpcError(new Error("Blockhash not found"))).toBe(false);
+  });
+});

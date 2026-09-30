@@ -75,6 +75,26 @@ From then on TSLAx locks and seizures are priced from the receiver-owned account
 for it. To go back (poster down for longer than an hour): `listing-set-source mock_tsla 0` — the cache path
 resumes on the next keeper tick.
 
+### 2c. A dedicated RPC endpoint
+
+One line in `.env` moves every service off the shared endpoint:
+
+```bash
+WINDOW_RPC_URL=https://<provider>/<key>       # admin run + agents, the poster, pnpm schedule, watch:epoch
+```
+
+For the browser, pass `?rpc=<url>` once (it is remembered per browser) or use Settings → RPC. Do **not**
+put a keyed URL in the repo variable `VITE_RPC_URL`: Vite inlines it into the public bundle, the Build page
+prints it under "this page's endpoints", and every copyable snippet on that page carries it. A keyed
+endpoint belongs behind the Vercel proxy instead — `RPC_UPSTREAM` is read server-side
+(`scripts/vercel/api/rpc.mjs`), so the key never reaches a visitor.
+
+The services survive a bad endpoint on their own since 2026-09-30: every RPC call backs off
+exponentially with jitter (five attempts from 400 ms, `services/admin/src/chain.rs`) and retries only
+transport failures — a transaction the cluster rejected is never sent twice, and a re-send carries the
+same signature so the cluster de-duplicates it. A dedicated endpoint is still the better answer; the
+backoff is what keeps a window from being lost while you find one.
+
 ## 2b. Presenting
 
 [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the 2–3 minute walkthrough: what to click, what to say, the
@@ -114,6 +134,8 @@ Every print, loan and listing stays on chain and verifiable while the market is 
 | poster log says `post failed … 403 Not entitled` | the key is not entitled to `Crypto.TSLAX/USD` (Pyth Pro tier) | `listing-set-source mock_tsla 0` if it was flipped; the keeper's Hermes/on-chain path needs the same entitlement, so TSLAx stays refused by design |
 | `[TSLAx-mock] … age 137.4 h (limit 3600 s)`, schedule says `QuoteStale` | no `PYTH_API_KEY`: every Pyth HTTP API is keyed since 2026-08-26 and the only on-chain push account for `Crypto.TSLAX/USD` (shard 0) stopped on 12 Sep | get a Pyth key into `.env` (`PYTH_API_KEY=`), restart; without one the chain refuses TSLAx locks by design (inaction, never a stale mark) — the two mark listings still lock |
 | `no readable Pyth account`, 429 from `api.mainnet-beta` | public mainnet RPC rate limit | `WINDOW_PRICE_RPC_URL=https://solana-rpc.publicnode.com` in `.env`, restart |
+| every thread logs `transient rpc failure; backing off`, then `rpc call recovered` | the endpoint is rate-limiting or dropping connections; the backoff is absorbing it | nothing — that is the mechanism working. If it never recovers, the endpoint is down: set `WINDOW_RPC_URL` (§2c) and restart |
+| the admin log repeats `error sending request` with no recovery, windows stretch, no print lands | the shared endpoint is refusing the four service threads outright (2026-09-24: a full bid → match → loan cycle could not be completed) | a dedicated endpoint, §2c. Before 2026-09-30 there was no backoff at all and each thread re-asked on its own tick, sustaining the pressure |
 | epochs print `no trade` although agents run; the agents log shows bids from two agents only | (fixed 18 Sep) the loan service used to run between agents' bids and outlast the window; the two-pass tick lets all six quote first | update the binary: `cargo build -p window-admin --release`, then `market.sh stop && start` |
 | `release failed: destination has no cSTOCK-W account … (retrying quietly)` once per loan | the payee holds no confidential account on the loan listing's cSTOCK mint (a lender on another listing) | agents: `window-admin listings-sync` creates them; a judge's wallet: Positions shows *Receive the payout · set up a … account* on the defaulted loan (two transactions) — the operator releases on its next tick |
 | a mark listing stops posting; `warn … re-posting last good` | PreStocks API down | nothing for 6 h (last-good is re-posted); after 48 h the chain halts that listing's locks |
