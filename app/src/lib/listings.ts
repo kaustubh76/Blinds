@@ -52,13 +52,34 @@ export function listingByPda(listings: ListingView[], pda: string): ListingView 
   return listings.find((l) => l.listing === pda);
 }
 
-/** Human label for a listing's source tag or descriptor string. */
-export function sourceLabel(source: string | number | Pick<ListingView, "source" | "priceSource">): string {
+/**
+ * How an attested mark's provider is written on screen. A provider the desk has not met keeps the
+ * label its feed id is seeded on, lowercase — the honest answer, rather than a prettier guess.
+ */
+const PROVIDERS: Record<string, string> = { prestocks: "PreStocks", jupiter: "Jupiter" };
+
+/**
+ * Human label for a listing's source tag or descriptor string. Given a whole listing it prefers the
+ * provider, because tag 2 is a mechanism two listings share: naming it "PreStocks mark" off the
+ * mechanism alone would put the wrong company beside a Jupiter-read price.
+ */
+export function sourceLabel(
+  source: string | number | Pick<ListingView, "source" | "priceSource" | "provider">,
+): string {
   if (typeof source === "object") {
-    return source.priceSource === PriceSource.PythAccount ? "Pyth · on-chain" : sourceLabel(source.source);
+    if (source.priceSource === PriceSource.PythAccount) return "Pyth · on-chain";
+    if (source.priceSource === PriceSource.Mark && source.provider) {
+      return `${PROVIDERS[source.provider] ?? source.provider} mark`;
+    }
+    return sourceLabel(source.source);
   }
   if (typeof source === "number") return PRICE_SOURCE_NAMES[source] ?? `source ${source}`;
-  return { pyth: "Pyth", reserved: "retired mark", prestocks: "PreStocks mark", mock: "mock walk" }[source] ?? source;
+  // A bare label, from a descriptor that names no provider: "attested mark" is all it supports.
+  return (
+    { pyth: "Pyth", reserved: "retired mark", prestocks: "attested mark", mark: "attested mark", mock: "mock walk" }[
+      source
+    ] ?? source
+  );
 }
 
 /** The schedule as the chain has it (PDA + account), refreshed each minute. */

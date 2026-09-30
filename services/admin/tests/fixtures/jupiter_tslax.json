@@ -1,16 +1,16 @@
 {
-    "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {
-        "createdAt": "2025-06-11T09:41:10Z",
-        "liquidity": 1149256.7763442034,
-        "usdPrice": 350.72933297122734,
-        "blockId": 451954567,
-        "decimals": 8,
-        "priceChange24h": -2.2047793047438016,
-        "stockData": {
-            "id": "xstocks",
-            "price": 350.3,
-            "mcap": 1393558302498.96,
-            "updatedAt": "2026-09-30T11:42:32.423Z"
-        }
+  "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB": {
+    "createdAt": "2025-06-11T09:41:10Z",
+    "liquidity": 1149256.7763442034,
+    "usdPrice": 350.72933297122734,
+    "blockId": 451954567,
+    "decimals": 8,
+    "priceChange24h": -2.2047793047438016,
+    "stockData": {
+      "id": "xstocks",
+      "price": 350.3,
+      "mcap": 1393558302498.96,
+      "updatedAt": "2026-09-30T11:42:32.423Z"
     }
+  }
 }

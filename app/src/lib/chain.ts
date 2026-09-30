@@ -28,6 +28,11 @@ export interface Deployment {
   auditor_elgamal_pubkey_hex: string;
   /** The collateral schedule (absent in a descriptor written before it). */
   listings?: RawListing[];
+  /**
+   * What the running service was started with, added by `GET /deployment` and never persisted to
+   * the file — so it is absent when the dashboard reads the bundled descriptor.
+   */
+  runtime?: { default_every?: number };
   agents: Array<{
     index: number;
     wallet: string;
@@ -42,6 +47,8 @@ export interface RawListing {
   key: string;
   symbol: string;
   source: string;
+  /** An attested mark's provider (`prestocks`, `jupiter`) — the label its feed id is seeded on. */
+  provider?: string;
   listing: string;
   mock_mint: string;
   cstock_mint: string;
@@ -51,7 +58,7 @@ export interface RawListing {
   haircut_bps: number;
   max_price_age_slots: number;
   max_publish_age_secs: number;
-  /** `Listing.price_source` on chain; absent in a descriptor written before source 4 (then derived from `source`). */
+  /** `Listing.price_source` on chain; absent only in a descriptor written before A16 (then derived from `source`). */
   price_source?: number;
   /** Source 4: the Pyth receiver-owned account the program reads for this listing. */
   price_account?: string;
@@ -61,8 +68,15 @@ export interface RawListing {
 export interface ListingView {
   key: string;
   symbol: string;
-  /** `pyth` | `prestocks` | `mock` (`reserved`: a retired source) */
+  /** `pyth` | `prestocks` | `mock` (`reserved`: a retired source) — the mechanism, not the provider. */
   source: string;
+  /**
+   * Which provider an attested mark actually reads (`prestocks`, `jupiter`); `null` for Pyth, for
+   * the mock walk, and for a mark recorded before the two were told apart. Two listings can share
+   * `source` and read different places, so a card that says "PreStocks" off the mechanism alone
+   * would name the wrong company.
+   */
+  provider: string | null;
   listing: Address;
   mockMint: Address;
   cstockMint: Address;
@@ -72,7 +86,7 @@ export interface ListingView {
   haircutBps: bigint;
   maxPriceAgeSlots: number;
   maxPublishAgeSecs: number;
-  /** `Listing.price_source`: 0 Pyth cache · 1 reserved (retired) · 2 PreStocks · 3 mock · 4 Pyth's own account. */
+  /** `Listing.price_source`: 0 Pyth cache · 1 reserved (retired) · 2 attested mark · 3 mock · 4 Pyth's own account. */
   priceSource: number;
   /** The Pyth account the program reads when `priceSource` is 4; `null` otherwise. */
   priceAccount: Address | null;
@@ -92,6 +106,11 @@ export interface DeploymentView {
   decimals: number;
   /** The collateral schedule; `listings[0]` is the original collateral the legacy fields mirror. */
   listings: ListingView[];
+  /**
+   * How often the running service leaves a loan to default (`--default-every`), or `null` when no
+   * service answered. A page must not state a cadence it has not been told.
+   */
+  defaultEvery: number | null;
 }
 
 export function hexToBytes(hex: string): Uint8Array {
@@ -110,6 +129,7 @@ function listingView(l: RawListing): ListingView {
     key: l.key,
     symbol: l.symbol,
     source: l.source,
+    provider: l.provider ?? null,
     listing: address(l.listing),
     mockMint: address(l.mock_mint),
     cstockMint: address(l.cstock_mint),
@@ -124,26 +144,12 @@ function listingView(l: RawListing): ListingView {
   };
 }
 
-/** A descriptor written before the schedule: its one collateral becomes listing #0 (`listing` is filled in by `fetchDeployment`). */
-function legacyListing(raw: Deployment): RawListing {
-  return {
-    key: "mock_tsla",
-    symbol: "TSLAx-mock",
-    source: "pyth",
-    listing: raw.cstock_mint, // overwritten with the derived `["listing", cstock_mint]` PDA below
-    mock_mint: raw.mock_mint,
-    cstock_mint: raw.cstock_mint,
-    escrow_account: raw.escrow_account,
-    feed_id_hex: raw.feed_id_hex,
-    decimals: raw.decimals,
-    haircut_bps: 15_000,
-    max_price_age_slots: 1_200,
-    max_publish_age_secs: 3_600,
-  };
-}
-
 function view(raw: Deployment, adminUrl: string | null): DeploymentView {
-  const listings = (raw.listings?.length ? raw.listings : [legacyListing(raw)]).map(listingView);
+  // A descriptor with no schedule carries none here. This used to synthesise listing #0 with a
+  // haircut and both freshness limits typed in — the three numbers that decide whether the chain
+  // accepts a lock — so a service older than A14 made the pages state a rule nobody had read.
+  // The pages already render an absent listing as "—"; `useOnChainListings` reads the real bytes.
+  const listings = (raw.listings ?? []).map(listingView);
   return {
     raw,
     faucet: adminUrl !== null,
@@ -155,6 +161,7 @@ function view(raw: Deployment, adminUrl: string | null): DeploymentView {
     auditorPubkey: hexToBytes(raw.auditor_elgamal_pubkey_hex),
     decimals: raw.decimals,
     listings,
+    defaultEvery: raw.runtime?.default_every ?? null,
   };
 }
 

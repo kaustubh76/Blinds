@@ -19,7 +19,13 @@ const state = {
   keysReady: true,
 };
 vi.mock("./usePositions", () => ({ usePositions: () => state }));
-vi.mock("../../lib/queries", () => ({ useBids: () => ({ data: [] }), useSlot: () => ({ data: 1_000 }) }));
+/** What `GET /deployment` published for this run; a test varies it to check the sentence follows. */
+const runtime = { defaultEvery: 4 as number | null };
+vi.mock("../../lib/queries", () => ({
+  useBids: () => ({ data: [] }),
+  useSlot: () => ({ data: 1_000 }),
+  useDeployment: () => ({ data: runtime }),
+}));
 vi.mock("../../lib/wallet", () => ({
   useSession: () => ({ account: { address: "BorrowerWa11et1111111111111111111111111111111", chains: [] } }),
 }));
@@ -84,5 +90,33 @@ describe("Positions", () => {
     render(<Positions />);
     expect(screen.getByRole("button", { name: /receive the payout/i })).toBeTruthy();
     expect(screen.queryByText(/listing this dashboard does not know/)).toBeNull();
+  });
+});
+
+describe("the default cadence on an active loan", () => {
+  const active = () => {
+    state.loans.data = { borrowed: [{ address: "L1", data: loan({ status: LoanStatus.Active }) }], lent: [] };
+    return render(<Positions />).container.textContent ?? "";
+  };
+
+  it("states the cadence the running service published", () => {
+    runtime.defaultEvery = 4;
+    expect(active()).toContain("one loan in four is left to mature");
+    runtime.defaultEvery = 8;
+    // The page used to copy `--default-every`'s clap default, so this sentence was false whenever
+    // the market had been started with anything else.
+    expect(active()).toContain("one loan in eight is left to mature");
+  });
+
+  it("says every loan repays when the service was told never to default one", () => {
+    runtime.defaultEvery = 0;
+    expect(active()).toContain("this market repays every loan");
+  });
+
+  it("claims no cadence when nothing published one", () => {
+    runtime.defaultEvery = null;
+    const t = active();
+    expect(t).toContain("some loans are left to mature");
+    expect(t).not.toMatch(/one loan in/);
   });
 });

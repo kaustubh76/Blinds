@@ -16,9 +16,9 @@ import { Badge, Button, Callout, ExplorerLink, Note, Pill } from "../../componen
 import { WalletButton } from "../../components/WalletButton";
 import { config } from "../../config";
 import { describeError } from "../../lib/chain";
-import { formatPrice, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
+import { countWord, displaySymbol, formatPrice, formatRate, formatSlotAge, formatUsdc } from "../../lib/format";
 import { listingByPda } from "../../lib/listings";
-import { useBids, useSlot } from "../../lib/queries";
+import { useBids, useDeployment, useSlot } from "../../lib/queries";
 import { useSession } from "../../lib/wallet";
 import { usePositions } from "./usePositions";
 
@@ -52,6 +52,9 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
   const p = usePositions(account);
   const bids = useBids(p.wallet);
   const slot = useSlot();
+  // Published by the running service, so the sentence below is this market's cadence, not a copy
+  // of a CLI default. `null` when the dashboard is reading the bundled descriptor instead.
+  const defaultEvery = useDeployment().data?.defaultEvery ?? null;
   const err = p.lock.error ?? p.deposit.error ?? p.receiveAccount.error;
   const cluster = config.cluster;
   const borrowed = p.loans.data?.borrowed ?? [];
@@ -114,10 +117,17 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
         </span>
       ) : loan.status === LoanStatus.Active ? (
         // `repay` is admin-signed by design (the magnitude is attested, not proven), so a borrower
-        // cannot repay themselves and the page has to say who can. And the demo leaves every fourth
-        // loan to mature on purpose, so a judge can watch a seize — better said than discovered.
+        // cannot repay themselves and the page has to say who can. Some loans are left to mature on
+        // purpose so a seize can be watched — how often is `--default-every`, which the running
+        // service now publishes; the page used to copy that flag's default and state "one in four"
+        // even when the market had been started with another value, or with none at all.
         <span className="text-xs text-ink-3">
-          the administrator attests repayment; one loan in four is left to mature so a seize can be seen
+          the administrator attests repayment
+          {defaultEvery === null
+            ? "; some loans are left to mature so a seize can be seen"
+            : defaultEvery === 0
+              ? "; this market repays every loan"
+              : `; one loan in ${countWord(defaultEvery)} is left to mature so a seize can be seen`}
         </span>
       ) : role === "lender" && loan.status === LoanStatus.Defaulted && !loan.collateralReleased && bound ? (
         // The payout is that listing's cSTOCK-W; the operator releases it the moment an account exists.
@@ -147,7 +157,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
           <Pill tone={role === "borrower" ? "borrow" : "lend"}>{role === "borrower" ? "borrowing" : "lending"}</Pill>
           {bound && (
             <Pill tone="mute" icon="shield">
-              {bound.symbol.replace(/-mock$/, "")} · {Number(bound.haircutBps) / 100}%
+              {displaySymbol(bound).label} · {Number(bound.haircutBps) / 100}%
             </Pill>
           )}
           <span className="num text-xl font-semibold text-ink-1">{formatRate(loan.tick)}</span>
@@ -277,7 +287,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
           <ul className="grid gap-3">{lent.map((l) => card(l.address, l.data, "lender"))}</ul>
         )}
       </Card>
-      <Card eyebrow="bids on chain" title={`${bids.data?.length ?? 0} sealed`}>
+      <Card eyebrow="bids on chain" title={bids.data ? `${bids.data.length} sealed` : "reading…"}>
         {bids.data && bids.data.length > 0 ? (
           <ul className="grid gap-1.5 text-sm">
             {bids.data

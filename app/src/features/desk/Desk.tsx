@@ -19,7 +19,8 @@ import { WindowClock } from "../../components/WindowClock";
 import { config } from "../../config";
 import { BURNER_WALLET_NAME, createBurner, hasBurner } from "../../lib/burner";
 import { describeError } from "../../lib/chain";
-import { formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
+import { displaySymbol, formatRate, formatShares, formatUsdc, parseUnits } from "../../lib/format";
+
 import { useDeployment, useFaucet, useOracle, usePrices, useSlot } from "../../lib/queries";
 import { useWindowClock } from "../../lib/useWindowClock";
 import { useSession } from "../../lib/wallet";
@@ -171,7 +172,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
     {
       title: "Confidential account",
       state: states[2] as RailState,
-      hint: d.listing?.symbol.replace(/-mock$/, "") ?? "",
+      hint: d.listing ? displaySymbol(d.listing).label : "",
     },
     {
       title: "Wrap collateral",
@@ -245,8 +246,8 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 0 && (
           <StepCard n={1} title="Derive your keys" state={states[0] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              Two signatures — the member key, and your{" "}
-              <b className="text-ink-1">{sel?.symbol.replace(/-mock$/, "")}</b> account. Both stay in this tab.
+              Two signatures — the member key, and your <b className="text-ink-1">{sel && displaySymbol(sel).label}</b>{" "}
+              account. Both stay in this tab.
             </p>
             {d.memberKey.data && (
               <div className="mt-3">
@@ -320,7 +321,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
             {d.accounts.data && (
               <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                 <div className="rounded-[var(--radius-md)] bg-surface-2 p-3">
-                  <dt className="t-eyebrow">{sel?.symbol.replace(/-mock$/, "")} · public</dt>
+                  <dt className="t-eyebrow">{sel && displaySymbol(sel).label} · public</dt>
                   <dd className="mt-1 text-ink-1">
                     {d.accounts.data.mockAmount === null
                       ? "not created yet"

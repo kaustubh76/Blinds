@@ -59,7 +59,9 @@ badge and the coefficient-inside-the-proof line are the two things judges rememb
 ## Do not say these wrong
 
 - The re-verify stepper has **six** stages.
-- The autopilot bids **four ticks — 100 basis points — past the last print** (or 3.00 % if nothing has printed yet).
+- The autopilot bids **four ticks — 100 basis points — past the last print**, and **4.00 %** if nothing
+  has printed yet: the same four ticks are added to the 3.00 % fallback, so 3.00 % is never the rate it
+  seals at. The Desk prints the number; read it off the screen.
 - Seven pages, number keys **1–7**: Home · Desk · Positions · Market · Agent · Explorer · Build.
 - The Explorer's prev/next buttons promise `[` and `]` shortcuts **that do not exist**. Don't reach for them on camera.
 - The lender agent's pool and identity coin are on **mainnet**; the lending desk itself is on devnet.

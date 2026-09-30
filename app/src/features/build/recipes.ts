@@ -7,6 +7,7 @@ import { type Address, isAddress } from "@solana/kit";
 import type * as SDK from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
 import { type DeploymentView, fetchDeployment } from "../../lib/chain";
+import { displaySymbol } from "../../lib/format";
 import { LAUNCH, launchCluster } from "../../lib/launch";
 import { startLive } from "../../lib/live";
 import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
@@ -159,7 +160,7 @@ function markLabels(dep: DeploymentView | null): Choice[] {
   };
   add("prestocks:ANTHROPIC", "prestocks:ANTHROPIC");
   for (const l of dep?.listings ?? [])
-    add(`${l.source}:${l.symbol.replace(/-mock$/, "")}`, `${l.symbol} · ${l.source}`);
+    add(`${l.source}:${displaySymbol(l).label}`, `${l.symbol} · ${l.provider ?? l.source}`);
   return out;
 }
 
@@ -375,7 +376,7 @@ console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new 
       /** This listing's own `max_publish_age_secs` — 48 h for the attested mark, 1 h for the Pyth one. */
       const limitFor = (label: string): string => {
         const [src, sym] = label.split(":");
-        const l = ctx.deployment?.listings.find((d) => d.source === src && d.symbol.replace(/-mock$/, "") === sym);
+        const l = ctx.deployment?.listings.find((d) => d.source === src && displaySymbol(d).label === sym);
         const secs = l?.maxPublishAgeSecs;
         if (!secs) return "the limit in its Listing account";
         return secs >= 3600 ? `${Math.round(secs / 3600)} h` : `${Math.round(secs / 60)} min`;

@@ -7,15 +7,11 @@ import { quoteFreshness } from "@thewindow/solana-sdk";
 import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
 import { Badge, DocLink, ExplorerLink } from "../../components/ui";
+import { bytesToHex } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
 import { useCreditConfig, useDeployment, useMultiplier, useQuote, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
-
-/** Fallback quote-age limit for a descriptor without listings; otherwise listing #0's on-chain `max_publish_age_secs`. */
-export const QUOTE_STALE_AFTER_SECS = 3_600;
-
-const PYTH_SHARD0_TSLAX = "GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY";
 
 export function CollateralMark() {
   const dep = useDeployment();
@@ -27,13 +23,21 @@ export function CollateralMark() {
   const session = nyseSession();
 
   const listing = dep.data?.listings[0];
-  const staleAfter = listing?.maxPublishAgeSecs ?? QUOTE_STALE_AFTER_SECS;
+  // The wrapper feed's freshest push-oracle account on mainnet — the account the keeper itself
+  // reads, found the same way (`fetchFreshest` over shards 0 and 1) rather than named in advance.
+  const wrapper = useUnderlying(listing ? bytesToHex(listing.feedId) : FEEDS["Crypto.TSLAX/USD"]);
+  // No listing means no limit to state. This used to fall back to 3,600 and print it in the footer
+  // as "here", so a descriptor without a schedule was given a rule it had never carried.
+  const staleAfter = listing?.maxPublishAgeSecs ?? null;
   // Both rules the chain applies, not just the quote's own age: a quote can be young and still refused
   // because nobody posted it lately, and this card used to warn only by luck when both were breached.
   const fresh =
     listing && price.data && slot.data !== undefined
       ? quoteFreshness({
-          listing: { maxPriceAge: BigInt(listing.maxPriceAgeSlots), maxPublishAgeSecs: BigInt(staleAfter) },
+          listing: {
+            maxPriceAge: BigInt(listing.maxPriceAgeSlots),
+            maxPublishAgeSecs: BigInt(listing.maxPublishAgeSecs),
+          },
           price: price.data,
           slot: slot.data,
           nowSecs: Math.floor(Date.now() / 1000),
@@ -50,19 +54,28 @@ export function CollateralMark() {
         <span className="flex flex-wrap items-center gap-2">
           {fresh && !fresh.usable && (
             <Badge tone="warn" icon="alert">
-              {quoteStale ? `quote older than ${formatSlotAge(secsToSlots(staleAfter))}` : "posted too long ago"} ·
-              locks refused
+              {quoteStale && staleAfter !== null
+                ? `quote older than ${formatSlotAge(secsToSlots(staleAfter))}`
+                : "posted too long ago"}{" "}
+              · locks refused
             </Badge>
           )}
-          <ExplorerLink address={PYTH_SHARD0_TSLAX} cluster="mainnet-beta">
-            Pyth TSLAX/USD account
-          </ExplorerLink>
+          {wrapper.data ? (
+            <ExplorerLink address={wrapper.data.account} cluster="mainnet-beta">
+              Pyth account · {formatAge(wrapper.data.publishTime)}
+            </ExplorerLink>
+          ) : (
+            <Badge tone="mute" icon={wrapper.isError ? "alert" : undefined}>
+              {wrapper.isError ? "mainnet RPC unreachable" : "no readable Pyth account for this feed"}
+            </Badge>
+          )}
         </span>
       }
       footer={
         <>
-          Two limits, both on chain: how long ago the keeper posted, and the quote&apos;s own age (
-          {formatSlotAge(secsToSlots(staleAfter))} here). <DocLink to="PYTH.md">what the chain enforces →</DocLink>
+          Two limits, both on chain: how long ago the keeper posted, and the quote&apos;s own age
+          {staleAfter !== null && <> ({formatSlotAge(secsToSlots(staleAfter))} here)</>}.{" "}
+          <DocLink to="PYTH.md">what the chain enforces →</DocLink>
         </>
       }
     >

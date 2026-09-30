@@ -298,10 +298,16 @@ fn main() -> Result<()> {
                     join_chain.send(admin, &ixs, &[]).map_err(|e| bad(e.to_string()))?;
                 Ok(JoinOutcome { signature: Some(signature), already_member: false })
             });
+            // The served descriptor carries what this *run* was started with, beside what `setup`
+            // wrote. `default_every` is a flag nothing published, so the dashboard stated "one loan
+            // in four" from a copy of its clap default — run with `--default-every 8` and that
+            // sentence on a judge's own page was simply false.
+            let mut served = serde_json::to_value(&deployment)?;
+            served["runtime"] = serde_json::json!({ "default_every": default_every });
             metrics::serve(
                 metrics.clone(),
                 metrics_port,
-                serde_json::to_string(&deployment)?,
+                serde_json::to_string(&served)?,
                 Some(join),
                 Some(faucet_status),
             );

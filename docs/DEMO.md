@@ -39,8 +39,8 @@ explicitly: both are environment-backed arguments, so a shell that has sourced `
 `127.0.0.1:8899` and `:9090` by itself — but it refuses to start on a stale `sdk/dist`, so run §A first.
 
 Expect the first window or two to print `no trade`: on a fresh ledger nothing has printed, so the
-autopilot falls back to 3.00 % while the simulated lenders ask higher, and they do not cross. Once one
-window has printed it bids past that rate and clears. A field animates behind every page; it is off under
+autopilot bids its fallback plus the same four-tick margin — 4.00 % — while the simulated lenders ask
+higher, and they do not cross. Once one window has printed it bids four ticks past that rate and clears. A field animates behind every page; it is off under
 the system's reduced-motion setting, toggleable in Settings → **Background motion**, and off for one page
 load with `?motion=off` placed **before** the hash.
 

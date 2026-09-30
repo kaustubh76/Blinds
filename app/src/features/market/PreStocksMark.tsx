@@ -10,7 +10,8 @@ import { Card } from "../../components/Card";
 import { Stat } from "../../components/Stat";
 import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
-import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
+import { displaySymbol, formatAge, formatPrice, formatSlotAge } from "../../lib/format";
+
 import { basisBps, formatBasis } from "../../lib/pyth";
 import { type MarkSnapshot, useDeployment, useMainnetMint, useMarks, useQuote, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
@@ -64,7 +65,7 @@ export function PreStocksMark({ focus = false }: { focus?: boolean } = {}) {
   const implied = snap?.implied_e8 != null ? { price: BigInt(snap.implied_e8), expo: -8 } : null;
   const mark = snap ? { price: BigInt(snap.mark_e8), expo: -8 } : null;
   const basis = implied && mark ? basisBps(implied, mark) : null;
-  const symbol = listing?.symbol.replace(/-mock$/, "") ?? "ANTHROPIC";
+  const symbol = listing ? displaySymbol(listing).label : "ANTHROPIC";
   /** A company-scale figure: trillions, billions or millions, whichever reads. */
   const usdBig = (v: number) =>
     v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` : v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : `$${(v / 1e6).toFixed(0)}M`;

@@ -22,12 +22,6 @@ export interface JourneyStep {
   commands?: readonly string[];
 }
 
-/**
- * The key that pays for the mainnet pool. It comes from the mainnet plan record (`payer`, written by
- * `services/launch plan`); the literal is only the fallback for a checkout without that record.
- */
-export const LAUNCH_KEY_FALLBACK = "3bku8abYECxZxfoXDsTjcCCBv7JMF6BKTREeJLeVDnJX";
-
 export function journey(
   devnet: LaunchRecord | null,
   mainnet: LaunchRecord | null,
@@ -39,7 +33,9 @@ export function journey(
   const past = mainnet?.previousGraduation ?? devnet?.previousGraduation ?? null;
   const coin = mainnet?.clawpump ?? devnet?.clawpump ?? null;
   const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
-  const launchKey = mainnet?.payer ?? MAINNET_PLAN?.payer ?? LAUNCH_KEY_FALLBACK;
+  // The key that pays for the mainnet pool, from whichever record exists — never a literal: a
+  // hardcoded address would keep naming a key after the record that justified it had gone.
+  const launchKey = mainnet?.payer ?? MAINNET_PLAN?.payer ?? null;
   const steps: JourneyStep[] = [
     agent
       ? {
@@ -91,8 +87,10 @@ export function journey(
           id: "mainnet",
           title: "The mainnet pool, quoted in TSLAx",
           state: "blocked",
-          detail: `waits on ~0.05 SOL at ${short(launchKey)} · nothing is sent below 0.04`,
-          href: `https://explorer.solana.com/address/${launchKey}`,
+          detail: launchKey
+            ? `waits on ~0.05 SOL at ${short(launchKey)} · nothing is sent below 0.04`
+            : "waits on services/launch plan, which names and funds the paying key",
+          href: launchKey ? `https://explorer.solana.com/address/${launchKey}` : undefined,
           commands: ["launch-plan", "launch-preflight", "launch-create"],
         },
     coin

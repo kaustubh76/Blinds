@@ -70,7 +70,10 @@ export function Home() {
       <section className="brand-wash grid gap-8 rounded-[var(--radius-xl)] border border-line bg-surface-1 px-6 py-8 sm:px-10 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:items-center">
         <div className="animate-rise">
           <Pill tone="accent" icon="sparkles">
-            live on Solana devnet · one rate, two collaterals
+            live on Solana devnet · one rate,{" "}
+            {listings.length
+              ? `${countWord(listings.length)} collateral${listings.length === 1 ? "" : "s"}`
+              : "a schedule of collaterals"}
           </Pill>
           <h1 className="t-display mt-4 text-ink-1">
             Borrow against tokenized stock.

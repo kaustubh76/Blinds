@@ -178,7 +178,7 @@ function CurveFromDesk({ live }: { live: ReturnType<typeof useLaunch>["data"] })
     [
       "opening value",
       `${usd(n.initialUsd)} fully diluted ÷ the quote stock's price`,
-      `${fmtQ(n.initialMarketCapQuote)} at ${usd(q.usd)} — the launch-time quote (Pyth ${q.feed ?? "Crypto.TSLAX/USD"}, ${launchDay})`,
+      `${fmtQ(n.initialMarketCapQuote)} at ${usd(q.usd)} — the launch-time quote (${q.feed ? `Pyth ${q.feed}` : "Pyth"}, ${launchDay})`,
     ],
     [
       "raise target",

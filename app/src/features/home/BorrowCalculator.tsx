@@ -20,7 +20,7 @@ import { useState } from "react";
 import { Icon } from "../../components/Icon";
 import { Button, Pill } from "../../components/ui";
 import type { ListingView } from "../../lib/chain";
-import { formatPrice, formatRate, formatShares } from "../../lib/format";
+import { displaySymbol, formatPrice, formatRate, formatShares } from "../../lib/format";
 import { sourceLabel } from "../../lib/listings";
 import { useMultiplier, useSlot } from "../../lib/queries";
 
@@ -139,7 +139,7 @@ export function BorrowCalculator({
                     on ? "border-accent bg-accent-soft/50" : "border-line hover:border-line-strong"
                   }`}
                 >
-                  <span className="font-medium text-ink-1">{l.symbol.replace(/-mock$/, "")}</span>
+                  <span className="font-medium text-ink-1">{displaySymbol(l).label}</span>
                   <span className="flex items-center gap-2 text-xs text-ink-3">
                     {p ? formatPrice(p.price, p.expo) : "—"}
                     <Pill tone="mute">{Number(l.haircutBps) / 100}%</Pill>

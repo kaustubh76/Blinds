@@ -79,3 +79,14 @@ export function formatSlotAge(slots: number): string {
   if (m < 120) return `${m} min`;
   return `${Math.floor(m / 60)} h`;
 }
+
+/**
+ * A listing's symbol as a reader should see it: the chain's own bytes, and separately whether they
+ * end in the `-mock` suffix that marks a devnet twin. The suffix used to be stripped silently in
+ * eight places, which put a bare `TSLAx` beside a live-looking price with nothing nearby saying the
+ * mint is a twin of the real one. Callers with room render `twin`; the rest still read cleanly.
+ */
+export function displaySymbol(l: { symbol: string }): { label: string; twin: boolean } {
+  const twin = l.symbol.endsWith("-mock");
+  return { label: twin ? l.symbol.slice(0, -5) : l.symbol, twin };
+}
