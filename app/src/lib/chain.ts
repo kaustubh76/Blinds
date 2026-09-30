@@ -49,6 +49,10 @@ export interface RawListing {
   source: string;
   /** An attested mark's provider (`prestocks`, `jupiter`) — the label its feed id is seeded on. */
   provider?: string;
+  /** The real mainnet mint this listing's devnet twin mirrors, and the one the provider prices. */
+  source_mint?: string;
+  /** That token's own symbol, which is not the twin's (the twin carries a suffix). */
+  source_symbol?: string;
   listing: string;
   mock_mint: string;
   cstock_mint: string;
@@ -77,6 +81,13 @@ export interface ListingView {
    * would name the wrong company.
    */
   provider: string | null;
+  /**
+   * The real mainnet mint this twin mirrors, as the descriptor records it. The card that shows it
+   * used to carry the address as a constant of its own, which a second listing made untenable.
+   */
+  sourceMint: Address | null;
+  /** The real token's own symbol — a page showing the mainnet supply must not use the twin's name. */
+  sourceSymbol: string | null;
   listing: Address;
   mockMint: Address;
   cstockMint: Address;
@@ -130,6 +141,8 @@ function listingView(l: RawListing): ListingView {
     symbol: l.symbol,
     source: l.source,
     provider: l.provider ?? null,
+    sourceMint: l.source_mint ? address(l.source_mint) : null,
+    sourceSymbol: l.source_symbol ?? null,
     listing: address(l.listing),
     mockMint: address(l.mock_mint),
     cstockMint: address(l.cstock_mint),

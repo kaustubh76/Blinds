@@ -135,6 +135,42 @@ export const useMainnetMint = (address: string | undefined) =>
   });
 
 /** What the keeper last read from an attested mark's API: the mark it posted and the implied price it did not. */
+/**
+ * Jupiter's public price for one mint, read **straight from this browser**. Unlike PreStocks, whose
+ * API sends no CORS header and therefore needs this site's own serverless read, Jupiter answers a
+ * page origin directly — so the traded price and the basis survive with no keeper running and no
+ * dependency on another deployment. Keyless; `null` when it does not answer, never a guess.
+ */
+export const useJupiterMark = (mint: string | null | undefined) =>
+  useQuery<{ usd: number; stock: number | null; mcap: number | null; fetchedAt: number } | null>({
+    queryKey: ["jupiter-mark", mint ?? ""],
+    queryFn: async () => {
+      if (!mint) return null;
+      try {
+        const res = await fetch(`https://lite-api.jup.ag/price/v3?ids=${mint}`, {
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return null;
+        const row = (await res.json())?.[mint];
+        const usd = Number(row?.usdPrice);
+        if (!Number.isFinite(usd) || usd <= 0) return null;
+        const stock = Number(row?.stockData?.price);
+        const mcap = Number(row?.stockData?.mcap);
+        return {
+          usd,
+          stock: Number.isFinite(stock) && stock > 0 ? stock : null,
+          mcap: Number.isFinite(mcap) && mcap > 0 ? mcap : null,
+          fetchedAt: Math.floor(Date.now() / 1000),
+        };
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!mint,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+
 export interface MarkSnapshot {
   key: string;
   symbol: string;

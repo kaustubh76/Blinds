@@ -1,5 +1,5 @@
 /** Market: the benchmark, the window, the series, the last curve, and how a print is made. */
-import { cumulative, depthFromPrint, PrintStatus } from "@thewindow/solana-sdk";
+import { cumulative, depthFromPrint, PriceSource, PrintStatus } from "@thewindow/solana-sdk";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icon";
@@ -13,13 +13,17 @@ import { formatBps, formatRate, formatSlotAge, formatUsdc } from "../../lib/form
 import { useDeployment, useOracle, usePrint, useSeries, useSlot } from "../../lib/queries";
 import { popcount, useWindowClock } from "../../lib/useWindowClock";
 import { DepthChart } from "../explorer/DepthChart";
+import { AttestedMark } from "./AttestedMark";
 import { CollateralMark } from "./CollateralMark";
 import { CollateralSchedule } from "./CollateralSchedule";
 import { LenderAgent } from "./LenderAgent";
-import { PreStocksMark } from "./PreStocksMark";
 import { SeriesChart } from "./SeriesChart";
 
-/** `focus` is the route's parameter: `#/market/lender` scrolls to the lender agent's card, `#/market/prestocks` to the PreStocks mark. */
+/**
+ * `focus` is the route's parameter: `#/market/lender` scrolls to the lender agent's card, and a
+ * provider's own name — `#/market/prestocks`, `#/market/jupiter` — to that attested mark. One card
+ * per attested mark, in schedule order, so a listing added to the profile appears here by itself.
+ */
 export function Market({ focus }: { focus?: string | undefined } = {}) {
   const dep = useDeployment();
   const oracle = useOracle();
@@ -169,7 +173,11 @@ export function Market({ focus }: { focus?: string | undefined } = {}) {
       {/* The collateral schedule, then listing #0's mark beside the underlying equity feed. */}
       <CollateralSchedule />
       <CollateralMark />
-      <PreStocksMark focus={focus === "prestocks"} />
+      {(dep.data?.listings ?? [])
+        .filter((l) => l.priceSource === PriceSource.Mark)
+        .map((l) => (
+          <AttestedMark key={l.key} listing={l} focus={focus === l.provider} />
+        ))}
       <LenderAgent focus={focus === "lender"} />
       <LiveEvents />
       {dep.data && !dep.data.faucet && config.cluster === "devnet" && (

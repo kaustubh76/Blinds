@@ -40,6 +40,16 @@ pub struct ListingRecord {
     /// for a Pyth or mock listing, and for a mark recorded before providers were distinguished.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// The real mainnet mint this listing's devnet twin mirrors, and the one the provider is asked
+    /// about. Recorded so a reader can check the twin against the thing itself without the
+    /// dashboard carrying a mint address of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_mint: Option<String>,
+    /// The real token's own symbol, which is not the twin's: the twin carries a suffix so the two
+    /// can be told apart on chain, and a page showing the mainnet mint's supply should not label it
+    /// with the devnet name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_symbol: Option<String>,
     /// The `Listing` PDA.
     pub listing: String,
     pub mock_mint: String,
