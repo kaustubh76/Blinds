@@ -68,6 +68,11 @@ enum Cmd {
     /// Fetch every listing's price from its configured source and print it — no transaction. Use
     /// it to verify `PYTH_API_KEY` and the sponsor APIs before starting the market.
     PriceCheck,
+    /// Post every listing's price once and exit — one transaction per listing, no epoch opened and
+    /// no market started. What a listing added by `listings-sync` needs before `pnpm schedule` can
+    /// call it usable: a `PriceCache` has to exist before anything reads it. Costs a few thousand
+    /// lamports rather than an epoch's rent.
+    PricePost,
     /// Bring the deployment up to the profile's collateral schedule: register listing #0 from
     /// Config's own collateral (its price cache keeps its history) and create the others.
     ListingsSync,
@@ -513,6 +518,33 @@ fn main() -> Result<()> {
                         Some((owner, _)) => println!("[{}] on-cluster Pyth account {account} is owned by {owner}, not the receiver", l.symbol),
                         None => println!("[{}] on-cluster Pyth account {account} (shard {shard}) does not exist — start services/pyth-poster", l.symbol),
                     }
+                }
+            }
+        }
+        Cmd::PricePost => {
+            let deployment = Deployment::load(&root, &cli.cluster)?;
+            let slot = chain.slot()?;
+            let mut prices = price_sources(&profile, &deployment)?;
+            let ctx = Ctx {
+                chain: Box::new(RpcChain::new(&rpc)),
+                keys,
+                profile: profile.clone(),
+                deployment,
+                metrics: metrics.clone(),
+                backfill_epochs: 0,
+                default_every: 0,
+            };
+            // `force`: post regardless of how recently a cache was written, because the point of
+            // this command is to create one or refresh it now.
+            keeper::post_prices(&ctx, &mut prices, slot, true)?;
+            for rec in &ctx.deployment.listings {
+                match window_admin::quote::read_quote(ctx.chain.as_ref(), rec) {
+                    Ok(Some(q)) => println!(
+                        "{} {} price {} expo {} publish_time {} posted_slot {}",
+                        rec.key, rec.symbol, q.price, q.expo, q.publish_time, q.posted_slot
+                    ),
+                    Ok(None) => println!("{} {} no quote account", rec.key, rec.symbol),
+                    Err(e) => println!("{} {} unreadable: {e:#}", rec.key, rec.symbol),
                 }
             }
         }

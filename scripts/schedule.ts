@@ -35,7 +35,8 @@ let usable = 0;
 for (const { address, data: l } of listings) {
   const price = await withRpcRetry(() => fetchPrice(rpc, new Uint8Array(l.feedId)));
   const source = PRICE_SOURCE_NAMES[l.priceSource] ?? `source ${l.priceSource}`;
-  const head = `${symbolOf(l).padEnd(16)} ${address}  ${source}${isAttestedMark(l.priceSource) ? " (attested mark)" : ""}  haircut ${Number(l.haircutBps) / 100}%`;
+  const attested = isAttestedMark(l.priceSource) ? " (publish_time = the keeper's fetch)" : "";
+  const head = `${symbolOf(l).padEnd(16)} ${address}  ${source}${attested}  haircut ${Number(l.haircutBps) / 100}%`;
   if (!price) {
     console.log(`${head}\n  no PriceCache yet for feed ${hex(l.feedId).slice(0, 8)}… → not usable\n`);
     continue;
