@@ -65,7 +65,7 @@ export function CollateralMark() {
               Pyth account · {formatAge(wrapper.data.publishTime)}
             </ExplorerLink>
           ) : (
-            <Badge tone="mute" icon={wrapper.isError ? "alert" : undefined}>
+            <Badge tone="mute" {...(wrapper.isError ? ({ icon: "alert" } as const) : {})}>
               {wrapper.isError ? "mainnet RPC unreachable" : "no readable Pyth account for this feed"}
             </Badge>
           )}
