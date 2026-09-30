@@ -23,6 +23,21 @@ pub struct Administrator {
     solver: Solver,
 }
 
+/// How often the administrator thread runs: `WINDOW_ADMIN_TICK_MS` when set, else 10 s, but never
+/// slower than a quarter of the repay window.
+///
+/// `attest_lifecycle` repays a loan between half its tenor and its deadline, so that window is
+/// `tenor_slots / 2` — about four seconds under the INTEGRATION profile's 20-slot tenor. Against a
+/// fixed 10 s tick the administrator could not hit it at all: every loan matured first and the
+/// keeper seized it, so tier 2's lifecycle test waited for a repayment that was never coming. The
+/// same clamp the price thread applies to a listing's window, for the same reason.
+///
+/// 400 ms is the slower end of every cluster we run on, so this errs toward ticking more often.
+pub fn cadence_ms(tenor_slots: u64, override_ms: Option<u64>) -> u64 {
+    let repay_window_ms = (tenor_slots.saturating_mul(400) / 2).max(1_000);
+    override_ms.unwrap_or(10_000).min((repay_window_ms / 4).max(250))
+}
+
 impl Administrator {
     pub fn new(baby_bits: u8) -> Self {
         let t = Instant::now();
@@ -33,6 +48,15 @@ impl Administrator {
 
     pub fn tick(&self, ctx: &Ctx) -> Result<()> {
         let chain = ctx.chain.as_ref();
+        // Lifecycle first. A repayment is time-critical — the keeper seizes a loan the moment it
+        // matures — while a print is not: an epoch stays Closed until one happens. Running it after
+        // the epoch loop meant a slow print could push the repay past the deadline.
+        //
+        // Warned, not propagated: the two branches below already treat their own failures that way,
+        // and going first must not mean a loan scan that errors takes the print with it.
+        if let Err(err) = self.attest_lifecycle(ctx) {
+            warn!("lifecycle attestation failed: {err:#}");
+        }
         let disc = accounts::discriminator::<Epoch>();
         let mut epochs: Vec<Epoch> = chain
             .program_accounts(&window_client::programs::AUCTION, &disc)?
@@ -58,7 +82,6 @@ impl Administrator {
                 _ => {}
             }
         }
-        self.attest_lifecycle(ctx)?;
         Ok(())
     }
 
@@ -308,3 +331,41 @@ pub fn solver(baby_bits: u8) -> Solver {
 
 #[allow(dead_code)]
 fn _print_type_check(_: &Print) {}
+
+#[cfg(test)]
+mod cadence_tests {
+    use super::cadence_ms;
+
+    #[test]
+    fn a_fast_profile_ticks_inside_its_own_repay_window() {
+        // INTEGRATION: tenor 20 slots ≈ 8 s, so the repay window is ~4 s. A 10 s tick could not hit
+        // it at all — every loan matured first and was seized, and tier 2 waited for a repayment
+        // that was never coming.
+        assert_eq!(cadence_ms(20, None), 1_000);
+        // DEMO: tenor 150 slots ≈ 60 s, repay window ~30 s.
+        assert_eq!(cadence_ms(150, None), 7_500);
+    }
+
+    #[test]
+    fn a_real_profile_keeps_the_default() {
+        // devnet 2,700 and prod 54,000: the window is minutes, so the clamp must not make four
+        // threads poll a shared endpoint faster than they need to.
+        assert_eq!(cadence_ms(2_700, None), 10_000);
+        assert_eq!(cadence_ms(54_000, None), 10_000);
+    }
+
+    #[test]
+    fn an_override_is_still_held_to_the_window() {
+        // An operator may tick faster, never slower than the profile can afford.
+        assert_eq!(cadence_ms(20, Some(200)), 200);
+        assert_eq!(cadence_ms(20, Some(30_000)), 1_000);
+        assert_eq!(cadence_ms(2_700, Some(3_000)), 3_000);
+    }
+
+    #[test]
+    fn a_degenerate_tenor_still_yields_a_sane_tick() {
+        assert_eq!(cadence_ms(0, None), 250);
+        assert_eq!(cadence_ms(1, None), 250);
+        assert!(cadence_ms(u64::MAX, None) == 10_000, "no overflow, no zero tick");
+    }
+}

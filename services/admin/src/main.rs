@@ -405,11 +405,23 @@ fn main() -> Result<()> {
             }
             // The administrator on its own clock too: a window that closes on time is no use if the
             // print and the matches then wait behind a loan scan. Same pattern as prices and epochs.
+            //
+            // And clamped against the tenor for the same reason the price tick is clamped against a
+            // listing's window. `attest_lifecycle` repays a loan between half its tenor and its
+            // deadline, so that window is `tenor_slots / 2` — about four seconds in the INTEGRATION
+            // profile's 20-slot tenor. Against a fixed 10 s tick the administrator could not hit it
+            // at all: every loan matured first and the keeper seized it, so tier 2's lifecycle test
+            // waited for a repayment that was never going to come. Four chances inside the window.
             {
-                let admin_tick_ms: u64 = std::env::var("WINDOW_ADMIN_TICK_MS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(10_000);
+                let admin_tick_ms = window_admin::administrator::cadence_ms(
+                    profile.market.tenor_slots,
+                    std::env::var("WINDOW_ADMIN_TICK_MS").ok().and_then(|v| v.parse().ok()),
+                );
+                info!(
+                    admin_tick_ms,
+                    tenor_slots = profile.market.tenor_slots,
+                    "administrator cadence"
+                );
                 let admin_ctx = Ctx {
                     chain: Box::new(RpcChain::new(&rpc)),
                     keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
