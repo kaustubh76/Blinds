@@ -23,7 +23,18 @@ import {
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
 import { balances, bidsTogether, SHARES, wrap } from "./flows";
-import { airdrop, auditorPubkey, listings, type Member, newMember, onboard, rentFor, rpc, waitFor } from "./harness";
+import {
+  airdrop,
+  auditorPubkey,
+  cstockMint,
+  listings,
+  type Member,
+  newMember,
+  onboard,
+  rentFor,
+  rpc,
+  waitFor,
+} from "./harness";
 
 const BORROW = 500_000_000n; // 500 USDC
 const LEND = 50_000_000_000n;
@@ -51,7 +62,16 @@ describe("a second listing of the collateral schedule", () => {
     expect(Array.from(l.feedId)).toEqual(Array.from(second.feedId));
     expect(l.escrowAccount).toBe(second.escrow);
     expect(l.cstockMint).toBe(second.cstockMint);
-    // both listings are priced by the keeper
+    // What is actually distinct between the two listings. The feed id is not: a `PriceCache` is
+    // seeded on `["price", feed_id]`, and both listings in this profile are `source = "mock"`, which
+    // carries the documented all-zero id — so they share one cache by design. Asserting the ids
+    // match was comparing all-zeros to all-zeros and would have passed on a genuine collision too.
+    expect(Array.from(l.feedId)).toEqual(new Array(32).fill(0));
+    const first = await fetchListing(rpc, cstockMint);
+    expect(first).not.toBeNull();
+    expect(l.haircutBps).not.toBe(first?.haircutBps);
+    expect(l.escrowAccount).not.toBe(first?.escrowAccount);
+    // both listings are priced by the keeper — through the one cache they share here
     const price = await waitFor("listing #1 price", () => fetchPrice(rpc, second.feedId));
     expect(price.price).toBeGreaterThan(0n);
   });

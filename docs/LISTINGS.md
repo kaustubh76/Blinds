@@ -9,14 +9,14 @@ untouched by which collateral a borrower pledges. (Amendment A14; track record i
 ```
 Listing  ["listing", cstock_mint]
   mock_mint · cstock_mint · escrow_account       the public twin, its confidential wrapper, the operator's escrow
-  feed_id[32]                                    Pyth id · sha256("<source>:<symbol>") label · all-zero (mock)
-  price_source                                   0 Pyth (keeper cache) · 1 reserved (a retired mark) · 2 PreStocks mark · 3 mock walk
+  feed_id[32]                                    Pyth id · sha256("<provider>:<symbol>") label · all-zero (mock)
+  price_source                                   0 Pyth (keeper cache) · 1 reserved (a retired mark) · 2 an attested mark · 3 mock walk
                                                  4 Pyth's own receiver-owned account, read by the program
   haircut_bps                                    collateral value ≥ haircut × loan
   max_price_age                                  slots since the keeper posted (liveness)
   max_publish_age_secs                           seconds since the quote's own publish_time (freshness)
   symbol[16] · decimals
-PriceCache ["price", feed_id]                    one per listing (sources 0–3); publish_time stored unmodified
+PriceCache ["price", feed_id]                    one per *feed id* (sources 0–3); publish_time stored unmodified
 PriceUpdateV2 (owner rec5EK…)                    source 4: Pyth's account at [pyth_shard, feed_id] under pythWSns…
 Loan.listing                                     bound at lock_collateral
 ```
@@ -37,8 +37,9 @@ instruction prices from them any more.
 
 | Listing | Source | `feed_id` | Haircut | Quote limit | What the timestamp means |
 |---|---|---|---|---|---|
-| `TSLAx-mock` | Pyth `Crypto.TSLAX/USD`: Hermes with `PYTH_API_KEY`, Pyth's on-chain accounts as fallback; with the poster running, source 4 — Pyth's own account on devnet (`pyth_shard = 7001` → `JBDgVnqW…`) | `0x47a15647…a362` | 150 % | 1 h | the publisher's own `publish_time` |
+| `TSLAx-mock` | Pyth `Crypto.TSLAX/USD`: Hermes with `PYTH_API_KEY`, Pyth's on-chain accounts as fallback; with the poster running, source 4 — Pyth's own account on devnet (`pyth_shard = 7001` → `JBDgVnqW…`). **Refuses locks today**: every keyless route is stale and Hermes is keyed ([`PYTH.md`](PYTH.md)) | `0x47a15647…a362` | 150 % | 1 h | the publisher's own `publish_time` |
 | `ANTHROPIC-mock` | PreStocks `GET /api/prestocks`, element `contract_address = Pren1FvF…`, field `markPrice` | `sha256("prestocks:ANTHROPIC")` | 200 % | 48 h | the keeper's fetch time (attested) |
+| `TSLAx-xs` | Jupiter `GET /price/v3?ids=XsDoVfqe…`, keyed by the real mainnet mint, field `usdPrice`; `stockData.price` beside it is the underlying stock | `sha256("jupiter:TSLAx")` | 150 % | 1 h | the keeper's fetch time (attested) |
 
 The `-mock` mints are devnet twins: Token-2022 `ScaledUiAmount` + `PermanentDelegate`, wrapped 1:1 by
 `window_wrap` into a confidential mint under the desk's auditor key. No mainnet token is touched.
@@ -77,13 +78,18 @@ wrong action.
   posts it to Pyth's receiver on devnet every minute; started by `market.sh start` when `PYTH_API_KEY` is
   set. `window-admin listing-set-source <key> 4` flips a listing to read that account, refusing while the
   account is missing or stale; `listing-set-source <key> 0` flips it back to the keeper's cache.
+- **Posting a price once**: `window-admin price-post` posts every listing's price and exits — no epoch,
+  no market, one transaction per listing. A listing created by `listings-sync` has no `PriceCache` until
+  something posts to it, so until then the chain calls it unusable; this is how to make it usable for a
+  thousandth of what the shortest market window costs.
 - **Setup / upgrade**: `window-admin setup` creates every profile listing; on an existing deployment,
   `window-admin listings-sync` registers listing #0 from `Config`'s own mints/escrow/feed id (so its price
   cache keeps its history) and creates the rest, and `window-admin migrate-loans` resizes the pre-schedule
   loans. `scripts/upgrade_devnet.sh` runs the whole devnet upgrade: extend `programdata` if needed →
   deploy `window_credit` → sync → migrate.
 - **Descriptor** (`deployments/<cluster>.json`): `listings[]` (key, symbol, source, PDA, mints, escrow,
-  feed id, limits; `price_account` once a Pyth account is named, `price_source` once a listing is flipped —
+  feed id, limits, `provider`, `source_mint` and `source_symbol` for an attested mark; `price_account`
+  once a Pyth account is named, and `price_source` always since A16 —
   absent means "derived from `source`") and `agents[].listing`; the legacy top-level fields mirror
   `listings[0]`. The dashboard reads a listing's quote from the account the program reads (`fetchQuotes`),
   which is why the descriptor, not the on-chain `Listing`, carries `price_account`.

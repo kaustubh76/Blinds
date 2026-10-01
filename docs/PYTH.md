@@ -31,6 +31,10 @@ underlying equity is doing.
 | `Crypto.TSLAX/USD` (`0x47a15647…a362`) | the collateral mark for `TSLAx-mock`, listing #0 | 24/7 |
 | `Equity.US.TSLA/USD` (`0x16dad506…32f1`) | the underlying, shown beside it with the **wrapper basis** in bp and the NYSE session state | 09:30–16:00 ET, Mon–Fri |
 
+These are the two **Pyth** feeds. The desk also marks the same stock a third way, from the price the
+real mainnet mint trades at, which is not a Pyth feed and does not claim to be — see
+[`LISTINGS.md`](LISTINGS.md). It exists because of what the section below measures.
+
 The overnight window opens exactly when the equity market closes. That is why the wrapper feed — the
 one that keeps publishing through the night and the weekend — is the mark, and why the equity feed is
 shown for comparison rather than used for margin.
@@ -106,6 +110,13 @@ The fallback has since gone too. Read from mainnet with the push-oracle PDAs thi
 That last account was **12 seconds** old when `deployments/launch-mainnet.json` was written on 25 Sep; it
 stopped on the 28th. And `hermes.pyth.network` — along with `hermes-beta` — now answers **401**, so there is
 no keyless route to a signed update either.
+
+**It is not that these two feeds died.** Enumerated 2026-10-01 over the receiver program
+(`getProgramAccounts` on `rec5EKMG…`, every `PriceUpdateV2` decoded): **11,407 accounts exist and only
+65 distinct feeds are still being pushed** — all crypto, none equity, neither of ours among them.
+Pyth has narrowed the set it sponsors on mainnet, so there is no keyless route to *any* tokenized
+stock, not just to this one. Reproduce it the same way: derive nothing, read every account the
+receiver owns and sort by `publish_time`.
 
 Consequences, all of them honest rather than worked around:
 

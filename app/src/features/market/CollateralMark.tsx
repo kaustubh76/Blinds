@@ -9,6 +9,7 @@ import { Stat } from "../../components/Stat";
 import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { bytesToHex } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
+import { byProvider } from "../../lib/listings";
 import { basisBps, FEEDS, formatBasis, nyseSession, useUnderlying } from "../../lib/pyth";
 import { useCreditConfig, useDeployment, useMultiplier, useQuote, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
@@ -17,12 +18,15 @@ export function CollateralMark() {
   const dep = useDeployment();
   const credit = useCreditConfig();
   const slot = useSlot();
-  const price = useQuote(dep.data?.listings[0]);
-  const mult = useMultiplier(dep.data?.mockMint);
+  // The Pyth-marked listing, found by what the chain says it is rather than by its position. This
+  // card is titled "Pyth" and read `listings[0]`, which is the Pyth listing today and need not stay
+  // so — the schedule's order is a profile's choice, and `useSelectedListing` already stopped
+  // trusting it.
+  const listing = byProvider(dep.data?.listings ?? [], "pyth");
+  const price = useQuote(listing);
+  const mult = useMultiplier(listing?.mockMint ?? dep.data?.mockMint);
   const underlying = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
   const session = nyseSession();
-
-  const listing = dep.data?.listings[0];
   // The wrapper feed's freshest push-oracle account on mainnet — the account the keeper itself
   // reads, found the same way (`fetchFreshest` over shards 0 and 1) rather than named in advance.
   const wrapper = useUnderlying(listing ? bytesToHex(listing.feedId) : FEEDS["Crypto.TSLAX/USD"]);
@@ -130,7 +134,10 @@ export function CollateralMark() {
         />
         <Stat
           label="haircut"
-          value={credit.data ? `${Number(credit.data.haircutBps) / 100}%` : "—"}
+          // This listing's own, not `Config`'s. They agree at 150 % today, and `update_listing` can
+          // retune a listing's haircut without touching the frozen Config — at which point the card
+          // would have gone on printing a number the chain no longer applies here.
+          value={listing ? `${Number(listing.haircutBps) / 100}%` : "—"}
           hint={credit.data ? `tenor ${formatSlotAge(Number(credit.data.tenorSlots))}` : undefined}
         />
         <Stat

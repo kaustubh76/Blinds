@@ -95,6 +95,20 @@ transport failures — a transaction the cluster rejected is never sent twice, a
 same signature so the cluster de-duplicates it. A dedicated endpoint is still the better answer; the
 backoff is what keeps a window from being lost while you find one.
 
+### 2d. A mark without a market
+
+A listing created by `listings-sync` has no `PriceCache` until something posts to it, and the chain
+calls a listing with no cache unusable. Starting a market to create one costs an epoch's rent; this
+does not:
+
+```bash
+window-admin --cluster devnet --profile devnet price-post   # every listing once, then exit
+```
+
+One transaction per listing, no epoch opened, no services left running — about 0.001 SOL for the
+whole schedule. The marks go stale again within `max_price_age_slots` (~3.4 min at devnet's pace), so
+this is how you make a listing usable and check it, not how you keep a desk live for a demo.
+
 ## 2b. Presenting
 
 [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) is the 2–3 minute walkthrough: what to click, what to say, the

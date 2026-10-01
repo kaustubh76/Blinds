@@ -52,7 +52,8 @@ Solvency is one homomorphic statement — `(price × multiplier) · E_collateral
 — proven against a public mark, with the corporate-action multiplier inside the check. No fresh
 price means no lock and no seizure. The desk's answer to a dead oracle is inaction, never a stale
 number: today the Pyth-marked TSLAx listing refuses locks on the live site, because Pyth's own
-account for that feed has not updated in seven days, and the card says so.
+account for that feed stopped being pushed — one of 11,342 that Pyth no longer updates on mainnet,
+measured 2026-10-01 — and the card says so, with the age it reads at the moment you look.
 
 ## First users, in order
 

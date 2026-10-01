@@ -33,7 +33,7 @@ source, haircut and freshness limits; the xONIA rate, the sealed-bid window and 
 Listing ["listing", cstock_mint]  { mock_mint, cstock_mint, escrow_account, feed_id[32],
                                     price_source (0 Pyth cache · 1 reserved/retired · 2 PreStocks · 3 mock · 4 Pyth's own account),
                                     haircut_bps, max_price_age (slots), max_publish_age_secs, symbol[16], decimals }
-PriceCache ["price", feed_id]     { feed_id, price, expo, publish_time, posted_slot, posts }   — one per listing
+PriceCache ["price", feed_id]     { feed_id, price, expo, publish_time, posted_slot, posts }   — one per feed id
 Loan.listing                      bound at lock_collateral; deposit / seize / release check it
 ```
 
