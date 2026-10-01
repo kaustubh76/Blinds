@@ -45,6 +45,35 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # What a visitor actually gets, checked after it is live. The browser drivers are the only thing
+  # that would have caught a card rendering nothing or a route throwing, and until now they ran in no
+  # workflow at all. This one is advisory: it reads a deployed site over the public internet and a
+  # rate-limited RPC, so a red here means "go look", not "the commit is bad" — the blocking checks
+  # live in ci.yml, which never touches a network it does not control.
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile --prod=false
+      - run: npx --yes @puppeteer/browsers install chrome@stable
+      - name: every route renders, with no page error and nothing 4xx/5xx
+        working-directory: scripts/smoke
+        env:
+          PUPPETEER_CACHE_DIR: ${{ github.workspace }}/chrome
+        run: |
+          export PUPPETEER_EXECUTABLE_PATH="$(find "$GITHUB_WORKSPACE" -name chrome -type f -path '*chrome-linux64*' | head -1)"
+          node routes.mjs "${{ needs.deploy.outputs.page_url || 'https://kaustubh76.github.io/Blinds/' }}" \
+            | tee /dev/stderr \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); bad={k:v for k,v in d.items() if v["pageErrors"] or v["http4xx5xx"]}; sys.exit(f"routes with problems: {bad}" if bad else 0)'
+

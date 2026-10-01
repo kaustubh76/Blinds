@@ -346,6 +346,25 @@ impl Harness {
     }
 
     /// Keeper opens the next epoch; returns its index.
+    /// `window_auction::rotate_auditor` as `signer`. Admin-only, refuses a zero key, and refuses
+    /// while an epoch is open — see `tests/attacks/attack_12_auditor_rotation.rs`.
+    pub fn rotate_auditor(
+        &mut self,
+        signer: &Keypair,
+        new_pubkey: [u8; 32],
+    ) -> Result<TxStats, TxError> {
+        let ix = Instruction {
+            program_id: self.auction,
+            accounts: window_auction::accounts::RotateAuditor {
+                admin: signer.pubkey(),
+                config: pda::auction_config(),
+            }
+            .to_account_metas(None),
+            data: window_auction::instruction::RotateAuditor { new_pubkey }.data(),
+        };
+        self.send(signer, &[ix], &[])
+    }
+
     pub fn open_epoch(&mut self) -> u64 {
         let index = self.auction_config().epochs_opened;
         let ix = Instruction {

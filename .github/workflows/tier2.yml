@@ -35,7 +35,16 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/v${{ inputs.solana_version }}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cargo install --git https://github.com/solana-foundation/anchor avm --locked
-          avm install ${ANCHOR_VERSION} && avm use ${ANCHOR_VERSION}
+          # Both the prebuilt path and the source build read from the network, so a transient
+          # upstream failure takes the job with it: on 2026-10-01 provenance verification failed and
+          # the from-source fallback then could not fetch platform-tools. One retry after a pause
+          # costs a minute and turns that into a wobble.
+          for attempt in 1 2; do
+            avm install ${ANCHOR_VERSION} && break
+            avm install ${ANCHOR_VERSION} --from-source && break
+            echo "toolchain install failed (attempt $attempt); retrying in 30s"; sleep 30
+          done
+          avm use ${ANCHOR_VERSION}
       - name: build solana-test-validator from source
         if: inputs.build_validator == 'true'
         run: |

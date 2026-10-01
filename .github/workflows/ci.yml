@@ -43,7 +43,15 @@ jobs:
           # avm verifies the prebuilt binary's build provenance against GitHub's attestation API, which
           # answered 403 on 23 Sep (unauthenticated rate limit) and failed the whole job. GITHUB_TOKEN
           # (set at the top of this file) authenticates that call; a source build is the fallback.
-          avm install ${ANCHOR_VERSION} || avm install ${ANCHOR_VERSION} --from-source
+          # Both the prebuilt path and the source build read from the network, so a transient
+          # upstream failure takes the job with it: on 2026-10-01 provenance verification failed and
+          # the from-source fallback then could not fetch platform-tools. One retry after a pause
+          # costs a minute and turns that into a wobble.
+          for attempt in 1 2; do
+            avm install ${ANCHOR_VERSION} && break
+            avm install ${ANCHOR_VERSION} --from-source && break
+            echo "toolchain install failed (attempt $attempt); retrying in 30s"; sleep 30
+          done
           avm use ${ANCHOR_VERSION}
       - run: anchor build
       - run: ./scripts/sync_idl.sh --check
@@ -101,7 +109,15 @@ jobs:
           # avm verifies the prebuilt binary's build provenance against GitHub's attestation API, which
           # answered 403 on 23 Sep (unauthenticated rate limit) and failed the whole job. GITHUB_TOKEN
           # (set at the top of this file) authenticates that call; a source build is the fallback.
-          avm install ${ANCHOR_VERSION} || avm install ${ANCHOR_VERSION} --from-source
+          # Both the prebuilt path and the source build read from the network, so a transient
+          # upstream failure takes the job with it: on 2026-10-01 provenance verification failed and
+          # the from-source fallback then could not fetch platform-tools. One retry after a pause
+          # costs a minute and turns that into a wobble.
+          for attempt in 1 2; do
+            avm install ${ANCHOR_VERSION} && break
+            avm install ${ANCHOR_VERSION} --from-source && break
+            echo "toolchain install failed (attempt $attempt); retrying in 30s"; sleep 30
+          done
           avm use ${ANCHOR_VERSION}
       # The prebuilt x86_64 Linux solana-test-validator (4.2.1, 4.2.2, 4.3.0) refuses pubkey-validity
       # proofs that the macOS build of the same commit, LiteSVM and devnet accept (see RUNBOOK §5 and

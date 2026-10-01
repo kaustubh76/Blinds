@@ -10,6 +10,7 @@ mod attack_08_rebase_replay;
 mod attack_09_wrong_listing;
 mod attack_10_listing_admin;
 mod attack_11_pyth_account;
+mod attack_12_auditor_rotation;
 mod credit_fixture;
 
 use window_clearing::Side;
