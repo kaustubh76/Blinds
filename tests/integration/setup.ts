@@ -21,17 +21,12 @@ function run(args: string[], log: string): ChildProcess {
       ...process.env,
       WINDOW_CLUSTER: "localnet",
       WINDOW_PROFILE: process.env.WINDOW_PROFILE ?? "integration",
-      // The integration profile's price window is 30 slots (~12 s). At the admin's default 20 s price
-      // tick the cache is stale for ~8 s of every 20 and a lock is a coin flip — which is exactly how
-      // tier 2 failed in CI from 24 Sep. The service clamps this too; being explicit keeps the log honest.
-      WINDOW_PRICE_TICK_MS: process.env.WINDOW_PRICE_TICK_MS ?? "2000",
-      // And the administrator's clock, for the same reason one thread over. `attest_lifecycle`
-      // repays between half a loan's tenor and its deadline — under this profile's 20-slot tenor
-      // that window is about four seconds, and the administrator's own thread (24 Sep) stopped
-      // obeying `--tick-ms` and took its fixed 10 s default. So every loan matured before it could
-      // be repaid, the keeper seized it, and this suite waited 240 s for a repayment that was never
-      // coming: tier 2 has been red since 25 Sep. The service clamps this against the tenor too.
-      WINDOW_ADMIN_TICK_MS: process.env.WINDOW_ADMIN_TICK_MS ?? "1000",
+      // No WINDOW_PRICE_TICK_MS or WINDOW_ADMIN_TICK_MS here on purpose. Both were pinned by hand
+      // after the two failures they name — the price cache stale for 8 s of every 20 (24 Sep), and
+      // the administrator unable to reach the repay window at all (25–30 Sep). The service now
+      // sizes both clocks from the profile itself (`services/admin/src/cadence.rs`), and while a
+      // pin stands nothing exercises that: this suite is the only thing that would catch the clamp
+      // being wrong again, and it cannot while it overrides the clamp.
       WINDOW_AUDITOR_SEED_HEX:
         process.env.WINDOW_AUDITOR_SEED_HEX ?? "1111111111111111111111111111111111111111111111111111111111111111",
       RUST_LOG: process.env.RUST_LOG ?? "info",

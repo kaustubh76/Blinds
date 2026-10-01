@@ -51,6 +51,11 @@ pub struct Metrics {
     pub bids_closed: AtomicU64,
     pub keeper_lamports: AtomicU64,
     pub last_print_ms: AtomicU64,
+    /// Milliseconds between the last two `attest_lifecycle` passes. The cadence clamp bounds the
+    /// thread's *sleep*; only an observed gap says whether the period held, because a pass that
+    /// spends seconds in a print stretches it. This is the number to read when a loan is seized
+    /// that should have been repaid.
+    pub last_lifecycle_gap_ms: AtomicU64,
     pub last_r_star_bps: AtomicU64,
     /// The attested marks by listing key, as last read (`/marks`).
     pub marks: std::sync::Mutex<std::collections::BTreeMap<String, MarkSnapshot>>,
@@ -108,6 +113,7 @@ impl Metrics {
             per_listing,
             f("keeper_lamports", &self.keeper_lamports),
             f("last_print_wallclock_ms", &self.last_print_ms),
+            f("last_lifecycle_gap_ms", &self.last_lifecycle_gap_ms),
             f("last_r_star_bps", &self.last_r_star_bps),
         ]
         .concat()

@@ -52,7 +52,11 @@ const MAX_TX_BYTES: u64 = 1232;
 /// tick, which sustains exactly the pressure that caused it. On 2026-09-24 every thread was
 /// logging reqwest's `error sending request` against the shared devnet endpoint and a full
 /// bid → match → loan cycle could not be completed. Five attempts from 400 ms is ~6 s of waiting
-/// before a call is given up on, which is inside every one of those ticks.
+/// before a call is given up on. That fits inside a devnet tick with room to spare; it does **not**
+/// fit inside the sub-second clocks a fast profile now produces (`crate::cadence`), so on localnet
+/// and in tier 2 one exhausted retry costs several ticks. Still the right trade — a thread that
+/// waits beats four that hammer — but it is why a fast profile needs a tenor wide enough to lose a
+/// tick or two and still repay.
 const RPC_ATTEMPTS: u32 = 5;
 const RPC_BACKOFF_BASE_MS: u64 = 400;
 

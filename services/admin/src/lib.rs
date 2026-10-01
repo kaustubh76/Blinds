@@ -7,6 +7,7 @@
 
 pub mod administrator;
 pub mod agents;
+pub mod cadence;
 pub mod chain;
 pub mod deployment;
 pub mod faucet;

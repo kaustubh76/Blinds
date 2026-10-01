@@ -343,18 +343,19 @@ fn main() -> Result<()> {
                     .map(|l| l.max_price_age_slots(&profile.market))
                     .min()
                     .unwrap_or(profile.market.max_price_age_slots);
-                // 400 ms is the slower end of every cluster we run on, so this errs toward posting more.
-                let half_window_ms = (tightest_slots * 400 / 2).max(500);
-                let price_tick_ms: u64 = std::env::var("WINDOW_PRICE_TICK_MS")
-                    .ok()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(20_000)
-                    .min(half_window_ms);
-                info!(
-                    price_tick_ms,
-                    tightest_window_slots = tightest_slots,
-                    "price thread cadence"
+                // From the *fastest* slot a cluster could produce, not the slowest: a faster slot
+                // makes a slot-counted window shorter in wall-clock, so assuming slow is what loses
+                // it. See `cadence` — both clamps used to assume 400 ms and say it erred the safe
+                // way. Prod tightens here (its 300-slot limit is tight for a 20 s tick); devnet is
+                // unchanged.
+                let price = window_admin::cadence::tick(
+                    tightest_slots / 2,
+                    2,
+                    20_000,
+                    std::env::var("WINDOW_PRICE_TICK_MS").ok().and_then(|v| v.parse().ok()),
                 );
+                price.log("price", tightest_slots / 2);
+                let price_tick_ms = price.tick_ms;
                 let price_ctx = Ctx {
                     chain: Box::new(RpcChain::new(&rpc)),
                     keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
@@ -406,22 +407,21 @@ fn main() -> Result<()> {
             // The administrator on its own clock too: a window that closes on time is no use if the
             // print and the matches then wait behind a loan scan. Same pattern as prices and epochs.
             //
-            // And clamped against the tenor for the same reason the price tick is clamped against a
-            // listing's window. `attest_lifecycle` repays a loan between half its tenor and its
-            // deadline, so that window is `tenor_slots / 2` — about four seconds in the INTEGRATION
-            // profile's 20-slot tenor. Against a fixed 10 s tick the administrator could not hit it
-            // at all: every loan matured first and the keeper seized it, so tier 2's lifecycle test
-            // waited for a repayment that was never going to come. Four chances inside the window.
+            // And clamped against the tenor the same way. `attest_lifecycle` repays a loan once it
+            // is past half its tenor; what ends the chance is not a chain rule — `repay` has no slot
+            // check — but `keeper::seize_matured`, which takes the loan the moment it matures. So
+            // the window is `tenor_slots / 2`, and against a fixed 10 s tick the administrator could
+            // not hit INTEGRATION's at all: every loan matured first, the keeper seized it, and tier
+            // 2 waited for a repayment that was never coming.
             {
-                let admin_tick_ms = window_admin::administrator::cadence_ms(
-                    profile.market.tenor_slots,
+                let admin = window_admin::cadence::tick(
+                    profile.market.tenor_slots / 2,
+                    2,
+                    10_000,
                     std::env::var("WINDOW_ADMIN_TICK_MS").ok().and_then(|v| v.parse().ok()),
                 );
-                info!(
-                    admin_tick_ms,
-                    tenor_slots = profile.market.tenor_slots,
-                    "administrator cadence"
-                );
+                admin.log("administrator", profile.market.tenor_slots / 2);
+                let admin_tick_ms = admin.tick_ms;
                 let admin_ctx = Ctx {
                     chain: Box::new(RpcChain::new(&rpc)),
                     keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
