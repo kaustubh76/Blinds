@@ -37,9 +37,11 @@ proven against the public Pyth price with the **corporate-action multiplier insi
   dashboard says the market is paused; every print already made stays on chain and re-verifiable.
 - **A dashboard** on GitHub Pages: a burner wallet (no extension), a guided path plus an autopilot that borrows in ~20 seconds, an explorer that re-proves any print locally, and developer pages that run real SDK calls in the tab.
 - **Three collaterals under one rate**: TSLAx marked by Pyth (150 % haircut), TSLAx marked at the price the
-  token itself trades at (150 %, from the real mainnet mint's own pools), and ANTHROPIC, a pre-IPO token
-  (PreStocks, 200 %). Each carries its own mark source, haircut and freshness limits, and the chain — not the
-  keeper — decides whether each is usable right now.
+  token itself trades at (150 %, from the real mainnet mint `XsDoVfqe…` aggregated by Jupiter), and
+  ANTHROPIC, a pre-IPO token (PreStocks, 200 %). Each carries its own mark source, haircut and freshness
+  limits; each feed id is `sha256("<provider>:<symbol>")`, so a mark names the source it was read from and
+  can never be taken for another; and the chain — not the keeper — decides whether each is usable right now.
+  Today it accepts two and refuses the Pyth one, which is the honest answer and not a failure state.
 - **A mainnet Meteora DBC pool** for the lender agent, quoted in real TSLAx — pool `Gk98wZ…DQux`, WLEND
   `3SpA84…eBDh` — plus its `LENDER` identity coin on pump.fun `D9K6pb…h92k`. Every fee claims to
   the agent's own wallet `39VKQn…A7sM`; the key that signed keeps nothing.

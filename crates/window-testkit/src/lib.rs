@@ -303,6 +303,46 @@ impl Harness {
         self.members.len() - 1
     }
 
+    /// `window_registry::remove_member` as `signer`. Admin-only; a soft delete — the account stays
+    /// and `active` goes false, so a removed member's history is still there to audit.
+    pub fn remove_member(&mut self, signer: &Keypair, owner: &Pubkey) -> Result<TxStats, TxError> {
+        let ix = Instruction {
+            program_id: self.registry,
+            accounts: window_registry::accounts::RemoveMember {
+                admin: signer.pubkey(),
+                config: pda::registry_config(),
+                member: pda::member(owner),
+            }
+            .to_account_metas(None),
+            data: window_registry::instruction::RemoveMember {}.data(),
+        };
+        self.send(signer, &[ix], &[])
+    }
+
+    /// `window_registry::update_elgamal_pubkey` as `signer`, for `signer`'s own member account.
+    /// Owner-only by construction: the account is a PDA of the signer's own key.
+    pub fn update_elgamal_pubkey(
+        &mut self,
+        signer: &Keypair,
+        new_pubkey: [u8; 32],
+    ) -> Result<TxStats, TxError> {
+        let ix = Instruction {
+            program_id: self.registry,
+            accounts: window_registry::accounts::UpdateElgamalPubkey {
+                owner: signer.pubkey(),
+                member: pda::member(&signer.pubkey()),
+            }
+            .to_account_metas(None),
+            data: window_registry::instruction::UpdateElgamalPubkey { new_pubkey }.data(),
+        };
+        self.send(signer, &[ix], &[])
+    }
+
+    /// One member account as the chain holds it.
+    pub fn member_account(&self, owner: &Pubkey) -> window_registry::state::Member {
+        self.account::<window_registry::state::Member>(&pda::member(owner))
+    }
+
     pub fn auction_config(&self) -> window_auction::state::Config {
         self.account::<window_auction::state::Config>(&pda::auction_config())
     }

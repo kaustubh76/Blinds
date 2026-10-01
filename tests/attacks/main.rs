@@ -11,6 +11,7 @@ mod attack_09_wrong_listing;
 mod attack_10_listing_admin;
 mod attack_11_pyth_account;
 mod attack_12_auditor_rotation;
+mod attack_13_member_admin;
 mod credit_fixture;
 
 use window_clearing::Side;
