@@ -71,6 +71,51 @@ export function listingByPda(listings: ListingView[], pda: string): ListingView 
 }
 
 /**
+ * Whether this deployment's collateral mints are devnet twins of real tokens rather than the tokens
+ * themselves. Read from the **cluster**, not from a symbol: every `mock_mint` in a descriptor is
+ * created by `setup` on the desk's own cluster, so a `-mock` suffix is a convention while the
+ * cluster is the evidence. Keying on the suffix left `TSLAx-xs` unmarked beside a live price.
+ */
+export const isTwinCluster = (cluster: string): boolean => cluster !== "mainnet-beta";
+
+/**
+ * Which provider a listing actually reads. `source` is the *mechanism* and tag 2 is shared by every
+ * attested mark, so anything provider-specific — a label, a URL, a tile — must key on this or it
+ * names whichever listing happens to come first in the schedule.
+ */
+export const providerOf = (l: Pick<ListingView, "source" | "provider">): string => l.provider ?? l.source;
+
+/** A listing by provider, or `undefined`. The lookup `source === "prestocks"` used to do this. */
+export const byProvider = (listings: ListingView[], provider: string): ListingView | undefined =>
+  listings.find((l) => providerOf(l) === provider);
+
+/**
+ * Where a reader can see the provider's own answer. Built from what the descriptor records — the
+ * mint for a keyed API — rather than from a table that would need an entry per listing.
+ */
+export function providerUrl(l: Pick<ListingView, "source" | "provider" | "sourceMint">): string | null {
+  switch (providerOf(l)) {
+    case "prestocks":
+      return "https://prestocks.com/api/prestocks";
+    case "jupiter":
+      return l.sourceMint ? `https://lite-api.jup.ag/price/v3?ids=${l.sourceMint}` : "https://jup.ag";
+    case "pyth":
+      return "https://www.pyth.network/price-feeds/crypto-tslax-usd";
+    default:
+      return null;
+  }
+}
+
+/**
+ * The label an attested mark's feed id is the sha256 of: `<provider>:<symbol>`, mirroring
+ * `ListingCfg::feed_id` in `crates/window-config`. The symbol is the *provider's* — the real token's
+ * — not the devnet twin's, which is why deriving it from the on-chain symbol produced
+ * `prestocks:TSLAx-xs`, a label no listing is seeded on.
+ */
+export const markLabel = (l: Pick<ListingView, "source" | "provider" | "symbol" | "sourceSymbol">): string =>
+  `${providerOf(l)}:${l.sourceSymbol ?? l.symbol}`;
+
+/**
  * How an attested mark's provider is written on screen. A provider the desk has not met keeps the
  * label its feed id is seeded on, lowercase — the honest answer, rather than a prettier guess.
  */

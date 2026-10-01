@@ -150,7 +150,7 @@ export function BorrowCalculator({
                     on ? "border-accent bg-accent-soft/50" : "border-line hover:border-line-strong"
                   }`}
                 >
-                  <span className="font-medium text-ink-1">{displaySymbol(l).label}</span>
+                  <span className="font-medium text-ink-1">{displaySymbol(l)}</span>
                   <span className="flex items-center gap-2 text-xs text-ink-3">
                     {p ? formatPrice(p.price, p.expo) : "—"}
                     <Pill tone="mute">{Number(l.haircutBps) / 100}%</Pill>

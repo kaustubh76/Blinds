@@ -171,7 +171,7 @@ export function AttestedMark({ listing, focus = false }: { listing: ListingView;
     <div ref={ref} id={listing.provider ?? listing.key} className="scroll-mt-20">
       <Card
         tone={focus ? "accent" : "default"}
-        eyebrow={`collateral mark · ${c.name} · ${sym.label} (${c.qualifier})`}
+        eyebrow={`collateral mark · ${c.name} · ${sym} (${c.qualifier})`}
         title={price.data ? formatPrice(price.data.price, price.data.expo) : "—"}
         right={
           <span className="flex flex-wrap items-center gap-2">
@@ -267,7 +267,7 @@ export function AttestedMark({ listing, focus = false }: { listing: ListingView;
             label="the real token · mainnet"
             value={
               real.data
-                ? `${real.data.supply.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${listing.sourceSymbol ?? sym.label}`
+                ? `${real.data.supply.toLocaleString("en-US", { maximumFractionDigits: 0 })} ${listing.sourceSymbol ?? sym}`
                 : "—"
             }
             hint={

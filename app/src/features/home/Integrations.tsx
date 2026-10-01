@@ -5,8 +5,9 @@
  */
 import { Icon, type IconName } from "../../components/Icon";
 import { Pill, Section, type Tone } from "../../components/ui";
-import { formatAge, formatPrice } from "../../lib/format";
+import { capitalize, countWord, formatAge, formatPrice } from "../../lib/format";
 import { LAUNCH, useLaunch } from "../../lib/launch";
+import { byProvider } from "../../lib/listings";
 import { FEEDS, useUnderlying } from "../../lib/pyth";
 import { useDeployment, useMainnetMint, useQuote } from "../../lib/queries";
 
@@ -46,10 +47,15 @@ function TileView({ t }: { t: Tile }) {
 
 export function Integrations() {
   const dep = useDeployment();
-  const pyth = useQuote(dep.data?.listings.find((l) => l.source === "pyth"));
+  const listings = dep.data?.listings ?? [];
+  const pyth = useQuote(byProvider(listings, "pyth"));
   const equity = useUnderlying(FEEDS["Equity.US.TSLA/USD"]);
-  const prestocksListing = dep.data?.listings.find((l) => l.source === "prestocks");
+  // By provider, not by `source`: tag 2 is a mechanism two listings share, so `source === "prestocks"`
+  // matched both and returned whichever came first — labelling a Jupiter price as ANTHROPIC's.
+  const prestocksListing = byProvider(listings, "prestocks");
   const prestocks = useQuote(prestocksListing);
+  const jupiterListing = byProvider(listings, "jupiter");
+  const jupiter = useQuote(jupiterListing);
   // The haircut is the descriptor's, never a sentence: an `update_listing` must not make this page lie.
   const haircutPct = Number(prestocksListing?.haircutBps ?? Number.NaN) / 100;
   const prestocksHaircut = Number.isFinite(haircutPct) ? `${haircutPct} %` : "its own";
@@ -93,6 +99,20 @@ export function Integrations() {
       cta: "the mark, the implied price, the basis →",
     },
     {
+      name: "Jupiter",
+      tone: "good",
+      icon: "layers",
+      role: "The same stock, marked at what the token itself trades for.",
+      live: jupiter.data ? formatPrice(jupiter.data.price, jupiter.data.expo) : null,
+      liveHint: jupiter.data
+        ? `${jupiterListing?.sourceSymbol ?? "TSLAx"} on its own pools · fetched ${formatAge(jupiter.data.publishTime)}`
+        : dep.data && !jupiterListing
+          ? "no traded mark in this deployment"
+          : "reading the on-chain mark…",
+      href: "#/market/jupiter",
+      cta: "the mark, the stock, the basis →",
+    },
+    {
       name: "Meteora DBC",
       tone: "lend",
       icon: "sparkles",
@@ -131,10 +151,10 @@ export function Integrations() {
   return (
     <Section
       eyebrow="built with"
-      title="Four integrations, each doing a job"
+      title={`${capitalize(countWord(tiles.length))} integrations, each doing a job`}
       lead="Every number below is a live read — of the desk's chain, of Pyth, of the pool, of the coin."
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {tiles.map((t) => (
           <TileView key={t.name} t={t} />
         ))}

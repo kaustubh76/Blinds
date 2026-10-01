@@ -81,12 +81,15 @@ export function formatSlotAge(slots: number): string {
 }
 
 /**
- * A listing's symbol as a reader should see it: the chain's own bytes, and separately whether they
- * end in the `-mock` suffix that marks a devnet twin. The suffix used to be stripped silently in
- * eight places, which put a bare `TSLAx` beside a live-looking price with nothing nearby saying the
- * mint is a twin of the real one. Callers with room render `twin`; the rest still read cleanly.
+ * A listing's symbol as a reader should see it: the chain's own bytes, minus the `-mock` suffix that
+ * a devnet twin's mint carries. Purely lexical, and deliberately narrow — `TSLAx-xs` keeps its
+ * suffix, because the desk lists that stock twice and the schedule is the only place a reader can
+ * tell the two apart.
+ *
+ * Whether the mint is a twin is a *different* question and is not answered here: see `isTwinCluster`
+ * in `lib/listings`. Conflating them is what left `TSLAx-xs` with no twin marker beside a live price
+ * while `TSLAx-mock` got one — a suffix is a naming convention, not evidence.
  */
-export function displaySymbol(l: { symbol: string }): { label: string; twin: boolean } {
-  const twin = l.symbol.endsWith("-mock");
-  return { label: twin ? l.symbol.slice(0, -5) : l.symbol, twin };
+export function displaySymbol(l: { symbol: string }): string {
+  return l.symbol.endsWith("-mock") ? l.symbol.slice(0, -5) : l.symbol;
 }

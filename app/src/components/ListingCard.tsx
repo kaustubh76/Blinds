@@ -1,9 +1,10 @@
 /** One eligible collateral as a card: what it is, who marks it, what it is worth, whether the chain would accept it now. */
 import type { credit as creditNs } from "@thewindow/solana-sdk";
 import { isAttestedMark, quoteFreshness } from "@thewindow/solana-sdk";
+import { config } from "../config";
 import type { ListingView } from "../lib/chain";
 import { displaySymbol, formatAge, formatPrice } from "../lib/format";
-import { sourceLabel } from "../lib/listings";
+import { isTwinCluster, sourceLabel } from "../lib/listings";
 import { Icon } from "./Icon";
 import { Pill } from "./ui";
 
@@ -41,13 +42,16 @@ export function ListingCard({
       : null;
   const attested = isAttestedMark(l.priceSource);
   const sym = displaySymbol(l);
+  // From the cluster, not the symbol: `TSLAx-xs` is as much a devnet twin as the `-mock` pair, and
+  // keying on the suffix left it with no marker beside a live price.
+  const twin = isTwinCluster(config.cluster);
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-1.5">
-            <span className="truncate text-base font-semibold text-ink-1">{sym.label}</span>
-            {sym.twin && (
+            <span className="truncate text-base font-semibold text-ink-1">{sym}</span>
+            {twin && (
               <span className="text-[11px] text-ink-3" title={`${l.symbol} — a devnet twin, not the mainnet mint`}>
                 twin
               </span>

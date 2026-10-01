@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { capitalize, countWord, displaySymbol, formatShares, formatUsdc, parseUnits } from "./format";
+import { isTwinCluster } from "./listings";
 
 describe("format", () => {
   it("parses and formats units", () => {
@@ -32,19 +33,26 @@ describe("countWord", () => {
 });
 
 describe("displaySymbol", () => {
-  it("keeps the chain's bytes and reports the twin suffix separately", () => {
-    // The suffix used to be dropped silently in eight places, so a bare `TSLAx` sat beside a
-    // live-looking price with nothing saying the mint is a devnet twin of the real one.
-    expect(displaySymbol({ symbol: "TSLAx-mock" })).toEqual({ label: "TSLAx", twin: true });
-    expect(displaySymbol({ symbol: "ANTHROPIC-mock" })).toEqual({ label: "ANTHROPIC", twin: true });
+  it("drops the suffix a devnet twin's mint carries, and nothing else", () => {
+    expect(displaySymbol({ symbol: "TSLAx-mock" })).toBe("TSLAx");
+    expect(displaySymbol({ symbol: "ANTHROPIC-mock" })).toBe("ANTHROPIC");
+    // `-mock` anywhere but the end is part of the name.
+    expect(displaySymbol({ symbol: "mock-TSLAx" })).toBe("mock-TSLAx");
   });
 
-  it("leaves a symbol that is not a twin exactly as the chain holds it", () => {
-    // The two TSLAx listings must stay distinguishable: one is Pyth-marked, one is traded-marked,
-    // and the schedule is the only place a reader can tell them apart.
-    expect(displaySymbol({ symbol: "TSLAx-xs" })).toEqual({ label: "TSLAx-xs", twin: false });
-    expect(displaySymbol({ symbol: "TSLAx" })).toEqual({ label: "TSLAx", twin: false });
-    // `-mock` anywhere but the end is part of the name.
-    expect(displaySymbol({ symbol: "mock-TSLAx" })).toEqual({ label: "mock-TSLAx", twin: false });
+  it("keeps every other suffix, because the desk lists one stock twice", () => {
+    // One TSLAx is Pyth-marked and one is traded-marked. The schedule is the only place a reader
+    // can tell them apart, so stripping `-xs` would make two different collaterals read alike.
+    expect(displaySymbol({ symbol: "TSLAx-xs" })).toBe("TSLAx-xs");
+    expect(displaySymbol({ symbol: "TSLAx" })).toBe("TSLAx");
+  });
+
+  it("does not answer whether the mint is a twin — the cluster does", () => {
+    // It used to return `{ label, twin }` and decide twin-ness from the suffix, so `TSLAx-xs`
+    // rendered with no marker beside a live price while `TSLAx-mock` got one. A suffix is a naming
+    // convention; the cluster the mint was created on is the evidence.
+    expect(isTwinCluster("devnet")).toBe(true);
+    expect(isTwinCluster("localnet")).toBe(true);
+    expect(isTwinCluster("mainnet-beta")).toBe(false);
   });
 });

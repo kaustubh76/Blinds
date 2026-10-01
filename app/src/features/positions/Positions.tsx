@@ -157,7 +157,7 @@ function PositionsFor({ account }: { account: UiWalletAccount }) {
           <Pill tone={role === "borrower" ? "borrow" : "lend"}>{role === "borrower" ? "borrowing" : "lending"}</Pill>
           {bound && (
             <Pill tone="mute" icon="shield">
-              {displaySymbol(bound).label} · {Number(bound.haircutBps) / 100}%
+              {displaySymbol(bound)} · {Number(bound.haircutBps) / 100}%
             </Pill>
           )}
           <span className="num text-xl font-semibold text-ink-1">{formatRate(loan.tick)}</span>

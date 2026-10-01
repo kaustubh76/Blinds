@@ -1,20 +1,27 @@
 /**
- * The two price tracks as a developer meets them: what each source is, how its quote reaches
- * the chain, what to call, and the honest limit. The Pyth column reads Pyth's own mainnet
- * accounts from this browser; the mark columns read the on-chain caches (their public APIs answer
- * no CORS preflight, so the keeper is the only thing that can read them).
+ * The two ways a mark reaches the chain, as a developer meets them: what each source is, how its
+ * quote gets there, what to call, and the honest limit. Two *mechanisms*, not two providers — the
+ * desk lists more attested marks than it does columns, and the Market page shows one card each.
+ *
+ * The Pyth column reads Pyth's own mainnet accounts from this browser. The mark column reads the
+ * on-chain cache. Whether a provider's own API can be read from a browser varies and is stated per
+ * provider: PreStocks sends no CORS header, so this site reads it server-side; Jupiter answers a
+ * page origin directly, which is how `useJupiterMark` fills the Market card with no keeper running.
  */
 import { useQuery } from "@tanstack/react-query";
-import { feedIdForLabel, fetchPrice, withRpcRetry } from "@thewindow/solana-sdk";
+import { feedIdForLabel, fetchPrice, isAttestedMark, withRpcRetry } from "@thewindow/solana-sdk";
 import type { ReactNode } from "react";
 import { Card } from "../../components/Card";
 import { CopyButton } from "../../components/DevConsole";
 import { Icon } from "../../components/Icon";
 import { Badge, DocLink, ExplorerLink, type Tone } from "../../components/ui";
 import { config } from "../../config";
-import { rpc } from "../../lib/chain";
+import { type ListingView, rpc } from "../../lib/chain";
+import { formatSlotAge } from "../../lib/format";
+import { byProvider, markLabel, providerOf, providerUrl } from "../../lib/listings";
 import { basisBps, FEEDS, fetchFreshest, formatBasis, mainnetRpc, nyseSession } from "../../lib/pyth";
 import { useDeployment } from "../../lib/queries";
+import { secsToSlots } from "../../lib/slotTime";
 import { LenderTrack } from "./LenderTrack";
 
 const age = (s: number) => (s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
@@ -66,11 +73,14 @@ function usePythMainnet() {
   });
 }
 
-function useMark(label: string) {
+function useMark(l: ListingView | undefined) {
+  const label = l ? markLabel(l) : null;
   return useQuery({
-    queryKey: ["build-mark", label],
+    queryKey: ["build-mark", label ?? ""],
+    enabled: !!l,
     queryFn: async () => {
-      const feedId = await feedIdForLabel(label);
+      // The descriptor's own bytes; `feedIdForLabel` is the demonstration, not the lookup.
+      const feedId = l ? l.feedId : await feedIdForLabel(label ?? "");
       const price = await withRpcRetry(() => fetchPrice(rpc, feedId));
       if (!price) return null;
       return {
@@ -86,10 +96,14 @@ function useMark(label: string) {
 export function Tracks() {
   const dep = useDeployment();
   const pyth = usePythMainnet();
-  const prestocks = useMark("prestocks:ANTHROPIC");
-  const by = (source: string) => dep.data?.listings.find((l) => l.source === source);
-  const lp = by("pyth");
-  const lps = by("prestocks");
+  const listings = dep.data?.listings ?? [];
+  // By provider: `source === "prestocks"` matches every attested mark and returned whichever came
+  // first in the schedule, which is the same defect the Market page and Home had.
+  const lp = byProvider(listings, "pyth");
+  const lps = byProvider(listings, "prestocks");
+  const prestocks = useMark(lps);
+  /** Attested marks this deployment carries beyond the one with a column here. */
+  const otherMarks = listings.filter((l) => isAttestedMark(l.priceSource) && l.key !== lps?.key);
   const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 
   return (
@@ -200,7 +214,8 @@ const q = await sdk.fetchQuote(rpc, {                            // { price, exp
             {prestocks.data ? (
               <p className="mt-1 text-ink-2">
                 <span className="num text-ink-1">{usd(prestocks.data.mark)}</span> · fetched{" "}
-                {age(prestocks.data.ageSecs)} ago · {prestocks.data.posts} posts · limit 48 h
+                {age(prestocks.data.ageSecs)} ago · {prestocks.data.posts} posts · limit{" "}
+                {lps ? formatSlotAge(secsToSlots(lps.maxPublishAgeSecs)) : "its own"}
               </p>
             ) : prestocks.data === null ? (
               <p className="mt-1 text-ink-3">no cache yet</p>
@@ -214,15 +229,31 @@ const q = await sdk.fetchQuote(rpc, {                            // { price, exp
               <ExplorerLink address={lps.escrow} cluster={config.cluster} /> · haircut {Number(lps.haircutBps) / 100}%
             </p>
           )}
-          <Snippet>{`const feedId = await sdk.feedIdForLabel("prestocks:ANTHROPIC");
+          <Snippet>{`const feedId = await sdk.feedIdForLabel("${lps ? markLabel(lps) : "<provider>:<symbol>"}");
 const q = await sdk.fetchPrice(rpc, feedId);
 // lock against this listing (reads the quote where the program does, proves, retries once if it moved):
-// sdk.lockCollateral(rpc, { ..., listing: "${lps?.listing ?? "<listing>"}", quote: { feedId, priceSource: l.priceSource }, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? lps.haircutBps.toString() : "20000"}n, rent })
-// curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`}</Snippet>
+// sdk.lockCollateral(rpc, { ..., listing: "${lps?.listing ?? "<listing>"}", quote: { feedId, priceSource: l.priceSource }, mockMint: "${lps?.mockMint ?? "<mockMint>"}", haircutBps: ${lps ? `${lps.haircutBps}n` : "<the listing's own>"}, rent })
+// the keeper reads this server-side, because PreStocks sends no CORS header:
+// curl -s ${(lps && providerUrl(lps)) ?? "<the provider's API>"}`}</Snippet>
           <p className="text-[11px] text-ink-3">
-            Honest limit: attested by the keeper, not a signed feed; stamped at fetch and bounded at 48 h.{" "}
+            Honest limit: attested by the keeper, not a signed feed; stamped at fetch and bounded at{" "}
+            {lps ? formatSlotAge(secsToSlots(lps.maxPublishAgeSecs)) : "its own limit"}.{" "}
             <DocLink to="LISTINGS.md">why →</DocLink>
           </p>
+          {otherMarks.length > 0 && (
+            <p className="text-[11px] text-ink-3">
+              Same mechanism, {otherMarks.length === 1 ? "another provider" : "other providers"}:{" "}
+              {otherMarks.map((l, i) => (
+                <span key={l.key}>
+                  <a className="text-accent hover:underline" href={`#/market/${providerOf(l)}`}>
+                    {l.symbol} · {providerOf(l)}
+                  </a>
+                  {i < otherMarks.length - 1 ? ", " : ""}
+                </span>
+              ))}
+              . Each is seeded on its own label, so a feed id names the provider that was read.
+            </p>
+          )}
         </Column>
         <LenderTrack />
       </div>

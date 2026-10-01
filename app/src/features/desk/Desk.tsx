@@ -172,7 +172,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
     {
       title: "Confidential account",
       state: states[2] as RailState,
-      hint: d.listing ? displaySymbol(d.listing).label : "",
+      hint: d.listing ? displaySymbol(d.listing) : "",
     },
     {
       title: "Wrap collateral",
@@ -246,7 +246,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
         {current === 0 && (
           <StepCard n={1} title="Derive your keys" state={states[0] as RailState}>
             <p className="text-sm leading-relaxed text-ink-2">
-              Two signatures — the member key, and your <b className="text-ink-1">{sel && displaySymbol(sel).label}</b>{" "}
+              Two signatures — the member key, and your <b className="text-ink-1">{sel && displaySymbol(sel)}</b>{" "}
               account. Both stay in this tab.
             </p>
             {d.memberKey.data && (
@@ -321,7 +321,7 @@ function DeskFlow({ account }: { account: UiWalletAccount }) {
             {d.accounts.data && (
               <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                 <div className="rounded-[var(--radius-md)] bg-surface-2 p-3">
-                  <dt className="t-eyebrow">{sel && displaySymbol(sel).label} · public</dt>
+                  <dt className="t-eyebrow">{sel && displaySymbol(sel)} · public</dt>
                   <dd className="mt-1 text-ink-1">
                     {d.accounts.data.mockAmount === null
                       ? "not created yet"

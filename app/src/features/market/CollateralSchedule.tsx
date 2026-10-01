@@ -1,7 +1,8 @@
 /**
  * The collateral schedule: one row per listed collateral with its source, mark, both on-chain
- * freshness rules (keeper post age in slots, quote age in seconds) and haircut. Attested marks
- * (PreStocks) are labelled as such — their `publish_time` is the keeper's fetch time.
+ * freshness rules (keeper post age in slots, quote age in seconds) and haircut. Attested marks are
+ * labelled as such — their `publish_time` is the keeper's fetch time — and each names the provider
+ * it was actually read from, because tag 2 is a mechanism several listings share.
  */
 import type { credit as creditNs } from "@thewindow/solana-sdk";
 import { isAttestedMark, PriceSource, quoteFreshness, symbolOf } from "@thewindow/solana-sdk";
@@ -14,14 +15,9 @@ import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import type { ListingView } from "../../lib/chain";
 import { formatAge, formatPrice, formatSlotAge } from "../../lib/format";
-import { sourceLabel, useOnChainListings } from "../../lib/listings";
+import { providerUrl, sourceLabel, useOnChainListings } from "../../lib/listings";
 import { useDeployment, usePrices, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
-
-const SOURCE_URL: Record<string, string> = {
-  prestocks: "https://prestocks.com/api/prestocks",
-  pyth: "https://www.pyth.network/price-feeds/crypto-tslax-usd",
-};
 
 export function CollateralSchedule() {
   const dep = useDeployment();
@@ -143,7 +139,8 @@ function Row({
           nowSecs: Math.floor(Date.now() / 1000),
         })
       : null;
-  const url = SOURCE_URL[l.source];
+  // Keyed on the provider, never on `source`: a row labelled "Jupiter mark" linked to prestocks.com.
+  const url = providerUrl(l);
   return (
     <tr className="border-t border-line align-top">
       <td className="py-2 pr-4">

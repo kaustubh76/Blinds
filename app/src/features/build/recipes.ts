@@ -5,10 +5,11 @@
  */
 import { type Address, isAddress } from "@solana/kit";
 import type * as SDK from "@thewindow/solana-sdk";
+import { isAttestedMark, PriceSource } from "@thewindow/solana-sdk";
 import type { Resolved } from "../../config";
 import { type DeploymentView, fetchDeployment } from "../../lib/chain";
-import { displaySymbol } from "../../lib/format";
 import { LAUNCH, launchCluster } from "../../lib/launch";
+import { markLabel, providerOf, providerUrl } from "../../lib/listings";
 import { startLive } from "../../lib/live";
 import { basisBps, FEEDS, fetchFreshest, mainnetRpc, nyseSession, PYTH_RECEIVER } from "../../lib/pyth";
 import { DEFAULT_WRAP_SHARES, type useDesk } from "../desk/useDesk";
@@ -147,20 +148,23 @@ export interface Recipe {
 }
 
 /**
- * The mark labels worth offering: `prestocks:ANTHROPIC` always (it is what this recipe is about, and a
- * localnet descriptor has no attested-mark listing at all), then whatever the loaded descriptor names.
+ * The listings worth offering, by **key** — not by a label derived from the on-chain symbol.
+ *
+ * The derived label used to be `${l.source}:${symbol}`, which for the Jupiter-marked listing yields
+ * `prestocks:TSLAx-xs`: the mechanism rather than the provider, and the twin's symbol rather than the
+ * real token's. Its sha256 is no listing's feed id, so the recipe reported "no cache" for the one
+ * listing the chain accepts. The descriptor carries the authoritative feed id; the key resolves to it.
+ * A hand-typed value that matches no key is still hashed, which is how you explore a label by hand.
  */
-function markLabels(dep: DeploymentView | null): Choice[] {
-  const seen = new Set<string>();
-  const out: Choice[] = [];
-  const add = (value: string, label: string) => {
-    if (seen.has(value)) return;
-    seen.add(value);
-    out.push({ value, label });
-  };
-  add("prestocks:ANTHROPIC", "prestocks:ANTHROPIC");
-  for (const l of dep?.listings ?? [])
-    add(`${l.source}:${displaySymbol(l).label}`, `${l.symbol} · ${l.provider ?? l.source}`);
+function markChoices(dep: DeploymentView | null): Choice[] {
+  const out: Choice[] = (dep?.listings ?? []).map((l) => ({
+    value: l.key,
+    label: `${l.symbol} · ${providerOf(l)}`,
+  }));
+  // A localnet descriptor names no attested mark at all, so the recipe still has something to show.
+  if (!out.some((c) => c.value === "prestocks_anthropic")) {
+    out.push({ value: "prestocks:ANTHROPIC", label: "prestocks:ANTHROPIC (a label, by hand)" });
+  }
   return out;
 }
 
@@ -352,61 +356,79 @@ for (const [name, feed] of [["TSLAX", TSLAX], ["TSLA", TSLA]]) {
         key: "label",
         kind: "choice",
         label: "listing",
-        default: "prestocks:ANTHROPIC",
-        // A mark label is `<source>:<SYMBOL>`, which is what the keeper hashes into the feed id. The
-        // descriptor's own listings are offered so you can see what a `mock` label yields: nothing,
-        // because a mock listing is priced by the walk, not by a posted mark.
-        choices: (ctx) => markLabels(ctx.deployment),
-        hint: "<source>:<symbol> — the label the keeper posts under",
+        default: "prestocks_anthropic",
+        // A listing key, resolved to the feed id the descriptor records. A value that matches no key
+        // is treated as a hand-typed `<provider>:<symbol>` label and hashed, which is how you see
+        // what a label yields — including a `mock` one: nothing, because a mock listing is priced by
+        // the keeper's walk rather than by a posted mark.
+        choices: (ctx) => markChoices(ctx.deployment),
+        hint: "a listing, or a <provider>:<symbol> label to hash by hand",
       },
     ],
-    title: "The attested mark: PreStocks, as posted on chain",
-    blurb: 'A mark\'s feed id is sha256("<source>:<symbol>") — a label, never a Pyth id.',
-    code: (ctx) => `${PRELUDE(ctx)}
+    title: "An attested mark, as posted on chain",
+    blurb: 'A mark\'s feed id is sha256("<provider>:<symbol>") — a label, never a Pyth id.',
+    code: (ctx) => {
+      const l = ctx.deployment?.listings.find((d) => d.key === ctx.p.str("label"));
+      const label = l ? markLabel(l) : ctx.p.str("label");
+      const api = l ? providerUrl(l) : null;
+      // PreStocks sends no `access-control-allow-origin`, so a browser cannot read it and this site
+      // reads it server-side. Jupiter answers a page origin directly — `useJupiterMark` does exactly
+      // this from the Market page. Saying "no mark API answers CORS" was true of one of them.
+      const browserOk = l && providerOf(l) === "jupiter";
+      return `${PRELUDE(ctx)}
 
-// feed id = sha256("${ctx.p.str("label")}"): a label under which the keeper posts, never a Pyth id
-const feedId    = await sdk.feedIdForLabel("${ctx.p.str("label")}");
-const prestocks = await sdk.fetchPrice(rpc, feedId);
+// feed id = sha256("${label}"): a label under which the keeper posts, never a Pyth id
+const feedId = await sdk.feedIdForLabel("${label}");
+const mark   = await sdk.fetchPrice(rpc, feedId);
 console.log("cache", await sdk.pda.priceCache(feedId));   // ["price", feed_id] under window_credit
-console.log(Number(prestocks.price) * 10 ** prestocks.expo, "USD, fetched", new Date(Number(prestocks.publishTime) * 1000));
-
-// what the keeper reads (server side — the API answers no CORS preflight); markPrice is the mark, tokenPrice the implied price:
-//   curl -s https://prestocks.com/api/prestocks | jq '.[] | select(.contract_address=="Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw") | {markPrice, tokenPrice}'`,
+console.log(Number(mark.price) * 10 ** mark.expo, "USD, fetched", new Date(Number(mark.publishTime) * 1000));
+${
+  api
+    ? `
+// what the keeper reads${browserOk ? " (this one answers a browser too)" : " (server side: the API sends no CORS header)"}:
+//   curl -s '${api}'`
+    : ""
+}`;
+    },
     run: async (ctx) => {
-      /** This listing's own `max_publish_age_secs` — 48 h for the attested mark, 1 h for the Pyth one. */
-      const limitFor = (label: string): string => {
-        const [src, sym] = label.split(":");
-        const l = ctx.deployment?.listings.find((d) => d.source === src && displaySymbol(d).label === sym);
-        const secs = l?.maxPublishAgeSecs;
-        if (!secs) return "the limit in its Listing account";
-        return secs >= 3600 ? `${Math.round(secs / 3600)} h` : `${Math.round(secs / 60)} min`;
-      };
-      const one = async (label: string, api: string) => {
-        const feedId = await ctx.sdk.feedIdForLabel(label);
-        const price = await ctx.sdk.fetchPrice(ctx.rpc, feedId);
-        const hex = Array.from(feedId, (b) => b.toString(16).padStart(2, "0")).join("");
-        if (!price) return { label, feedId: hex, cache: "none" };
-        return {
-          label,
-          feedId: hex,
-          priceCache: await ctx.sdk.pda.priceCache(feedId),
-          mark: Number(price.price) * 10 ** price.expo,
-          fetchedAt: new Date(Number(price.publishTime) * 1000).toISOString(),
-          ageSecs: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.publishTime)),
-          posts: price.posts,
-          api,
-        };
-      };
-      const label = ctx.p.str("label");
+      const choice = ctx.p.str("label");
+      const l = ctx.deployment?.listings.find((d) => d.key === choice);
+      // The descriptor's feed id is authoritative. Only a value that matches no listing is hashed,
+      // which is the whole point of letting one be typed.
+      const feedId = l ? l.feedId : await ctx.sdk.feedIdForLabel(choice);
+      const label = l ? markLabel(l) : choice;
+      const hex = Array.from(feedId, (b) => b.toString(16).padStart(2, "0")).join("");
+      const price = await ctx.sdk.fetchPrice(ctx.rpc, feedId);
+      /** This listing's own `max_publish_age_secs` — 48 h for the pre-IPO mark, 1 h for the others. */
+      const limit = (secs: number | undefined): string =>
+        !secs
+          ? "the limit in its Listing account"
+          : secs >= 3600
+            ? `${Math.round(secs / 3600)} h`
+            : `${Math.round(secs / 60)} min`;
+      // Keyed off the chain's own tag, never a string prefix. A prefix test on "prestocks:" called
+      // every other label a signed feed — which for the Jupiter mark is the inverse of the truth.
+      const note = !l
+        ? "a label typed by hand: its sha256 is a feed id only if some listing is seeded on it"
+        : l.priceSource === PriceSource.Mock
+          ? "a mock listing is priced by the keeper's deterministic walk; its cache is seeded on the documented all-zero id, not on this label"
+          : isAttestedMark(l.priceSource)
+            ? `an attested mark from ${providerOf(l)}: publish_time is the keeper's fetch time; this listing's on-chain limit is ${limit(l.maxPublishAgeSecs)}`
+            : `a signed feed: publish_time is the publisher's own; this listing's on-chain limit is ${limit(l.maxPublishAgeSecs)}`;
       return {
-        mark: await one(label, label.startsWith("prestocks:") ? "https://prestocks.com/api/prestocks" : "—"),
-        // The limit is per listing (48 h for the attested PreStocks mark, 1 h for the Pyth one), so it is
-        // read from the listing rather than asserted — this note used to claim 48 h for every label.
-        note: label.startsWith("mock:")
-          ? "a mock listing is priced by the keeper's deterministic walk, not by a posted mark, so there is no cache under this label"
-          : label.startsWith("prestocks:")
-            ? `an attested mark: publish_time is the keeper's fetch time; this listing's on-chain limit is ${limitFor(label)}`
-            : `a signed feed: publish_time is the publisher's own; this listing's on-chain limit is ${limitFor(label)}`,
+        mark: price
+          ? {
+              label,
+              feedId: hex,
+              priceCache: await ctx.sdk.pda.priceCache(feedId),
+              mark: Number(price.price) * 10 ** price.expo,
+              fetchedAt: new Date(Number(price.publishTime) * 1000).toISOString(),
+              ageSecs: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.publishTime)),
+              posts: price.posts,
+              api: (l && providerUrl(l)) ?? "—",
+            }
+          : { label, feedId: hex, cache: "none" },
+        note,
       };
     },
   },
