@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Rewrites docs/DEMO.md §C and the README's live-deployment block from deployments/devnet.json,
-so the addresses a judge is told to look at are always the ones that were actually deployed."""
+"""Rewrites docs/DEMO.md §C from deployments/devnet.json, so the addresses a judge is told to look
+at are always the ones that were actually deployed.
+
+`--check` rewrites nothing and exits non-zero when the file is out of date, which is how CI notices.
+Without that gate §C drifted to "2 eligible collaterals" while the descriptor carried three — the
+count on the line below it has been derived all along; nothing re-ran the script."""
 import json, pathlib, re, sys
+
+CHECK = "--check" in sys.argv
 
 root = pathlib.Path(__file__).resolve().parent.parent
 d = json.loads((root / "deployments" / "devnet.json").read_text())
@@ -16,9 +22,12 @@ if app_url.exists():
     lines = [l.strip() for l in app_url.read_text().splitlines() if l.strip() and not l.startswith("#")]
     hosted = lines[0] if lines else ""
 
+# Keyed on the **provider**, never on `source`: tag 2 is a mechanism every attested mark shares, so
+# keying on it described the Jupiter-marked listing as PreStocks'. The descriptor records `provider`.
 SOURCE = {
-    "pyth": "Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's on-chain push account (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY), the only shard that exists for this feed); the quote's own `publish_time`",
+    "pyth": "Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's own push accounts. Measured 2026-09-30, every keyless route is stale (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY) 7 days, the equity fallback 2 days) and Hermes is keyed, so this listing refuses locks until a key exists — inaction, never a stale mark",
     "prestocks": "PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time",
+    "jupiter": "Jupiter `/price/v3` `usdPrice` for the real mainnet mint — an attested mark of what the token itself trades for; `publish_time` is the keeper's fetch time, and `stockData.price` beside it is the underlying stock",
     "mock": "deterministic mock walk (localnet only)",
     "reserved": "retired listing (price source 1); refuses every lock and seize",
 }
@@ -27,7 +36,7 @@ PYTH_ACCOUNT_SOURCE = "Pyth `Crypto.TSLAX/USD` — **Pyth's own receiver-owned `
 def hours(secs):
     return f"{secs // 3600} h" if secs >= 3600 else f"{secs // 60} min"
 listing_rows = "\n".join(
-    f"| `{l['symbol']}` | [`{l['listing']}`]({ex(l['listing'])}) | {PYTH_ACCOUNT_SOURCE.format(acct=l['price_account'], url=ex(l['price_account'])) if l.get('price_source') == 4 else SOURCE.get(l['source'], l['source'])} | {l['haircut_bps'] / 100:.0f} % | "
+    f"| `{l['symbol']}` | [`{l['listing']}`]({ex(l['listing'])}) | {PYTH_ACCOUNT_SOURCE.format(acct=l['price_account'], url=ex(l['price_account'])) if l.get('price_source') == 4 else SOURCE.get(l.get('provider') or l['source'], l.get('provider') or l['source'])} | {l['haircut_bps'] / 100:.0f} % | "
     f"{hours(l['max_publish_age_secs'])} quote · {l['max_price_age_slots']} slots posted | "
     f"mock [`{l['mock_mint'][:4]}…{l['mock_mint'][-4:]}`]({ex(l['mock_mint'])}) · cSTOCK-W [`{l['cstock_mint'][:4]}…{l['cstock_mint'][-4:]}`]({ex(l['cstock_mint'])}) · escrow [`{l['escrow_account'][:4]}…{l['escrow_account'][-4:]}`]({ex(l['escrow_account'])}) |"
     for l in d.get("listings", [])
@@ -128,7 +137,8 @@ prints what the chain would accept right now:
 WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule    # every listing: mark, quote age, posted age, lock accepted?
 ```
 
-Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
+Profile `config/devnet.toml`: epochs of 900 slots — ~2.5 min at devnet's pace since 22 Sep, ~7 min at
+the one before it — and `attest_batch = 4`. The
 {len(d['agents'])} simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
@@ -175,17 +185,26 @@ WINDOW_AUDITOR_SEED_HEX=<64 hex> ./scripts/deploy_devnet.sh   # first time only:
 ```
 
 **The market is run in windows, not continuously, and that is a budget decision rather than a
-limitation of the design.** Measured on this deployment: **0.032 SOL per epoch**, all of it rent for
+limitation of the design.** Measured on this deployment: **0.0362 SOL per epoch** (`docs/measurements.json`), all of it rent for
 accounts that are deliberately never closed — `Epoch` (0.0266) holds the 74 accumulators that make a
 print re-verifiable years later, `Print` (0.0041) holds the proven sums, and each `Loan` (0.0028)
 holds its ciphertexts. Bid rent comes back through the permissionless `close_bid` the keeper runs.
-At ~7-minute epochs that is ~0.28 SOL/hour, so a devnet balance of N SOL buys roughly 3.5·N hours of
-live market. Every print already made stays on chain and stays verifiable while the market is
+What that costs per hour follows devnet's pace, which is not a constant — `./scripts/market.sh status`
+measures it from the log rather than asserting it. `docs/RUNBOOK.md` §1 carries the current reading. Every print already made stays on chain and stays verifiable while the market is
 paused, which is why the series and the explorer are populated even between runs.
 """
 
-demo = (root / "docs" / "DEMO.md").read_text()
+demo_path = root / "docs" / "DEMO.md"
+demo = demo_path.read_text()
 start = demo.index("## C. Devnet")
 end = demo.index("## What to look at")
-(root / "docs" / "DEMO.md").write_text(demo[:start] + section + "\n" + demo[end:])
-print("docs/DEMO.md §C updated")
+rendered = demo[:start] + section + "\n" + demo[end:]
+if CHECK:
+    if rendered != demo:
+        sys.exit(
+            "docs/DEMO.md §C is stale — run `python3 scripts/render_devnet_docs.py` and commit the result"
+        )
+    print("docs/DEMO.md §C is current")
+else:
+    demo_path.write_text(rendered)
+    print("docs/DEMO.md §C updated")

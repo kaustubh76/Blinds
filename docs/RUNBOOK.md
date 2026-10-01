@@ -13,7 +13,7 @@ cd ~/Desktop/Blinds
 
 | what | cost |
 |---|---|
-| the market (keeper + administrator + operator + agents) | **0.032 SOL per epoch**, all rent for accounts kept on chain. An epoch is 900 slots: ~7 min at the 0.45 s/slot devnet ran until mid-September (**~0.28 SOL/h**), ~2.6 min at the **~0.17 s/slot measured on 22 Sep** (**~0.75 SOL/h**). Measure before budgeting: `solana slot -ud` twice, a minute apart. |
+| the market (keeper + administrator + operator + agents) | **0.0362 SOL per epoch** (`docs/measurements.json`; `market.sh status` reads it rather than repeating it), all rent for accounts kept on chain. An epoch is 900 slots: ~7 min at the 0.45 s/slot devnet ran until mid-September (**~0.31 SOL/h**), ~2.5 min at the **~0.17 s/slot measured on 22 Sep** (**~0.87 SOL/h**). Measure before budgeting: `solana slot -ud` twice, a minute apart, or let `market.sh status` measure it from the log. |
 | the faucet, per new wallet | 0.10 SOL + two token accounts (~0.006) |
 | a judge's full flow (bid, lock, deposit) | < 0.05 SOL, paid from the faucet's 0.10 |
 

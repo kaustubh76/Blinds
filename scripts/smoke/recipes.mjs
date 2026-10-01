@@ -2,9 +2,12 @@
 import { bigintSafe, launch } from "./browser.mjs";
 
 const [url = "https://kaustubh76.github.io/Blinds/#/build", idsArg] = process.argv.slice(2);
-const ids = (idsArg ?? "config,schedule,pyth-mainnet,marks,launch-status,solvency,latest-print,verify,subscribe").split(
-  ",",
-);
+// Every wallet-free recipe. `me` and `bid-dry-run` were drivable all along and simply omitted; the
+// `marks` one is where a feed id built from the wrong field reported "no cache" for the only listing
+// the chain accepts, so it is the one this list exists for.
+const ids = (
+  idsArg ?? "config,schedule,pyth-mainnet,marks,launch-status,solvency,latest-print,verify,subscribe,me,bid-dry-run"
+).split(",");
 const b = await launch();
 const p = await b.newPage();
 await p.setViewport({ width: 1400, height: 1000 });

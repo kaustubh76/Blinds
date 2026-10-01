@@ -162,7 +162,9 @@ async function page(width, height, hash = "") {
 {
   const p = await page(1500, 1200, "#/build");
   const cards = await p.evaluate(() => [...document.querySelectorAll("[data-recipe]")].length);
-  check("every recipe renders", cards >= 19, `${cards} cards`);
+  // An exact count, not `>=`: the page grew from 19 to 21 and the old bound absorbed it
+  // silently, so a card going missing would not have been noticed until two were gone.
+  check("every recipe renders", cards === 21, `${cards} cards, expected 21`);
 
   const param = await p.evaluate(async () => {
     const card = document.querySelector('[data-recipe="solvency"]');
@@ -392,23 +394,36 @@ async function page(width, height, hash = "") {
 //    answered PriceStale. Two surfaces reading one chain must not disagree about whether a lock lands.
 {
   const p = await page(1440, 1200, "#/market");
-  const seen = await p.evaluate(() => {
+  // Every attested mark, not just the first. The Market page anchors each card on its provider, so
+  // a driver that only looked for `#prestocks` kept passing while a second card went unrendered.
+  const marks = await p.evaluate(() => {
     // The schedule lives in a <details>; a closed one renders no text.
     for (const d of document.querySelectorAll("details")) d.setAttribute("open", "");
-    const card = document.querySelector("#prestocks")?.innerText ?? "";
-    const row =
-      [...document.querySelectorAll("tr")].map((r) => r.innerText || "").find((t) => /ANTHROPIC/i.test(t)) ?? "";
-    return { card, row };
+    const rows = [...document.querySelectorAll("tr")].map((r) => r.innerText || "");
+    return [...document.querySelectorAll("[id]")]
+      .filter((el) => /^(prestocks|jupiter)$/.test(el.id))
+      .map((el) => {
+        const card = el.innerText ?? "";
+        // The eyebrow carries the symbol; match the row on it rather than on a hardcoded name.
+        const symbol = (/collateral mark · [^·]+ · ([^\s(]+)/.exec(card) ?? [])[1] ?? "";
+        return { id: el.id, card, symbol, row: rows.find((t) => symbol && t.includes(symbol)) ?? "" };
+      });
   });
-  const cardKnows = /would accept a lock|locks refused/.test(seen.card);
-  const rowKnows = /lock & seize|quote stale|post stale/.test(seen.row);
-  const cardOk = /would accept a lock/.test(seen.card);
-  const rowOk = /lock & seize/.test(seen.row);
-  check(
-    "the card and the schedule give one verdict",
-    !cardKnows || !rowKnows || cardOk === rowOk,
-    JSON.stringify({ card: seen.card.slice(0, 120), row: seen.row.slice(0, 120) }),
-  );
+  check("every attested mark renders a card", marks.length >= 2, JSON.stringify(marks.map((m) => m.id)));
+  for (const m of marks) {
+    const cardKnows = /would accept a lock|locks refused/.test(m.card);
+    const rowKnows = /lock & seize|quote stale|post stale/.test(m.row);
+    const cardOk = /would accept a lock/.test(m.card);
+    const rowOk = /lock & seize/.test(m.row);
+    check(
+      `the card and the schedule give one verdict · ${m.id}`,
+      !cardKnows || !rowKnows || cardOk === rowOk,
+      JSON.stringify({ symbol: m.symbol, card: m.card.slice(0, 120), row: m.row.slice(0, 120) }),
+    );
+    // A card that names one provider must not carry another's API or symbol.
+    const other = m.id === "jupiter" ? /PreStocks|prestocks\.com/ : /Jupiter|jup\.ag/;
+    check(`${m.id}'s card names only its own provider`, !other.test(m.card), m.card.slice(0, 160));
+  }
   await p.close();
 }
 

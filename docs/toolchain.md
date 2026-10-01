@@ -50,7 +50,9 @@ resulting program was executed inside LiteSVM against the real ZK ElGamal Proof 
    `target/deploy/` before `anchor build` so `declare_id!` and `Anchor.toml` agree across machines.
 10. **Program bytes are permanent money.** `programdata` is sized at the *first* deploy and can never
     shrink; devnet rent measured 2026-09-16 is 5,080.9 lamports/byte, so the five programs cost 6.37 SOL
-    at `opt-level = "z"` (1,252,952 B) against 6.95 SOL at the Cargo default `opt-level = 3`
+    at `opt-level = "z"` (1,252,952 B at that first deploy, 1,300,504 B and ~6.61 SOL for the build today
+    — see the README's measurements block, which derives both) against 6.95 SOL at the Cargo default
+    `opt-level = 3`
     (1,367,224 B). Shrink *before* deploying: afterwards the only path is `solana program extend`
     (paid), and `solana program close` on a program refunds the rent but **burns the program id
     forever**. `cargo-build-sbf` already runs `llvm-objcopy --strip-all`, so stripping saves nothing;

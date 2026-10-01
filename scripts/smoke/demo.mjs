@@ -2,7 +2,7 @@
 // usage: PROFILE=<dir> node demo.mjs <site url with ?admin=> [listingKey]
 import { clickButton, findButton, launch, wait } from "./browser.mjs";
 
-const [site, listingKey = "prestocks_anthropic"] = process.argv.slice(2);
+const [site, listingKey] = process.argv.slice(2);
 const b = await launch();
 const page = await b.newPage();
 await page.setViewport({ width: 1400, height: 1000 });
@@ -10,7 +10,9 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(String(e).slice(0, 160)));
 const base = site.replace(/#.*$/, "");
 await page.goto(base, { waitUntil: "networkidle2", timeout: 90_000 });
-await page.evaluate((k) => localStorage.setItem("thewindow:listing", k), listingKey);
+// Only when asked. With no key the Desk opens on a listing the chain would accept by itself, which
+// is both the realistic path and the one that fails loudly if that fallback regresses.
+if (listingKey) await page.evaluate((k) => localStorage.setItem("thewindow:listing", k), listingKey);
 await page.goto(`${base}#/desk`, { waitUntil: "networkidle2", timeout: 90_000 });
 await page.reload({ waitUntil: "networkidle2" });
 await wait(5000);

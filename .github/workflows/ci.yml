@@ -77,6 +77,9 @@ jobs:
       - run: pnpm --filter @thewindow/app build
       - run: node scripts/measurements_to_md.mjs --check
       - run: node scripts/project_diagram.mjs --check
+      # The gate whose absence let §C drift to "2 eligible collaterals" while the descriptor carried
+      # three. The count on the line beneath it has been derived all along; nothing re-ran the script.
+      - run: python3 scripts/render_devnet_docs.py --check
 
   integration:
     name: real validator (tier 2)

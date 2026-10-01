@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Starts, stops or inspects the live market (administrator + keeper + operator + price poster, plus
-# the simulated members). The market only costs SOL while it runs — ~0.032 SOL per epoch, all of it
+# the simulated members). The market only costs SOL while it runs — see `devnet.epoch.rent_sol` in
+# docs/measurements.json, which `status` reads rather than repeating, all of it
 # rent for accounts that stay on chain so old prints remain verifiable — so run it in windows.
 #
 #   ./scripts/market.sh start [cluster]   # default devnet, reads .env for the auditor seed
@@ -135,12 +136,16 @@ case "${1:-status}" in
     if [ "$CLUSTER" = devnet ] && command -v solana >/dev/null; then
       bal=$(solana balance -ud 2>/dev/null | awk '{print $1}')
       # What it actually cost, not what a model says it should: count the epochs this log holds and the
-      # hours between the first and the last, at 0.032 SOL of rent per epoch (docs/DEMO.md §C). Epoch
+      # hours between the first and the last, at the recorded rent per epoch. That figure is read from
+      # docs/measurements.json rather than typed here — it was 0.032 in three places against a recorded
+      # 0.0362, so "measured" was carrying a number nobody had measured lately. Epoch
       # length is a slot count, and devnet's slot time moves (0.45 s until mid-Sep 2026, ~0.17 s since
       # 22 Sep), so the wall-clock rate is only ever known by measuring it.
       # One pass, no `grep -m1`: that closes the pipe early and `set -euo pipefail` would end the script.
       stats=$(sed 's/\x1b\[[0-9;]*m//g' "$ADMIN_LOG" 2>/dev/null |
         awk '/epoch opened/ { if (!f) f = substr($0, 1, 19); l = substr($0, 1, 19); n++ } END { if (n) print f, l, n }' || true)
+      # The one constant in the calculation, from the file that records it.
+      per_epoch=$(python3 -c 'import json;print(json.load(open("docs/measurements.json"))["devnet.epoch.rent_sol"])' 2>/dev/null || echo 0.0362)
       first=$(echo "$stats" | awk '{print $1}')
       last=$(echo "$stats" | awk '{print $2}')
       epochs=$(echo "$stats" | awk '{print $3}')
@@ -151,11 +156,13 @@ case "${1:-status}" in
         [ -n "$f" ] && [ -n "$t" ] && secs=$((t - f))
       fi
       if [ -n "$bal" ] && [ -n "$secs" ] && [ "$secs" -gt 600 ] && [ "${epochs:-0}" -gt 3 ]; then
-        awk -v bal="$bal" -v e="$epochs" -v s="$secs" 'BEGIN {
-          per_h = e / (s / 3600) * 0.032;
+        awk -v bal="$bal" -v e="$epochs" -v s="$secs" -v pe="$per_epoch" 'BEGIN {
+          per_h = e / (s / 3600) * pe;
           printf "balance: %s SOL · measured %d epochs in %.1f h ≈ %.2f SOL/h of epoch rent (agent top-ups and the faucet add to it) → ~%.1f h left\n", bal, e, s / 3600, per_h, bal / per_h }'
       elif [ -n "$bal" ]; then
-        printf 'balance: %s SOL (~%.0f h at 0.032 SOL/epoch and ~5 min epochs; run a while for a measured rate)\n' "$bal" "$(echo "$bal" | awk '{print $1/0.38}')"
+        # No log to measure from: say what the estimate assumes rather than printing a bare number.
+        printf 'balance: %s SOL (~%.0f h at %s SOL/epoch and ~2.5 min epochs, devnet'"'"'s pace since 22 Sep; run a while for a measured rate)\n' \
+          "$bal" "$(awk -v b="$bal" -v pe="$per_epoch" 'BEGIN { print b / (pe * 24) }')" "$per_epoch"
       fi
     fi
     ;;

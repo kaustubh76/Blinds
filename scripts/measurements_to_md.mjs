@@ -34,9 +34,15 @@ const rows = [
 ];
 const table = [
   "Measured on Agave 4.2 (LiteSVM 0.16) by `cargo test -p window-tests --test measurements`; `attest_batch = 4`.",
+  // Derived, not typed. This preamble used to be a string literal, so `--check` compared it to
+  // itself and could never fail — which is how it went on claiming 1,252,952 B after the binary had
+  // grown by 47 KB. The two claims are kept apart on purpose: what this build compiles to, and what
+  // the deployment has actually locked, which is the first deploy plus the extension when it grew.
   'The programs are compiled `opt-level = "z"` because `programdata` rent is paid once and permanently at',
-  "deploy (1,252,952 B \u21d2 6.37 SOL on devnet; `make size`): that trades 11\u201326 % more compute units for",
-  "0.58 SOL and leaves transaction counts and sizes \u2014 the binding constraints \u2014 unchanged (amendment A12).",
+  `deploy — this build is ${n("devnet.deploy.bytes_total")} B \u21d2 ${Number(m["devnet.deploy.rent_sol"]).toFixed(2)} SOL at devnet's ${n("devnet.deploy.rent_lamports_per_byte")} lamports/byte (\`make size\`).`,
+  "That trades 11\u201326 % more compute units for the saving, and leaves transaction counts and sizes",
+  "\u2014 the binding constraints \u2014 unchanged (amendment A12). The live deployment paid that rent at its",
+  "first deploy and again for the extension each time the binary outgrew its allocation (A14, A15).",
   "",
   "| Path | Transactions / size | Compute units |",
   "|---|---|---|",

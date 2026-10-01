@@ -81,15 +81,16 @@ Everything below is live on devnet and readable by anyone; no account of ours is
 | wrap | [`E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3`](https://explorer.solana.com/address/E2scxVy7CpoxWQRBXsrSteYBbuEeMu7Q4zXYMM5bvLX3?cluster=devnet) |
 | credit | [`3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr`](https://explorer.solana.com/address/3C6zwULWtL7oQHcEQbL9myG2zaJ8CPanRvPrF18ifKcr?cluster=devnet) |
 
-**The collateral schedule** ([`docs/LISTINGS.md`](LISTINGS.md)): one xONIA rate, 2 eligible
+**The collateral schedule** ([`docs/LISTINGS.md`](LISTINGS.md)): one xONIA rate, 3 eligible
 collaterals, each a `Listing` with its own price source, haircut and two freshness limits that
 `lock_collateral` and `seize` enforce on chain (the keeper must have posted within `max_price_age`
 slots **and** the quote's own timestamp must be within `max_publish_age`).
 
 | listing | account | price source | haircut | limits | mints · escrow |
 |---|---|---|---|---|---|
-| `TSLAx-mock` | [`5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG`](https://explorer.solana.com/address/5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG?cluster=devnet) | Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's on-chain push account (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY), the only shard that exists for this feed); the quote's own `publish_time` | 150 % | 1 h quote · 1200 slots posted | mock [`HspL…zJpn`](https://explorer.solana.com/address/HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn?cluster=devnet) · cSTOCK-W [`4qEY…HCQr`](https://explorer.solana.com/address/4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr?cluster=devnet) · escrow [`BZ66…v7FQ`](https://explorer.solana.com/address/BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ?cluster=devnet) |
+| `TSLAx-mock` | [`5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG`](https://explorer.solana.com/address/5pJXoGpvFpJwPFUdyri22Kxv679UmhbRaaiLannC7zGG?cluster=devnet) | Pyth `Crypto.TSLAX/USD` — Hermes with `PYTH_API_KEY`, else Pyth's own push accounts. Measured 2026-09-30, every keyless route is stale (shard 0 [`GpoWLTd6…`](https://explorer.solana.com/address/GpoWLTd6GoisYxYgHz7mTcZvgnfJu4SN7T6PxWjgUTFY) 7 days, the equity fallback 2 days) and Hermes is keyed, so this listing refuses locks until a key exists — inaction, never a stale mark | 150 % | 1 h quote · 1200 slots posted | mock [`HspL…zJpn`](https://explorer.solana.com/address/HspLRQqDkAjw2Dt6inJS6GrBHhuNfgHWtYtH9mMTzJpn?cluster=devnet) · cSTOCK-W [`4qEY…HCQr`](https://explorer.solana.com/address/4qEY9zPJEw2W4Pr1CbUoYPYdSGBMXcfVccogDtaFHCQr?cluster=devnet) · escrow [`BZ66…v7FQ`](https://explorer.solana.com/address/BZ66pSmZ86D8pUPNDfn6SnQQ74P9FRbaY1tz6DXwv7FQ?cluster=devnet) |
 | `ANTHROPIC-mock` | [`4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp`](https://explorer.solana.com/address/4qQ4A9mZu9AHkKRYtbYJN4rq6dd768gbE6F3UMtp6QTp?cluster=devnet) | PreStocks public API `markPrice` (`ANTHROPIC`, `Pren1FvF…`) — an attested mark: `publish_time` is the keeper's fetch time | 200 % | 48 h quote · 1200 slots posted | mock [`BA1w…ie7C`](https://explorer.solana.com/address/BA1wPNWjGfNam7ViKiM6C6tAGsQRjtQfRBjZGEYdie7C?cluster=devnet) · cSTOCK-W [`DA7U…8rNo`](https://explorer.solana.com/address/DA7UsQD5zwnVTyEcL1RVc5DsDDokfqx9a6AVSTaP8rNo?cluster=devnet) · escrow [`93my…jkZ9`](https://explorer.solana.com/address/93myeNeYyYzeVrDtW327UtmAiThYKfTxY7orWVvtjkZ9?cluster=devnet) |
+| `TSLAx-xs` | [`DsN3jR56gZNofjhyJ1kFegxJd7rNbLG73Y5qmchfCS6x`](https://explorer.solana.com/address/DsN3jR56gZNofjhyJ1kFegxJd7rNbLG73Y5qmchfCS6x?cluster=devnet) | Jupiter `/price/v3` `usdPrice` for the real mainnet mint — an attested mark of what the token itself trades for; `publish_time` is the keeper's fetch time, and `stockData.price` beside it is the underlying stock | 150 % | 1 h quote · 1200 slots posted | mock [`EFQM…TfCc`](https://explorer.solana.com/address/EFQMoZdD7Et5qFu6ApvHjps73rbzmw4KQj5B7Y4FTfCc?cluster=devnet) · cSTOCK-W [`CTTQ…ADBS`](https://explorer.solana.com/address/CTTQv5A7TjLrBSTFcF8jh5SkDtM6Zxuyx6o6hpGuADBS?cluster=devnet) · escrow [`Hk5x…SHGi`](https://explorer.solana.com/address/Hk5xEV3MEfTWNiLtgPAGdU4cC8ALJSEwKx7aFFhWSHGi?cluster=devnet) |
 
 The `-mock` mints are devnet twins (Token-2022 `ScaledUiAmount` + `PermanentDelegate`), wrapped 1:1
 into a confidential mint under the desk's auditor key; no mainnet token is touched. `pnpm schedule`
@@ -99,7 +100,8 @@ prints what the chain would accept right now:
 WINDOW_RPC_URL=https://api.devnet.solana.com pnpm schedule    # every listing: mark, quote age, posted age, lock accepted?
 ```
 
-Profile `config/devnet.toml`: ~7-minute epochs, `attest_batch = 4`. The
+Profile `config/devnet.toml`: epochs of 900 slots — ~2.5 min at devnet's pace since 22 Sep, ~7 min at
+the one before it — and `attest_batch = 4`. The
 6 simulated members are labelled `simulated` in `deployments/devnet.json` — they are
 ours, and the depth they provide is not organic demand.
 
@@ -143,7 +145,7 @@ pnpm leak-audit --cluster devnet
 
 ### The dashboard
 
-Hosted: <https://kaustubh76.github.io/Blinds/> — if that answers 404 (Pages is tied to the repo being public and to the account's billing state), the mirror at <https://the-window-for-stocks.vercel.app/> serves the same build, and `./scripts/serve_app.sh status` prints a local link.
+Hosted: <https://kaustubh76.github.io/Blinds/> — if that answers 404 (GitHub Pages is tied to the account's billing state), the fallback is the link `./scripts/serve_app.sh status` prints on the operator's machine.
 
 ```bash
 cd app && VITE_CLUSTER=devnet VITE_RPC_URL=https://api.devnet.solana.com pnpm dev
@@ -163,11 +165,6 @@ the next print, a bid at the clearing rate becomes a loan on *Positions*, where 
 (against that listing's mark and haircut) and deposit (into that listing's escrow) run from the same
 key. *Build* (key 5) has the recipes, the IDLs and the API for anyone who wants to integrate.
 
-The burner and each bid's Pedersen opening live in that browser and nowhere else — the chain never
-held an opening, and a lock proof cannot be built without one. **Settings → Carry this session**
-writes both to one JSON file and restores them, so clearing a browser or changing device costs
-nothing; the crash screen offers the same file before its *forget those too*.
-
 ### Running the market yourself
 
 ```bash
@@ -178,12 +175,12 @@ WINDOW_AUDITOR_SEED_HEX=<64 hex> ./scripts/deploy_devnet.sh   # first time only:
 ```
 
 **The market is run in windows, not continuously, and that is a budget decision rather than a
-limitation of the design.** Measured on this deployment: **0.032 SOL per epoch**, all of it rent for
+limitation of the design.** Measured on this deployment: **0.0362 SOL per epoch** (`docs/measurements.json`), all of it rent for
 accounts that are deliberately never closed — `Epoch` (0.0266) holds the 74 accumulators that make a
 print re-verifiable years later, `Print` (0.0041) holds the proven sums, and each `Loan` (0.0028)
 holds its ciphertexts. Bid rent comes back through the permissionless `close_bid` the keeper runs.
-At ~7-minute epochs that is ~0.28 SOL/hour, so a devnet balance of N SOL buys roughly 3.5·N hours of
-live market. Every print already made stays on chain and stays verifiable while the market is
+What that costs per hour follows devnet's pace, which is not a constant — `./scripts/market.sh status`
+measures it from the log rather than asserting it. `docs/RUNBOOK.md` §1 carries the current reading. Every print already made stays on chain and stays verifiable while the market is
 paused, which is why the series and the explorer are populated even between runs.
 
 ## What to look at

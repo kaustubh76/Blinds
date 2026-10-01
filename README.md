@@ -180,8 +180,10 @@ budget — what *is* public and why — is in [`docs/METHODOLOGY.md`](docs/METHO
 
 Measured on Agave 4.2 (LiteSVM 0.16) by `cargo test -p window-tests --test measurements`; `attest_batch = 4`.
 The programs are compiled `opt-level = "z"` because `programdata` rent is paid once and permanently at
-deploy (1,252,952 B ⇒ 6.37 SOL on devnet; `make size`): that trades 11–26 % more compute units for
-0.58 SOL and leaves transaction counts and sizes — the binding constraints — unchanged (amendment A12).
+deploy — this build is 1,300,504 B ⇒ 6.61 SOL at devnet's 5,081.431 lamports/byte (`make size`).
+That trades 11–26 % more compute units for the saving, and leaves transaction counts and sizes
+— the binding constraints — unchanged (amendment A12). The live deployment paid that rent at its
+first deploy and again for the extension each time the binary outgrew its allocation (A14, A15).
 
 | Path | Transactions / size | Compute units |
 |---|---|---|

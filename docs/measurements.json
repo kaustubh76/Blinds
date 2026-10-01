@@ -1,7 +1,7 @@
 {
-  "devnet.deploy.bytes_total": 1252952,
+  "devnet.deploy.bytes_total": 1300504,
   "devnet.deploy.programdata_rent_lamports_per_byte": 5080.9,
-  "devnet.deploy.rent_sol": 6.3667894,
+  "devnet.deploy.rent_sol": 6.6084,
   "devnet.epoch.rent_sol": 0.0362,
   "devnet.leak_audit.hits_in_published_aggregates": 47,
   "devnet.leak_audit.leaks": 0,
@@ -28,5 +28,6 @@
   "print_cost.nonzero_37.tx_count": 12,
   "print_cost.nonzero_74.max_attest_bytes": 1182,
   "print_cost.nonzero_74.total_cu": 1018228,
-  "print_cost.nonzero_74.tx_count": 21
+  "print_cost.nonzero_74.tx_count": 21,
+  "devnet.deploy.rent_lamports_per_byte": 5081.4312
 }
