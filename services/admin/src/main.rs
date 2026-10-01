@@ -404,23 +404,62 @@ fn main() -> Result<()> {
                     std::thread::sleep(Duration::from_millis(epoch_tick_ms));
                 });
             }
+            // Attesting a funded loan is time-critical and printing is not, so they get separate
+            // clocks. `attest_lifecycle` can repay a loan once it is past half its tenor; what ends
+            // the chance is not a chain rule — `repay` has no slot check — but `keeper::seize_matured`
+            // taking it at maturity. Sharing the administrator's tick meant one slow print delayed
+            // the next attempt by the length of that print, and a clamp can only bound a sleep.
+            {
+                let lifecycle = window_admin::cadence::tick(
+                    profile.market.tenor_slots / 2,
+                    2,
+                    10_000,
+                    std::env::var("WINDOW_LIFECYCLE_TICK_MS").ok().and_then(|v| v.parse().ok()),
+                );
+                lifecycle.log("lifecycle", profile.market.tenor_slots / 2);
+                let lifecycle_tick_ms = lifecycle.tick_ms;
+                let lifecycle_ctx = Ctx {
+                    chain: Box::new(RpcChain::new(&rpc)),
+                    keys: Keys::load(cli.keypair.clone(), cli.auditor_seed_hex.clone())?,
+                    profile: profile.clone(),
+                    deployment: deployment.clone(),
+                    metrics: metrics.clone(),
+                    backfill_epochs: 0,
+                    default_every,
+                };
+                std::thread::spawn(move || {
+                    let mut last = std::time::Instant::now();
+                    loop {
+                        // The gap, not the sleep: a clamp bounds how long this thread waits, and
+                        // only a measurement says whether the period it wanted actually held.
+                        lifecycle_ctx.metrics.last_lifecycle_gap_ms.store(
+                            last.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+                            std::sync::atomic::Ordering::Relaxed,
+                        );
+                        last = std::time::Instant::now();
+                        if let Err(e) =
+                            window_admin::administrator::attest_lifecycle(&lifecycle_ctx)
+                        {
+                            error!("lifecycle thread: {e:#}");
+                        }
+                        std::thread::sleep(Duration::from_millis(lifecycle_tick_ms));
+                    }
+                });
+            }
             // The administrator on its own clock too: a window that closes on time is no use if the
             // print and the matches then wait behind a loan scan. Same pattern as prices and epochs.
             //
-            // And clamped against the tenor the same way. `attest_lifecycle` repays a loan once it
-            // is past half its tenor; what ends the chance is not a chain rule — `repay` has no slot
-            // check — but `keeper::seize_matured`, which takes the loan the moment it matures. So
-            // the window is `tenor_slots / 2`, and against a fixed 10 s tick the administrator could
-            // not hit INTEGRATION's at all: every loan matured first, the keeper seized it, and tier
-            // 2 waited for a repayment that was never coming.
+            // Its window is the print deadline, not the tenor: a Closed epoch must be printed within
+            // `stale_after_slots` or it goes stale, and that is the only thing this thread can be
+            // late for now that the lifecycle has its own clock.
             {
                 let admin = window_admin::cadence::tick(
-                    profile.market.tenor_slots / 2,
+                    profile.market.stale_after_slots / 2,
                     2,
                     10_000,
                     std::env::var("WINDOW_ADMIN_TICK_MS").ok().and_then(|v| v.parse().ok()),
                 );
-                admin.log("administrator", profile.market.tenor_slots / 2);
+                admin.log("administrator", profile.market.stale_after_slots / 2);
                 let admin_tick_ms = admin.tick_ms;
                 let admin_ctx = Ctx {
                     chain: Box::new(RpcChain::new(&rpc)),

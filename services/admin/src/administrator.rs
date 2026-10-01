@@ -21,9 +21,6 @@ use crate::{
 
 pub struct Administrator {
     solver: Solver,
-    /// When the last lifecycle pass started, for the published gap. `Mutex` rather than `Cell`
-    /// because `tick` takes `&self` and the thread that calls it is not the only possible one.
-    last_lifecycle: std::sync::Mutex<Option<Instant>>,
 }
 
 impl Administrator {
@@ -31,31 +28,16 @@ impl Administrator {
         let t = Instant::now();
         let solver = Solver::build(baby_bits);
         info!(baby_bits, ms = t.elapsed().as_millis() as u64, "BSGS table built");
-        Self { solver, last_lifecycle: std::sync::Mutex::new(None) }
+        Self { solver }
     }
 
     pub fn tick(&self, ctx: &Ctx) -> Result<()> {
         let chain = ctx.chain.as_ref();
-        // Lifecycle first. A repayment is time-critical — the keeper seizes a loan the moment it
-        // matures — while a print is not: an epoch stays Closed until one happens. Running it after
-        // the epoch loop meant a slow print could push the repay past the deadline.
-        //
-        // Warned, not propagated: the two branches below already treat their own failures that way,
-        // and going first must not mean a loan scan that errors takes the print with it.
-        //
-        // The gap between passes is published because the clamp bounds the sleep, not the period:
-        // a pass that spends seconds printing stretches the real cadence past whatever was chosen.
-        if let Some(prev) =
-            self.last_lifecycle.lock().ok().and_then(|mut g| g.replace(Instant::now()))
-        {
-            ctx.metrics.last_lifecycle_gap_ms.store(
-                prev.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
-                std::sync::atomic::Ordering::Relaxed,
-            );
-        }
-        if let Err(err) = self.attest_lifecycle(ctx) {
-            warn!("lifecycle attestation failed: {err:#}");
-        }
+        // `attest_lifecycle` is not here: it has its own clock (`main.rs`). A repayment is
+        // time-critical — the keeper seizes a loan the moment it matures — while a print is not,
+        // because an epoch stays Closed until one happens. Running it in this tick, even first,
+        // meant one slow print delayed the next pass by the length of that print, and a clamp can
+        // only bound a sleep.
         let disc = accounts::discriminator::<Epoch>();
         let mut epochs: Vec<Epoch> = chain
             .program_accounts(&window_client::programs::AUCTION, &disc)?
@@ -293,34 +275,36 @@ impl Administrator {
         info!(epoch = e.index, matches = posted, "matches posted");
         Ok(())
     }
+}
 
-    /// Demo attestation policy (spec v2 §14 "funding magnitude attested"): a Locked loan is
-    /// attested funded; an Active loan is attested repaid after half its tenor, except every
-    /// `default_every`-th, which is left to mature and be seized.
-    fn attest_lifecycle(&self, ctx: &Ctx) -> Result<()> {
-        let chain = ctx.chain.as_ref();
-        let admin = &ctx.keys.admin;
-        let slot = chain.slot()?;
-        let disc = accounts::discriminator::<Loan>();
-        for (key, data) in chain.program_accounts(&window_client::programs::CREDIT, &disc)? {
-            let Some(loan) = accounts::decode::<Loan>(&data) else { continue };
-            if loan.status == LoanStatus::Locked as u8 {
-                chain.send(admin, &[ix::confirm_funding(&admin.pubkey(), &key)], &[])?;
-                info!(loan = %key, "funding attested");
-            } else if loan.status == LoanStatus::Active as u8 {
-                let leave_to_default = ctx.default_every > 0
-                    && (loan.epoch as usize + loan.k as usize) % ctx.default_every
-                        == ctx.default_every - 1;
-                if !leave_to_default
-                    && slot >= loan.funded_slot + ctx.profile.market.tenor_slots / 2
-                {
-                    chain.send(admin, &[ix::repay(&admin.pubkey(), &key)], &[])?;
-                    info!(loan = %key, "repayment attested");
-                }
+/// Attest the loans this desk has funded — on its own clock, from `main.rs`.
+///
+/// Demo attestation policy (spec v2 §14 "funding magnitude attested"): a Locked loan is attested
+/// funded; an Active loan is attested repaid once it is past half its tenor, except every
+/// `default_every`-th, which is left to mature and be seized. `repay` has no slot check of its own,
+/// so what ends the chance is `keeper::seize_matured` taking the loan at maturity — which is the
+/// window `crate::cadence` sizes this thread's tick against.
+pub fn attest_lifecycle(ctx: &Ctx) -> Result<()> {
+    let chain = ctx.chain.as_ref();
+    let admin = &ctx.keys.admin;
+    let slot = chain.slot()?;
+    let disc = accounts::discriminator::<Loan>();
+    for (key, data) in chain.program_accounts(&window_client::programs::CREDIT, &disc)? {
+        let Some(loan) = accounts::decode::<Loan>(&data) else { continue };
+        if loan.status == LoanStatus::Locked as u8 {
+            chain.send(admin, &[ix::confirm_funding(&admin.pubkey(), &key)], &[])?;
+            info!(loan = %key, "funding attested");
+        } else if loan.status == LoanStatus::Active as u8 {
+            let leave_to_default = ctx.default_every > 0
+                && (loan.epoch as usize + loan.k as usize) % ctx.default_every
+                    == ctx.default_every - 1;
+            if !leave_to_default && slot >= loan.funded_slot + ctx.profile.market.tenor_slots / 2 {
+                chain.send(admin, &[ix::repay(&admin.pubkey(), &key)], &[])?;
+                info!(loan = %key, "repayment attested");
             }
         }
-        Ok(())
     }
+    Ok(())
 }
 
 /// Re-exported for the agents (same table shape).

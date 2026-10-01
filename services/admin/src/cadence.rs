@@ -103,6 +103,22 @@ mod tests {
     }
 
     #[test]
+    fn the_print_deadline_also_resolves_on_every_profile() {
+        // The administrator thread's window is `stale_after_slots / 2` — a Closed epoch must be
+        // printed before it goes stale, which is the only thing that thread can be late for now
+        // that the lifecycle has its own clock.
+        for (name, stale) in
+            [("integration", 40u64), ("demo", 450), ("devnet", 2_700), ("prod", 13_500)]
+        {
+            let c = tick(stale / 2, 2, 10_000, None);
+            assert!(!c.below_floor, "{name}: print deadline shorter than the service can resolve");
+            for slot_ms in [100, 170, 400, 1_000] {
+                assert!(c.tick_ms * 2 <= (stale / 2) * slot_ms, "{name} at {slot_ms} ms/slot");
+            }
+        }
+    }
+
+    #[test]
     fn the_clusters_that_cost_real_sol_keep_their_default() {
         // Deliberate literals: "devnet and prod must not poll a shared endpoint faster than they
         // already do" is itself the requirement, so it is asserted as a number, not a property.
