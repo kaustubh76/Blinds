@@ -2,7 +2,6 @@
  * The collateral schedule: one `Listing` per eligible collateral, each with its own price source,
  * haircut and freshness limits (`docs/TRACKS.md`). Helpers over the generated `Listing` account.
  */
-import type { Address } from "@solana/kit";
 import type { Listing, PriceCache } from "./generated/window_credit/index.js";
 
 /** `Listing.price_source` tags. */
@@ -91,10 +90,4 @@ export function quoteFreshness(args: {
   const postedFresh = BigInt(postedAgeSlots) <= args.listing.maxPriceAge;
   const quoteFresh = BigInt(quoteAgeSecs) <= args.listing.maxPublishAgeSecs;
   return { postedAgeSlots, quoteAgeSecs, postedFresh, quoteFresh, usable: postedFresh && quoteFresh };
-}
-
-/** A listing as the app addresses it: its PDA plus the decoded account. */
-export interface ListingRow {
-  address: Address;
-  data: Listing;
 }

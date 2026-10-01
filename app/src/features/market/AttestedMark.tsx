@@ -17,6 +17,7 @@ import { Badge, DocLink, ExplorerLink } from "../../components/ui";
 import { config } from "../../config";
 import type { ListingView } from "../../lib/chain";
 import { displaySymbol, formatAge, formatPrice, formatSlotAge } from "../../lib/format";
+import { providerName } from "../../lib/listings";
 import { basisBps, formatBasis } from "../../lib/pyth";
 import { type MarkSnapshot, useJupiterMark, useMainnetMint, useMarks, useQuote, useSlot } from "../../lib/queries";
 import { secsToSlots } from "../../lib/slotTime";
@@ -25,8 +26,6 @@ export const PRESTOCKS_URL = "https://prestocks.com";
 
 /** What differs between one attested-mark provider and another. Everything else is shared. */
 interface ProviderCopy {
-  /** How the provider is written on screen. */
-  name: string;
   /** A parenthetical after the symbol, when the asset class is the point. */
   qualifier: string;
   site: { href: string; label: string };
@@ -41,7 +40,6 @@ interface ProviderCopy {
 
 const PROVIDERS: Record<string, ProviderCopy> = {
   prestocks: {
-    name: "PreStocks",
     qualifier: "pre-IPO",
     site: { href: PRESTOCKS_URL, label: "prestocks.com →" },
     implied: { field: "tokenPrice", is: "the price the token trades at" },
@@ -51,7 +49,6 @@ const PROVIDERS: Record<string, ProviderCopy> = {
     twinReason: "which is why this desk wraps a twin",
   },
   jupiter: {
-    name: "Jupiter",
     qualifier: "xStocks",
     site: { href: "https://jup.ag", label: "jup.ag →" },
     implied: { field: "stockData.price", is: "the underlying equity's own price" },
@@ -63,11 +60,12 @@ const PROVIDERS: Record<string, ProviderCopy> = {
 };
 
 /** A provider the desk has not met keeps the label its feed id is seeded on — never a prettier guess. */
-function copyFor(provider: string | null): ProviderCopy {
+function copyFor(provider: string | null): ProviderCopy & { name: string } {
+  const name = provider ? providerName(provider) : "an attested source";
   const known = provider ? PROVIDERS[provider] : undefined;
-  if (known) return known;
+  if (known) return { ...known, name };
   return {
-    name: provider ?? "an attested source",
+    name,
     qualifier: "attested",
     site: { href: "", label: "" },
     implied: { field: "the provider's traded price", is: "the price the token trades at" },

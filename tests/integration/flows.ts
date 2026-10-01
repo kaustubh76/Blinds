@@ -1,6 +1,7 @@
 /** Member flows shared by the tier-2 suites: the same SDK plans the dashboard builds. */
 import {
   buildBidPlan,
+  buildUnwrapPlan,
   buildWrapPlan,
   fetchAuctionConfig,
   fetchConfidentialAccount,
@@ -8,7 +9,7 @@ import {
   proofs,
   sendPlan,
 } from "@thewindow/solana-sdk";
-import { cstockMint, type Member, mockMint, rentFor, rpc, waitFor } from "./harness";
+import { cstockMint, deployment, type Member, mockMint, rentFor, rpc, waitFor } from "./harness";
 
 /** Shares each member wraps before bidding. */
 export const SHARES = 1_000_000n; // 1,000.000
@@ -45,6 +46,36 @@ export async function wrap(m: Member, amount: bigint) {
     ),
   });
   await sendPlan(rpc, plan, m.signer);
+}
+
+/**
+ * The inverse of `wrap`, and the only path by which collateral physically leaves the desk: withdraw
+ * from the confidential balance (an equality proof and a 64-bit range proof) and burn the wrapper
+ * back to public shares, both in the plan `buildUnwrapPlan` builds. The withdraw and the unwrap must
+ * ride together — the public balance the second reads exists only between them.
+ */
+export async function unwrap(m: Member, amount: bigint) {
+  const b = await balances(m);
+  const plan = await buildUnwrapPlan({
+    member: m.signer,
+    tokenSignature: m.tokenSignature,
+    mockMint: m.on?.mockMint ?? mockMint,
+    cstockMint: m.on?.cstockMint ?? cstockMint,
+    memberMock: m.mockAta,
+    memberCstock: m.cstockAta,
+    availableCt: b.view.availableBalance,
+    decryptable: b.view.decryptableAvailableBalance,
+    amount,
+    decimals: deployment.decimals,
+    rent: rentFor,
+  });
+  await sendPlan(rpc, plan, m.signer);
+}
+
+/** The member's *public* share balance, which is what a wrap empties and an unwrap refills. */
+export async function publicShares(m: Member): Promise<bigint> {
+  const r = await rpc.getTokenAccountBalance(m.mockAta).send();
+  return BigInt(r.value.amount);
 }
 
 export interface Order {

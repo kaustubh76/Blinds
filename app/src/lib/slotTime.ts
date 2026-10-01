@@ -16,7 +16,6 @@ export const SLOT_SECONDS_MIN = 0.1;
 export const SLOT_SECONDS_MAX = 1.0;
 
 let rate = SLOT_SECONDS_DEFAULT;
-const listeners = new Set<() => void>();
 
 export const slotSeconds = (): number => rate;
 
@@ -25,14 +24,7 @@ export function setSlotSeconds(observed: number): void {
   const next = Math.min(SLOT_SECONDS_MAX, Math.max(SLOT_SECONDS_MIN, observed));
   if (next === rate) return;
   rate = next;
-  for (const l of listeners) l();
 }
 
 export const slotsToSecs = (slots: number): number => Math.max(0, Math.round(slots * rate));
 export const secsToSlots = (secs: number): number => secs / rate;
-
-/** For hooks that want to re-render when the rate moves. */
-export function subscribeSlotSeconds(l: () => void): () => void {
-  listeners.add(l);
-  return () => listeners.delete(l);
-}

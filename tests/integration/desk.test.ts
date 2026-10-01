@@ -30,7 +30,7 @@ import {
   verifyPrint,
 } from "@thewindow/solana-sdk";
 import { beforeAll, describe, expect, it } from "vitest";
-import { balances, bid, SHARES, wrap } from "./flows";
+import { balances, bid, publicShares, SHARES, unwrap, wrap } from "./flows";
 import {
   airdrop,
   auditorPubkey,
@@ -261,6 +261,28 @@ describe("desk lifecycle through the SDK", () => {
     const after = await balances(borrower);
     expect(after.available).toBe(SHARES);
     expect(after.pending).toBe(0n);
+  });
+
+  // The suite used to stop one step short of this. Everything above happens *inside* the desk: the
+  // collateral is released back into a confidential balance and stays there. Unwrapping is the only
+  // path by which it physically leaves — and the one that proves the wrapper is redeemable rather
+  // than a one-way door. Covered at tier 1 (`tests/e2e/loan_lifecycle.rs`); this is it on a real
+  // validator, against real Token-2022 confidential transfers.
+  it("unwraps: the collateral leaves the desk and the public shares come back whole", async () => {
+    // Measured, not assumed: a member is minted more shares than it wraps, so the public side holds
+    // the remainder. What matters is that the wrapped amount comes back out of custody intact.
+    const publicBefore = await publicShares(borrower);
+    const beforeConfidential = await balances(borrower);
+    expect(beforeConfidential.available).toBe(SHARES);
+
+    await unwrap(borrower, SHARES);
+
+    // The wrapper burns from the *public* balance, which is why the plan has to withdraw from the
+    // confidential one first — `unwrap` alone always fails `InsufficientPublicBalance`.
+    expect(await publicShares(borrower)).toBe(publicBefore + SHARES);
+    const afterConfidential = await balances(borrower);
+    expect(afterConfidential.available).toBe(0n);
+    expect(afterConfidential.pending).toBe(0n);
   });
 
   it("leak audit: no plaintext size in any transaction, log or program account (spec §14, tier 2)", async () => {

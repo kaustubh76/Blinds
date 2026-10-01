@@ -40,11 +40,6 @@ export const hex = (b: ArrayLike<number>, n?: number): string => {
   return n === undefined ? s : `${s.slice(0, n)}…`;
 };
 
-/** Seconds until `target` slot at the measured slot rate (lib/slotTime.ts). */
-export function slotsToSeconds(slots: number): number {
-  return slotsToSecs(slots);
-}
-
 export function formatCountdown(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;

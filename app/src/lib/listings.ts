@@ -119,7 +119,13 @@ export const markLabel = (l: Pick<ListingView, "source" | "provider" | "symbol" 
  * How an attested mark's provider is written on screen. A provider the desk has not met keeps the
  * label its feed id is seeded on, lowercase — the honest answer, rather than a prettier guess.
  */
-const PROVIDERS: Record<string, string> = { prestocks: "PreStocks", jupiter: "Jupiter" };
+/**
+ * How a provider is written on screen. A provider the desk has not met keeps the label its feed id
+ * is seeded on, lowercase — the honest answer rather than a prettier guess. One map: the Market
+ * card's own copy table takes its name from here, so adding a provider is one edit, not two.
+ */
+export const providerName = (provider: string): string =>
+  ({ prestocks: "PreStocks", jupiter: "Jupiter" })[provider] ?? provider;
 
 /**
  * Human label for a listing's source tag or descriptor string. Given a whole listing it prefers the
@@ -132,7 +138,7 @@ export function sourceLabel(
   if (typeof source === "object") {
     if (source.priceSource === PriceSource.PythAccount) return "Pyth · on-chain";
     if (source.priceSource === PriceSource.Mark && source.provider) {
-      return `${PROVIDERS[source.provider] ?? source.provider} mark`;
+      return `${providerName(source.provider)} mark`;
     }
     return sourceLabel(source.source);
   }

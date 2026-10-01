@@ -20,7 +20,10 @@ const MINT = process.env.PRESTOCKS_MINT || "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRnc
 
 const e8 = (v) => Math.round(Number(v) * 1e8);
 
-/** One row of PreStocks' API in the shape `GET <admin>/marks` answers. Exported for the unit test. */
+/**
+ * One row of PreStocks' API in the shape `GET <admin>/marks` answers. Exported so the shape can be
+ * exercised without a request — nothing imports it today, and this file has no test of its own.
+ */
 export function snapshot(row, at = Date.now()) {
   if (!row || !Number.isFinite(Number(row.markPrice))) return null;
   const mark = e8(row.markPrice);
